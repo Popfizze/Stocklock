@@ -1,51 +1,82 @@
 import { useState } from 'react'
-import { useStocks } from '@/api/stocks'
-import { AppLayout } from '@/components/layout'
+import { Search } from 'lucide-react'
+import { useMarketSections } from '@/api/stocks'
+import { AppLayout, PageHeader } from '@/components/layout'
 import { Input } from '@/components/ui/input'
-import { formatLongDate, stockErrorMessage } from '@/features/stocks/format'
-import { StockList } from '@/features/stocks/StockList'
+import { Skeleton } from '@/components/ui/skeleton'
+import { marketErrorMessage } from '@/features/stocks/format'
+import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { MarketSectionBlock } from './MarketSectionBlock'
+import { UniverseSearchResults } from './UniverseSearchResults'
 
 /**
- * « Tableau de bord » : the starter kit's 31 assets at their last close, by
- * section, with a search on name or symbol. A row opens the stock's page.
+ * « Tableau de bord » : the live market as a grid of compact cards, in the
+ * sections the API lists (most popular, best scores, gainers, losers,
+ * Canada…), and a search over the whole SEC + TMX universe. A card or a
+ * result opens the title's page.
  */
 export function DashboardPage() {
-  const { data: stocks, error, isPending } = useStocks()
+  const { data: sections, error, isPending } = useMarketSections()
   const [query, setQuery] = useState('')
-
-  // Every series ends on the same day; the latest one names the closes shown.
-  const asOf = stocks?.reduce((latest, stock) => (stock.as_of > latest ? stock.as_of : latest), '')
+  const debouncedQuery = useDebouncedValue(query, 250)
+  const searching = query.trim().length > 0
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-4xl space-y-6">
-        <div className="space-y-1">
-          <h1 className="text-3xl font-semibold tracking-tight">Tableau de bord</h1>
-          {asOf && (
-            <p className="text-muted-foreground">
-              Cours de clôture au {formatLongDate(asOf)} (données du datathon)
-            </p>
-          )}
-        </div>
-
-        <Input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Rechercher par nom ou symbole"
-          aria-label="Rechercher un titre par nom ou symbole"
+      <div className="space-y-8">
+        <PageHeader
+          title="Tableau de bord"
+          description="Le marché en direct : cours différés, sections mises à jour pendant la séance."
         />
 
-        {isPending ? (
-          <p role="status" className="text-muted-foreground">
-            Chargement des cours…
-          </p>
+        <div className="relative max-w-xl">
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Rechercher un titre : nom ou symbole"
+            aria-label="Rechercher un titre par nom ou symbole"
+            className="h-11 pl-10"
+          />
+        </div>
+
+        {searching ? (
+          <UniverseSearchResults query={debouncedQuery.trim() ? debouncedQuery : query} />
+        ) : isPending ? (
+          <div role="status" aria-label="Chargement du tableau de bord" className="space-y-4">
+            <Skeleton className="h-6 w-56" />
+            <Skeleton className="h-40 w-full" />
+          </div>
         ) : error ? (
           <p role="alert" className="text-destructive">
-            {stockErrorMessage(error)}
+            {marketErrorMessage(error)}
           </p>
         ) : (
-          <StockList stocks={stocks} query={query} />
+          <>
+            <nav aria-label="Sections du tableau de bord">
+              <ul className="flex flex-wrap gap-x-5 gap-y-2 border-b border-border pb-3 text-sm">
+                {sections.map((section) => (
+                  <li key={section.id}>
+                    <a
+                      href={`#section-${section.id}`}
+                      className="rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
+                      {section.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+            <div className="space-y-12">
+              {sections.map((section) => (
+                <MarketSectionBlock key={section.id} section={section} />
+              ))}
+            </div>
+          </>
         )}
       </div>
     </AppLayout>

@@ -93,6 +93,78 @@ export function stockErrorMessage(error: ApiError): string {
   if (error.status === 0) {
     return 'Impossible de joindre le serveur. Vérifiez votre connexion, puis réessayez.'
   }
-  if (error.status === 404) return 'Ce titre ne fait pas partie des données du datathon.'
+  if (error.status === 404) return 'Ce titre est introuvable : il ne figure ni dans l’univers SEC + TMX ni dans les données du datathon.'
   return `Le chargement des cours a échoué (erreur ${error.status}). Réessayez dans un instant.`
+}
+
+/** Errors of the dashboard's sections, the search and the score. */
+export function marketErrorMessage(error: ApiError): string {
+  if (error.status === 0) {
+    return 'Impossible de joindre le serveur. Vérifiez votre connexion, puis réessayez.'
+  }
+  // 503: the data provider is down, and the server says so in French.
+  if (error.status === 503 && error.message) return error.message
+  return `Le chargement a échoué (erreur ${error.status}). Réessayez dans un instant.`
+}
+
+const KEEP_UPPER = new Set(['LLC', 'PLC', 'SA', 'NV', 'AG', 'LP', 'ETF', 'USA', 'US', 'II', 'III', 'IV'])
+
+const SMALL_WORDS = new Set(['of', 'and', 'the', 'for', 'de', 'du', 'des', 'et', 'la', 'le'])
+
+/**
+ * SEC names come in upper case (« ROYAL BANK OF CANADA »): shown in title
+ * case. A name that already has lower case is left as it is.
+ */
+export function displayName(name: string): string {
+  if (name !== name.toUpperCase()) return name
+  return name
+    .toLowerCase()
+    .split(' ')
+    .map((word, index) => {
+      if (index > 0 && SMALL_WORDS.has(word)) return word
+      if (KEEP_UPPER.has(word.replace(/[.,]/g, '').toUpperCase())) return word.toUpperCase()
+      return word.charAt(0).toUpperCase() + word.slice(1)
+    })
+    .join(' ')
+}
+
+/** A card's price: the currency can be missing (plain number then), the price too (« — »). */
+export function formatCardPrice(price: number | null, currency: string | null): string {
+  if (price === null) return '—'
+  if (currency === null) {
+    return new Intl.NumberFormat(LOCALE, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(price)
+  }
+  return formatPrice(price, currency)
+}
+
+const SCORE = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 1 })
+const POINTS = new Intl.NumberFormat(LOCALE, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+const WEIGHT = new Intl.NumberFormat(LOCALE, { style: 'percent', maximumFractionDigits: 0 })
+const DECIMAL = new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 2 })
+const RATIO = new Intl.NumberFormat(LOCALE, { style: 'percent', maximumFractionDigits: 1 })
+
+/** A score or a rank out of 100: 65.4 → 65,4 · 92 → 92 */
+export function formatScore(value: number): string {
+  return SCORE.format(value)
+}
+
+/** A contribution in points of the final score: 11.6 → 11,6 · 23 → 23,0 */
+export function formatPoints(value: number): string {
+  return POINTS.format(value)
+}
+
+/** A weight: 0.25 → 25 % */
+export function formatWeight(weight: number): string {
+  return WEIGHT.format(weight)
+}
+
+/** A raw indicator in its unit: ratio 0.243 → 24,3 % · multiple 35.2 → 35,2× · number 0.3 → 0,3 */
+export function formatIndicator(value: number | null, unit: 'ratio' | 'multiple' | 'number'): string {
+  if (value === null) return '—'
+  if (unit === 'ratio') return RATIO.format(value)
+  if (unit === 'multiple') return `${DECIMAL.format(value)}×`
+  return DECIMAL.format(value)
 }

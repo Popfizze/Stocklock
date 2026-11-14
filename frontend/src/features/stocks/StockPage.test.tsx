@@ -6,7 +6,16 @@ import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl } from '@/test/mockFetch'
 import { PERSONAS } from '@/test/personas'
 import { stockProjection } from '@/test/accounts'
-import { BTC_1M, NVDA_1M, NVDA_1Y } from '@/test/stocks'
+import {
+  BTC_1M,
+  NVDA_1M,
+  NVDA_1Y,
+  ONE_V_1M,
+  SCORE_AAPL,
+  SCORE_ABSENT,
+  SCORE_NOT_SCORED,
+  SCORE_XIU_PARTIAL,
+} from '@/test/stocks'
 import { StockPage } from './StockPage'
 
 const ORIGINAL_FETCH = globalThis.fetch
@@ -39,6 +48,7 @@ describe('StockPage', () => {
   it('shows the close, the day change, the key figures and the dividends', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
     ])
@@ -74,6 +84,7 @@ describe('StockPage', () => {
   it('switches the chart period and colors it by the trend over that period', async () => {
     const calls = mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
       { match: '/api/stocks/NVDA?range=1Y', responses: [json(NVDA_1Y)] },
@@ -104,6 +115,7 @@ describe('StockPage', () => {
   it('says « Aucun dividende » for an asset that pays none', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/BTC-USD?range=1M', responses: [json(BTC_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('BTC-USD', 'Bitcoin'))] },
     ])
@@ -117,6 +129,7 @@ describe('StockPage', () => {
   it('shows which account suits this stock for the active profile', async () => {
     const calls = mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
     ])
@@ -135,15 +148,121 @@ describe('StockPage', () => {
     expect(screen.getByRole('list', { name: 'Options de compte' })).toHaveTextContent('Le plus avantageux ici')
   })
 
+  it('says the score is not computed yet while the pipeline has not run', async () => {
+    mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/NVDA', responses: [json(SCORE_ABSENT)] },
+      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
+    ])
+    renderStock('NVDA')
+
+    const score = within(await screen.findByRole('region', { name: 'Score StockLock' }))
+    expect(await score.findByText('Score pas encore calculé')).toBeInTheDocument()
+    expect(score.getByText(/le pipeline de score n'a pas encore été exécuté/)).toBeInTheDocument()
+    expect(score.getByRole('link', { name: 'Labo' })).toHaveAttribute('href', '/labo')
+  })
+
+  it('says so when the table does not cover the title', async () => {
+    mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/NVDA', responses: [json(SCORE_NOT_SCORED)] },
+      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
+    ])
+    renderStock('NVDA')
+
+    const score = within(await screen.findByRole('region', { name: 'Score StockLock' }))
+    expect(await score.findByText('Score pas encore calculé')).toBeInTheDocument()
+    expect(score.getByText(/il ne figure pas dans la dernière table calculée/)).toBeInTheDocument()
+  })
+
+  it('shows the score, its six sub-scores and the raw indicators behind one', async () => {
+    mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/NVDA', responses: [json(SCORE_AAPL)] },
+      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
+    ])
+    renderStock('NVDA')
+
+    const score = within(await screen.findByRole('region', { name: 'Score StockLock' }))
+    expect(await score.findByText('65,4')).toBeInTheDocument()
+    expect(score.queryByText('Partiel')).not.toBeInTheDocument()
+    expect(score.getByText('Données au').nextElementSibling).toHaveTextContent('13 novembre 2026')
+    expect(score.getByText('Comparé à').nextElementSibling).toHaveTextContent('Technologie, 48 titres')
+    expect(score.getByText('Calculé le').nextElementSibling).toHaveTextContent('15 novembre 2026')
+
+    // Each sub-score: weight, score, contribution.
+    expect(score.getAllByRole('button')).toHaveLength(6)
+    const profitability = score.getByRole('button', { name: /Rentabilité/ })
+    expect(profitability).toHaveTextContent('Poids 25 %')
+    expect(profitability).toHaveTextContent('92 / 100')
+    expect(profitability).toHaveTextContent('+23,0 pts')
+
+    // The raw indicators appear when a sub-score is opened.
+    await userEvent.click(profitability)
+    const roe = await score.findByRole('row', { name: /ROE/ })
+    expect(roe).toHaveTextContent('152 %')
+    expect(roe).toHaveTextContent('96')
+    expect(roe).toHaveTextContent('Plus haut, mieux')
+    await userEvent.click(score.getByRole('button', { name: /Valorisation/ }))
+    const pe = await score.findByRole('row', { name: /Cours \/ bénéfice/ })
+    expect(pe).toHaveTextContent('35,2×')
+    expect(pe).toHaveTextContent('Plus bas, mieux')
+    expect(pe).toHaveTextContent('Comparé au secteur')
+
+    expect(score.getByRole('link', { name: 'SEC EDGAR (companyfacts)' })).toHaveAttribute(
+      'href',
+      'https://www.sec.gov/edgar',
+    )
+    expect(score.getByText(/au 10 novembre 2026/)).toBeInTheDocument()
+  })
+
+  it('marks a partial score and its missing sub-scores', async () => {
+    mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/NVDA', responses: [json(SCORE_XIU_PARTIAL)] },
+      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
+    ])
+    renderStock('NVDA')
+
+    const score = within(await screen.findByRole('region', { name: 'Score StockLock' }))
+    expect(await score.findByText('Partiel')).toBeInTheDocument()
+    expect(score.getByRole('button', { name: /Rentabilité/ })).toHaveTextContent('Non disponible')
+    expect(score.getByRole('button', { name: /Momentum et risque/ })).toHaveTextContent(
+      'Poids 15 % · 60 % après redistribution',
+    )
+  })
+
+  it('hides the account and bias analyses for a title outside the starter kit', async () => {
+    const calls = mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
+      { match: '/api/stocks/ONE.V?range=1M', responses: [json(ONE_V_1M)] },
+    ])
+    renderStock('ONE.V')
+
+    expect(await screen.findByRole('heading', { level: 1, name: '01 Quantum Inc.' })).toBeInTheDocument()
+    expect(screen.getByText('ONE.V · TSXV')).toBeInTheDocument()
+    expect(screen.getByText(/Cours au 13 novembre 2026 · Yahoo Finance/)).toBeInTheDocument()
+    expect(screen.getByText(/couvrent les\s+31 titres du jeu de données du datathon/)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /Quel compte pour/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Prendre du recul/ })).not.toBeInTheDocument()
+    expect(calls.some((call) => call.url.includes('/api/accounts/'))).toBe(false)
+  })
+
   it('explains an unknown ticker', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/', responses: [json({ detail: "titre inconnu 'NOPE'" }, 404)] },
     ])
     renderStock('NOPE')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Ce titre ne fait pas partie des données du datathon.',
+      'Ce titre est introuvable',
     )
     expect(screen.getByRole('link', { name: '← Tableau de bord' })).toBeInTheDocument()
   })

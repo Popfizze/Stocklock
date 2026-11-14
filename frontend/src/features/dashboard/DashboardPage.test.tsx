@@ -3,20 +3,47 @@ import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { renderWithProviders } from '@/test/render'
-import { json, mockFetchByUrl, mockFetchUnreachable } from '@/test/mockFetch'
+import { json, mockFetchByUrl, mockFetchUnreachable, type MockResponse } from '@/test/mockFetch'
 import { PERSONAS } from '@/test/personas'
-import { NVDA_1M, STOCKS } from '@/test/stocks'
+import {
+  NVDA_1M,
+  SCORE_ABSENT,
+  SEARCH_NONE,
+  SEARCH_RY,
+  SECTION_BEST,
+  SECTION_BEST_EMPTY,
+  SECTION_CANADA,
+  SECTION_CATALOG,
+  SECTION_POPULAIRES,
+} from '@/test/stocks'
 import { StockPage } from '@/features/stocks/StockPage'
 import { DashboardPage } from './DashboardPage'
 
 const ORIGINAL_FETCH = globalThis.fetch
 const NBSP = ' '
 
-function mockApi() {
+interface Overrides {
+  best?: MockResponse[]
+  hausses?: MockResponse[]
+  populaires?: MockResponse[]
+  search?: MockResponse[]
+}
+
+function mockApi(overrides: Overrides = {}) {
   return mockFetchByUrl([
     { match: '/api/personas', responses: [json(PERSONAS)] },
-    { match: /\/api\/stocks\/NVDA\?range=1M$/, responses: [json(NVDA_1M)] },
-    { match: /\/api\/stocks$/, responses: [json(STOCKS)] },
+    { match: '/api/universe/search', responses: overrides.search ?? [json(SEARCH_RY)] },
+    { match: '/api/market/sections/populaires', responses: overrides.populaires ?? [json(SECTION_POPULAIRES)] },
+    { match: '/api/market/sections/meilleurs-scores', responses: overrides.best ?? [json(SECTION_BEST_EMPTY)] },
+    {
+      match: '/api/market/sections/hausses',
+      responses: overrides.hausses ?? [json({ ...SECTION_POPULAIRES, ...SECTION_CATALOG[2], items: [] })],
+    },
+    { match: '/api/market/sections/canada-populaires', responses: [json(SECTION_CANADA)] },
+    { match: /\/api\/market\/sections$/, responses: [json(SECTION_CATALOG)] },
+    { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+    { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
+    { match: '/api/accounts/projection', responses: [json({ detail: 'x' }, 500)] },
   ])
 }
 
@@ -30,8 +57,7 @@ function renderDashboard() {
   )
 }
 
-const rowLinks = () =>
-  screen.getAllByRole('link').filter((link) => link.getAttribute('href')?.startsWith('/titres/'))
+const section = (name: string) => screen.findByRole('region', { name })
 
 afterEach(() => {
   globalThis.fetch = ORIGINAL_FETCH
@@ -39,73 +65,132 @@ afterEach(() => {
 })
 
 describe('DashboardPage', () => {
-  it('lists the assets by section with their close and day change', async () => {
+  it('shows each section of the API as a grid of cards', async () => {
     mockApi()
     renderDashboard()
 
-    expect(await screen.findByRole('heading', { level: 2, name: 'Actions canadiennes' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument()
-    expect(
-      screen.getByText('Cours de clôture au 12 novembre 2026 (données du datathon)'),
-    ).toBeInTheDocument()
-    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
-      'Actions canadiennes',
-      'Actions américaines',
-      'FNB',
-      'Cryptomonnaies',
-    ])
-
-    const canada = screen.getByRole('region', { name: 'Actions canadiennes' })
-    expect(within(canada).getAllByRole('listitem')).toHaveLength(2)
-
-    const nvda = screen.getByRole('link', { name: /NVDA/ })
+    const populaires = within(await section('Les plus populaires'))
+    const nvda = await populaires.findByRole('link', { name: /NVDA/ })
     expect(nvda).toHaveAttribute('href', '/titres/NVDA')
-    expect(nvda).toHaveTextContent('NVIDIA')
-    // fr-CA: no-break spaces, decimal comma (text matchers see them as plain spaces).
-    expect(within(nvda).getByText('166,19 $ US').textContent).toBe(`166,19${NBSP}$${NBSP}US`)
-    const change = within(nvda).getByText('-7,54 $ US (-4,34 %)')
-    expect(change).toHaveClass('text-destructive')
+    expect(within(nvda).getByText('NVIDIA Corporation')).toBeInTheDocument()
+    expect(within(nvda).getByText('162,85 $ US').textContent).toBe(`162,85${NBSP}$${NBSP}US`)
+    expect(within(nvda).getByText('-2,01 %')).toHaveClass('text-destructive')
+    expect(within(populaires.getByRole('link', { name: /NU/ })).getByText('+11,75 %')).toHaveClass(
+      'text-success',
+    )
+    // A card without a sparkline still shows its price.
+    expect(within(populaires.getByRole('link', { name: /INTC/ })).getByText('100,00 $ US')).toBeInTheDocument()
+    expect(populaires.getByText(/3 titres · Yahoo Finance \(filtre de titres\) · au 13 novembre 2026/)).toBeInTheDocument()
 
-    const shop = screen.getByRole('link', { name: /SHOP\.TO/ })
-    expect(within(shop).getByText('+12,25 $ (+1,00 %)')).toHaveClass('text-success')
-    expect(within(shop).getByText('1 234,50 $').textContent).toBe(`1${NBSP}234,50${NBSP}$`)
+    const canada = within(await section('Populaires au Canada'))
+    expect(within(await canada.findByRole('link', { name: /RY\.TO/ })).getByText('288,37 $')).toBeInTheDocument()
+
+    // The section nav jumps to each one.
+    const nav = within(screen.getByRole('navigation', { name: 'Sections du tableau de bord' }))
+    expect(nav.getByRole('link', { name: 'Meilleurs scores' })).toHaveAttribute(
+      'href',
+      '#section-meilleurs-scores',
+    )
   })
 
-  it('filters by symbol or by name and hides the empty sections', async () => {
-    mockApi()
-    renderDashboard()
-    const search = await screen.findByRole('searchbox', { name: /Rechercher un titre/ })
-    await screen.findByRole('link', { name: /NVDA/ })
-
-    await userEvent.type(search, 'bitc')
-    expect(rowLinks().map((link) => link.getAttribute('href'))).toEqual(['/titres/BTC-USD'])
-    expect(screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent)).toEqual([
-      'Cryptomonnaies',
-    ])
-
-    await userEvent.clear(search)
-    await userEvent.type(search, 'ry.to')
-    expect(rowLinks().map((link) => link.getAttribute('href'))).toEqual(['/titres/RY.TO'])
-
-    await userEvent.clear(search)
-    await userEvent.type(search, 'zzz')
-    expect(rowLinks()).toHaveLength(0)
-    expect(screen.getByText('Aucun titre ne correspond à « zzz ».')).toBeInTheDocument()
-  })
-
-  it('opens the stock page from a row, with the keyboard too', async () => {
+  it('explains why « Meilleurs scores » is empty until the pipeline has run', async () => {
     mockApi()
     renderDashboard()
 
-    const nvda = await screen.findByRole('link', { name: /NVDA/ })
-    nvda.focus()
-    await userEvent.keyboard('{Enter}')
+    const best = within(await section('Meilleurs scores'))
+    expect(await best.findByText(/le pipeline de score n'a pas encore été exécuté/)).toBeInTheDocument()
+    expect(best.queryByRole('link')).not.toBeInTheDocument()
+  })
+
+  it('shows the score on a card once it is known, and says when it is partial', async () => {
+    mockApi({ best: [json(SECTION_BEST)] })
+    renderDashboard()
+
+    const best = within(await section('Meilleurs scores'))
+    const aapl = await best.findByRole('link', { name: /AAPL/ })
+    expect(within(aapl).getByText('Score 65,4 sur 100')).toBeInTheDocument()
+    expect(within(best.getByRole('link', { name: /XIU\.TO/ })).getByText('Score 61,8 sur 100 (partiel)')).toBeInTheDocument()
+    // No score yet on the cards of the other sections.
+    const populaires = within(await section('Les plus populaires'))
+    expect(within(await populaires.findByRole('link', { name: /NVDA/ })).queryByText(/Score/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the other sections when one fails, and retries it', async () => {
+    const calls = mockApi({
+      hausses: [
+        json({ detail: 'Yahoo Finance ne répond pas pour le moment.' }, 503),
+        json({ ...SECTION_POPULAIRES, ...SECTION_CATALOG[2] }),
+      ],
+    })
+    renderDashboard()
+
+    const hausses = within(await section('Plus fortes hausses'))
+    expect(await hausses.findByRole('alert', undefined, { timeout: 4000 })).toHaveTextContent(
+      'Yahoo Finance ne répond pas pour le moment.',
+    )
+    expect(
+      await within(await section('Les plus populaires')).findByRole('link', { name: /NVDA/ }),
+    ).toBeInTheDocument()
+
+    await userEvent.click(hausses.getByRole('button', { name: 'Réessayer' }))
+    expect(await hausses.findByRole('link', { name: /NVDA/ })).toBeInTheDocument()
+    expect(calls.filter((call) => call.url.includes('/sections/hausses')).length).toBeGreaterThan(1)
+  })
+
+  it('asks for more cards with « Afficher plus »', async () => {
+    const full = { ...SECTION_POPULAIRES, items: Array.from({ length: 24 }, (_, i) => ({ ...SECTION_POPULAIRES.items[0], ticker: `T${i}` })) }
+    const calls = mockApi({ populaires: [json(full)] })
+    renderDashboard()
+
+    const populaires = within(await section('Les plus populaires'))
+    await userEvent.click(await populaires.findByRole('button', { name: 'Afficher plus' }))
+    await vi.waitFor(() =>
+      expect(calls.some((call) => call.url.endsWith('/sections/populaires?limit=48'))).toBe(true),
+    )
+  })
+
+  it('searches the whole universe by name or symbol', async () => {
+    const calls = mockApi()
+    renderDashboard()
+
+    const search = screen.getByRole('searchbox', { name: /Rechercher un titre/ })
+    await userEvent.type(search, 'ry')
+
+    const results = within(await screen.findByRole('region', { name: 'Résultats de la recherche' }))
+    expect(results.getByText(/28 titres correspondent à « ry » ; les 3 premiers sont affichés\./)).toBeInTheDocument()
+    // SEC names come in upper case and are shown in title case.
+    const ry = results.getByRole('link', { name: /^RYRoyal Bank of Canada/ })
+    expect(ry).toHaveAttribute('href', '/titres/RY')
+    expect(ry).toHaveTextContent('NYSE · États-Unis')
+    expect(results.getByRole('link', { name: /RY\.TO/ })).toHaveTextContent('TSX · Canada')
+    expect(calls.some((call) => call.url.includes('/api/universe/search?q=ry'))).toBe(true)
+    // The sections give way to the results, and come back when the field is cleared.
+    expect(screen.queryByRole('region', { name: 'Les plus populaires' })).not.toBeInTheDocument()
+    await userEvent.clear(search)
+    expect(await section('Les plus populaires')).toBeInTheDocument()
+  })
+
+  it('says so when nothing matches', async () => {
+    mockApi({ search: [json(SEARCH_NONE)] })
+    renderDashboard()
+
+    await userEvent.type(screen.getByRole('searchbox', { name: /Rechercher un titre/ }), 'zzz')
+    expect(await screen.findByText('Aucun titre ne correspond à « zzz ».')).toBeInTheDocument()
+  })
+
+  it('opens the title page from a card', async () => {
+    mockApi()
+    renderDashboard()
+
+    const populaires = within(await section('Les plus populaires'))
+    await userEvent.click(await populaires.findByRole('link', { name: /NVDA/ }))
 
     expect(await screen.findByRole('heading', { level: 1, name: 'NVIDIA' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '← Tableau de bord' })).toHaveAttribute('href', '/')
   })
 
-  it('says so when the server cannot be reached', async () => {
+  it('explains an unreachable server', async () => {
     mockFetchUnreachable()
     renderDashboard()
 
