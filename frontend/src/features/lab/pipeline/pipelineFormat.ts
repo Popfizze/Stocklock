@@ -42,7 +42,7 @@ export const LAYER_LABELS: Record<ScoreLayer, string> = {
 }
 
 export const TRIGGER_LABELS: Record<ScoreRun['trigger'], string> = {
-  api: 'Lancé depuis les Coulisses',
+  api: 'Lancé depuis le Labo',
   schedule: 'Planifié',
   local: 'Local',
 }

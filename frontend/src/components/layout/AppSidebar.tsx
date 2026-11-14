@@ -14,6 +14,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { ProfileSwitcher } from './ProfileSwitcher'
+import { SIDEBAR_ID } from './sidebarState'
 
 interface NavigationItem {
   title: string
@@ -26,7 +27,7 @@ interface NavigationItem {
 const NAVIGATION: NavigationItem[] = [
   { title: 'Tableau de bord', path: '/', icon: Home, matches: '/titres/' },
   { title: 'Comptes', path: '/comptes', icon: Landmark },
-  { title: 'Coulisses', path: '/labo', icon: FlaskConical },
+  { title: 'Labo', path: '/labo', icon: FlaskConical },
 ]
 
 /** Quiet sidebar: the wordmark, three destinations, the active profile. */
@@ -42,9 +43,9 @@ export function AppSidebar() {
   }
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" id={SIDEBAR_ID}>
       <SidebarHeader>
-        <div className="flex h-10 items-center px-2 group-data-[collapsible=icon]:hidden">
+        <div className="flex h-9 items-center px-2 group-data-[collapsible=icon]:hidden">
           <span className="text-lg font-semibold tracking-tight">StockLock</span>
         </div>
       </SidebarHeader>
@@ -66,7 +67,7 @@ export function AppSidebar() {
                         asChild
                         isActive={isActive}
                         tooltip={isCollapsed ? item.title : undefined}
-                        className="h-9 text-muted-foreground data-[active=true]:text-foreground"
+                        className="h-9 text-muted-foreground data-[active=true]:text-foreground group-data-[collapsible=icon]:mx-auto"
                       >
                         <Link
                           to={item.path}

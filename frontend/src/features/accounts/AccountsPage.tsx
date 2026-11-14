@@ -74,9 +74,9 @@ export function AccountsPage() {
           </p>
           <p className="text-xs text-muted-foreground">
             Simulation éducative fondée sur les règles fiscales publiques{rules ? ` ${rules.year}` : ''} (fédéral et
-            Québec), pas un conseil financier personnalisé. Le calcul pas à pas est dans l'onglet « 3. Fiscalité » des{' '}
+            Québec), pas un conseil financier personnalisé. Le calcul pas à pas est dans l'onglet « 3. Fiscalité » du{' '}
             <Link to="/labo" className="link">
-              Coulisses
+              Labo
             </Link>
             .
           </p>

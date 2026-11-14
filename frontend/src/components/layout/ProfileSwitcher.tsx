@@ -35,7 +35,11 @@ export function ProfileSwitcher() {
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton size="lg" aria-label={`Profil actif : ${name}`}>
+            <SidebarMenuButton
+              size="lg"
+              aria-label={`Profil actif : ${name}`}
+              className="group-data-[collapsible=icon]:mx-auto"
+            >
               <span
                 aria-hidden="true"
                 className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent text-sm font-medium"

@@ -42,14 +42,14 @@ describe('AppSidebar', () => {
     expect(screen.getByRole('button', { name: 'Profil actif : Robert' })).toBeInTheDocument()
   })
 
-  it('links to the Coulisses, last in the nav', async () => {
+  it('links to the Labo, last in the nav', async () => {
     mockFetch([json(PERSONAS)])
     renderSidebar()
 
-    expect(await screen.findByRole('link', { name: 'Coulisses' })).toHaveAttribute('href', '/labo')
+    expect(await screen.findByRole('link', { name: 'Labo' })).toHaveAttribute('href', '/labo')
     const nav = within(screen.getByRole('navigation', { name: 'Navigation principale' }))
     const links = nav.getAllByRole('link')
-    expect(links[links.length - 1]).toHaveTextContent('Coulisses')
+    expect(links[links.length - 1]).toHaveTextContent('Labo')
   })
 
   it('links to the Comptes tab', async () => {
@@ -67,7 +67,7 @@ describe('AppSidebar', () => {
       'aria-current',
       'page',
     )
-    expect(screen.getByRole('link', { name: 'Coulisses' })).not.toHaveAttribute('aria-current')
+    expect(screen.getByRole('link', { name: 'Labo' })).not.toHaveAttribute('aria-current')
   })
 
   it('switches straight to another profile from the menu', async () => {

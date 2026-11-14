@@ -43,9 +43,9 @@ export function StockScore({ ticker }: StockScoreProps) {
           <p className="mt-3 text-sm text-muted-foreground">
             Le score (0 à 100) combine six sous-scores : rentabilité, solidité financière,
             croissance, valorisation, momentum et risque, événements. Le pipeline se lance depuis
-            les{' '}
+            le{' '}
             <Link to="/labo" className="link text-foreground">
-              Coulisses
+              Labo
             </Link>
             .
           </p>

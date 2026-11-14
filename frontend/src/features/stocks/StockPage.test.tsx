@@ -160,7 +160,7 @@ describe('StockPage', () => {
     const score = within(await screen.findByRole('region', { name: 'Score StockLock' }))
     expect(await score.findByText('Score pas encore calculé')).toBeInTheDocument()
     expect(score.getByText(/le pipeline de score n'a pas encore été exécuté/)).toBeInTheDocument()
-    expect(score.getByRole('link', { name: 'Coulisses' })).toHaveAttribute('href', '/labo')
+    expect(score.getByRole('link', { name: 'Labo' })).toHaveAttribute('href', '/labo')
   })
 
   it('says so when the table does not cover the title', async () => {

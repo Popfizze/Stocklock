@@ -8,7 +8,7 @@ import { ScorePipelineSection } from './pipeline/ScorePipelineSection'
 import { RunsTable } from './RunsTable'
 
 /**
- * « Coulisses » (the Lab): start the score pipeline, pick each pipeline stage's options, run a step, look at every
+ * The Labo: start the score pipeline, pick each pipeline stage's options, run a step, look at every
  * stage, and compare runs. The runs table lives in this page's state only,
  * so a reload clears it.
  */
@@ -26,7 +26,7 @@ export function LabPage() {
     <AppLayout>
       <div className="space-y-8">
         <PageHeader
-          title="Coulisses"
+          title="Labo"
           description="Ce qui se passe derrière chaque analyse : lancer le pipeline des scores, régler et exécuter chaque étape, lire ses décisions et ses jeux de données."
         />
 
