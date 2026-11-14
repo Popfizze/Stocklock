@@ -20,6 +20,7 @@ from app.pipeline.core import OptionError, PipelineInputError
 from app.pipeline.registry import STEPS, catalog, execute
 from app.profile_api import router as profile_router
 from app.score_pipeline_api import router as score_pipeline_router
+from app.scoring_api import router as scoring_router
 from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabBatchRequest, LabRunRequest,
                          Persona, ScoreRequest, StockBiasRequest, StockMovesRequest, TaxRequest)
 from app.services import lab_groups, moves_view
@@ -30,6 +31,7 @@ app = FastAPI(title="StockLock API", version="0.1.0",
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=False,
                    allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["*"])
 app.include_router(accounts_router)
+app.include_router(scoring_router)  # POST /api/scores/reweight before the market's /api/scores/{ticker}
 app.include_router(market_router)
 app.include_router(profile_router)
 app.include_router(score_pipeline_router)

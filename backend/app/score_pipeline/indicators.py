@@ -214,9 +214,13 @@ def mean(values: Iterable[float | None]) -> float | None:
     return sum(kept) / len(kept) if kept else None
 
 
-def combine(subscores: dict[str, float | None]) -> tuple[float | None, dict[str, float], bool]:
-    """(score, effective weights, partiel): missing sub-scores give their weight to the present ones."""
-    weights = {s.id: s.weight for s in SUBSCORES}
+def combine(subscores: dict[str, float | None], weights: dict[str, float] | None = None
+            ) -> tuple[float | None, dict[str, float], bool]:
+    """(score, effective weights, partiel): missing sub-scores give their weight to the present ones.
+
+    `weights`: the nominal weights (default: SUBSCORES'); the API's custom score
+    (app.services.custom_score) passes the user's, so both scores follow the same rule."""
+    weights = weights if weights is not None else {s.id: s.weight for s in SUBSCORES}
     present = {k: v for k, v in subscores.items() if v is not None}
     total = sum(weights[k] for k in present)
     if total <= 0:
@@ -224,3 +228,8 @@ def combine(subscores: dict[str, float | None]) -> tuple[float | None, dict[str,
     effective = {k: (weights[k] / total if k in present else 0.0) for k in weights}
     score = sum(present[k] * effective[k] for k in present)
     return score, effective, len(present) < len(weights)
+
+
+def final_score(score: float) -> float:
+    """The published score: clamped to 0-100, two decimals."""
+    return round(min(100.0, max(0.0, score)), 2)

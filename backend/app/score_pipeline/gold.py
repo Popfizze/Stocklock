@@ -263,7 +263,7 @@ def build_row(symbol: str, as_of: str, raw: dict[str, Value], ranks: dict[str, d
                     "effective_weight": round(effective[sub.id], 4),
                     "score": None if s is None else round(s, 2),
                     "contribution": round((s or 0.0) * effective[sub.id], 2), "indicators": indicators})
-    return {"symbol": symbol, "date": as_of, "score": round(min(100.0, max(0.0, score)), 2), "partiel": partiel,
+    return {"symbol": symbol, "date": as_of, "score": ind.final_score(score), "partiel": partiel,
             "comparison_set": comparison, "sub_scores": out, "sources": sources}
 
 

@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.data.cache import ExternalUnavailable
 from app.personas import get_persona, persona_ids
+from app.scoring_api import ScoringChoice
 from app.services import esg, fit, hype, portfolio
 
 router = APIRouter(prefix="/api", tags=["profil"])
@@ -68,7 +69,8 @@ class Holding(BaseModel):
     weight: float = Field(gt=0)
 
 
-class PortfolioRequest(_Persona):
+class PortfolioRequest(_Persona, ScoringChoice):
+    """Holdings, and optionally the user's own score (`weights`, `factors`, as /api/scores/reweight)."""
     holdings: list[Holding] = Field(min_length=1, max_length=portfolio.MAX_HOLDINGS)
 
 
@@ -122,9 +124,11 @@ def esg_one(ticker: str) -> dict[str, Any]:
 
 @router.post("/portfolio/analyze")
 def analyze_portfolio(request: PortfolioRequest) -> dict[str, Any]:
-    """Diversification, per-holding verdicts and suggestions for holdings the client keeps."""
+    """Diversification, per-holding verdicts and scores, and suggestions ranked by the user's own score."""
+    scoring = request.validated()
     try:
-        result = portfolio.analyze(get_persona(request.persona_id), [h.model_dump() for h in request.holdings])
+        result = portfolio.analyze(get_persona(request.persona_id), [h.model_dump() for h in request.holdings],
+                                   scoring)
     except ExternalUnavailable as exc:
         raise _unavailable(exc) from exc
     if not result["holdings"]:

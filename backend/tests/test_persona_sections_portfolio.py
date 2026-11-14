@@ -163,7 +163,8 @@ def test_with_the_score_table_suggestions_are_compatible_well_scored_and_diversi
     assert s["source"] == "score_table" and s["message"] is None
     # NVDA is out of profile; AAPL (Technology, absent) comes before BRK-B (Financial Services, held via RY).
     assert [(i["ticker"], i["score"]) for i in s["items"]] == [("AAPL", 80), ("BRK-B", 85)]
-    assert s["items"][0]["reasons"][0] == "Score StockLock de 80 sur 100."
+    assert s["items"][0]["reasons"][0] == "Score StockLock de 80 sur 100 (3e sur 4)."
+    assert s["items"][0]["ranking"]["rank_change"] == 0 and body["scoring"]["custom"] is False
     assert "50,0 % du portefeuille seulement" in s["items"][1]["reasons"][-1]
 
 

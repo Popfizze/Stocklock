@@ -8,9 +8,12 @@
   inverse, the effective number of positions (concentration « faible » < 0,10 ≤ « modérée » < 0,20).
 - Findings: positions above the maximum, titles out of profile or to watch, portfolio volatility vs the
   persona's maximum, concentration, a sector above 40 %, cryptos above the maximum position.
-- Suggestions: the best titles of the gold table `score_par_titre` that are compatible with the persona
-  and fill a sector (or asset class) the portfolio lacks or holds little of; without the table, the same
-  ranking over the titles of the persona's sections and of « Les plus grandes capitalisations ».
+- Scores: each holding's default and custom score and rank (app.services.custom_score: the gold table
+  rescored with the user's weights and factors; the default method when none are sent).
+- Suggestions: the best custom scores of the gold table `score_par_titre` that are compatible with the
+  persona and fill a sector (or asset class) the portfolio lacks or holds little of, each saying how the
+  user's weights moved its rank; without the table, the same ranking over the titles of the persona's
+  sections and of « Les plus grandes capitalisations ».
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ import pandas as pd
 
 from app.data import universe, yf_market
 from app.data.cache import ExternalUnavailable
-from app.services import fit, profile, score_table, sections
+from app.services import custom_score, fit, profile, sections
 
 MAX_HOLDINGS = 40
 SECTOR_WATCH = 0.40
@@ -147,12 +150,13 @@ def of(name: str) -> str:
     return profile.of_name(name)
 
 
-def _candidates(persona: dict[str, Any], held: set[str]) -> tuple[str, str | None, list[str], dict[str, float]]:
-    """(source, message, symbols, scores) of the titles to rank."""
-    table = score_table.load()
-    if table["status"] == "available" and table["rows"]:
-        rows = [r for r in score_table.best(CANDIDATES + len(held)) if r.symbol.upper() not in held][:CANDIDATES]
-        return "score_table", None, [r.symbol.upper() for r in rows], {r.symbol.upper(): r.score for r in rows}
+def _candidates(persona: dict[str, Any], held: set[str], table: dict[str, Any],
+                scored: dict[str, dict[str, Any]]) -> tuple[str, str | None, list[str]]:
+    """(source, message, symbols) of the titles to rank: the best custom scores of the gold table, or the
+    titles of the persona's sections when the table is not available."""
+    if table["status"] == "available" and scored:
+        ranked = sorted((r for r in scored.values() if r["custom_rank"] is not None), key=lambda r: r["custom_rank"])
+        return "score_table", None, [r["symbol"] for r in ranked if r["symbol"] not in held][:CANDIDATES]
     message = ((table["message"] or "La table des scores n'est pas disponible.")
                + " Suggestions tirées des sections du profil, sans score.")
     picked = [s for s, _ in sections.persona_sections(persona)] + [sections.BY_ID["grandes-capitalisations"]]
@@ -162,19 +166,43 @@ def _candidates(persona: dict[str, Any], held: set[str]) -> tuple[str, str | Non
             symbols += [q["symbol"] for q in sections.screened(section, 24, persona)]
         except ExternalUnavailable:
             continue
-    return "sections", message, [s for s in dict.fromkeys(symbols) if s not in held][:CANDIDATES], {}
+    return "sections", message, [s for s in dict.fromkeys(symbols) if s not in held][:CANDIDATES]
 
 
 def _bucket(item: dict[str, Any]) -> str:
     return item["sector"] or ("crypto" if item["asset_class"] == "crypto" else "none")
 
 
-def _suggestions(persona: dict[str, Any], holdings: list[dict[str, Any]]) -> dict[str, Any]:
+def ordinal(n: int) -> str:
+    return "1er" if n == 1 else f"{n}e"
+
+
+def _score_reasons(ranking: dict[str, Any] | None, scoring: custom_score.Choice, total: int) -> list[str]:
+    """How the score, and the user's weights, place a suggestion."""
+    if not ranking or ranking["custom_score"] is None:
+        return []
+    if not scoring.custom:
+        return [f"Score StockLock de {ranking['default_score']:.0f} sur 100 ({ordinal(ranking['default_rank'])} "
+                f"sur {total})."]
+    out = [f"Score StockLock de {ranking['custom_score']:.0f} sur 100 avec vos pondérations "
+           f"({ranking['default_score']:.0f} par défaut)."]
+    change = ranking["rank_change"]
+    if change:
+        out.append(f"Vos pondérations le font passer du {ordinal(ranking['default_rank'])} au "
+                   f"{ordinal(ranking['custom_rank'])} rang ({change:+d} place{'s' if abs(change) > 1 else ''}).")
+    else:
+        out.append(f"Vos pondérations ne changent pas son rang ({ordinal(ranking['custom_rank'])} sur {total}).")
+    return out
+
+
+def _suggestions(persona: dict[str, Any], holdings: list[dict[str, Any]], scoring: custom_score.Choice,
+                 table: dict[str, Any], scored: dict[str, dict[str, Any]]) -> dict[str, Any]:
     held = {h["ticker"] for h in holdings}
     weights: dict[str, float] = defaultdict(float)
     for h in holdings:
         weights[_bucket(h)] += h["weight"]
-    source, message, symbols, scores = _candidates(persona, held)
+    source, message, symbols = _candidates(persona, held, table, scored)
+    scores = {s: scored[s]["custom_score"] for s in symbols if s in scored}
     try:
         evaluated = fit.evaluate(persona, symbols)["items"] if symbols else []
     except ExternalUnavailable:
@@ -193,28 +221,38 @@ def _suggestions(persona: dict[str, Any], holdings: list[dict[str, Any]]) -> dic
         names.add(i["name"])
         what = "Cryptoactifs" if bucket == "crypto" else f"Secteur « {SECTOR_LABELS.get(bucket, bucket)} »"
         share = weights.get(bucket, 0.0)
-        reasons = []
-        if scores.get(i["ticker"]) is not None:
-            reasons.append(f"Score StockLock de {scores[i['ticker']]:.0f} sur 100.")
+        ranking = _ranking(scored.get(i["ticker"]))
+        reasons = _score_reasons(ranking, scoring, len(scored))
         vol = f" (volatilité sur 1 an de {profile.pct(i['volatility_1y'])})" if i["volatility_1y"] is not None else ""
         reasons.append(f"Compatible avec le profil {of(persona['name'])}{vol}.")
         reasons.append(f"{what} absent du portefeuille : améliore la diversification." if share == 0 else
                        f"{what} à {profile.pct(share)} du portefeuille seulement : renforce la diversification.")
         items.append({"ticker": i["ticker"], "name": i["name"], "sector": i["sector"], "asset_class": i["asset_class"],
-                      "score": scores.get(i["ticker"]), "verdict": i["verdict"], "reasons": reasons})
+                      "score": scores.get(i["ticker"]), "ranking": ranking, "verdict": i["verdict"],
+                      "reasons": reasons})
     if not items and message is None:
         message = "Aucun titre de la table des scores n'est à la fois compatible avec le profil et diversifiant."
     return {"source": source, "message": message, "items": items}
 
 
-def analyze(persona: dict[str, Any], holdings: list[dict[str, Any]]) -> dict[str, Any]:
-    """The `PortfolioAnalysis` payload; raises ExternalUnavailable when Yahoo's quotes are unreachable."""
+def _ranking(row: dict[str, Any] | None) -> dict[str, Any] | None:
+    """The `ScoreComparison` of a rescored gold-table row."""
+    keys = ("default_score", "custom_score", "delta", "default_rank", "custom_rank", "rank_change", "partiel")
+    return {k: row[k] for k in keys} if row else None
+
+
+def analyze(persona: dict[str, Any], holdings: list[dict[str, Any]],
+            scoring: custom_score.Choice = custom_score.DEFAULT) -> dict[str, Any]:
+    """The `PortfolioAnalysis` payload, holdings and suggestions scored with `scoring` (the user's weights).
+
+    Raises ExternalUnavailable when Yahoo's quotes are unreachable."""
     merged: dict[str, float] = defaultdict(float)
     for h in holdings:
         symbol = str(h["ticker"]).strip().upper()
         if symbol and h["weight"] > 0:
             merged[symbol] += float(h["weight"])
     total_input = sum(merged.values())
+    table, scored = custom_score.rescore_table(scoring)
     evaluated = fit.evaluate(persona, list(merged))
     present = {i["ticker"]: i for i in evaluated["items"]}
     quotes = yf_market.quotes(list(present)) if present else {}
@@ -227,10 +265,10 @@ def analyze(persona: dict[str, Any], holdings: list[dict[str, Any]]) -> dict[str
                          "asset_class": item["asset_class"], "sector": item["sector"],
                          "country": _country(symbol, item["asset_class"], quotes.get(symbol, {})),
                          "volatility_1y": item["volatility_1y"], "over_max_position": weight > max_position + 1e-9,
-                         "fit": item})
+                         "fit": item, "score": _ranking(scored.get(symbol))})
     analyzed.sort(key=lambda h: -h["weight"])
     diversification = _diversification(persona, analyzed) if analyzed else None
     return {"persona_id": persona["id"], "total_input_weight": round(total_input, 6), "holdings": analyzed,
             "missing": evaluated["missing"], "diversification": diversification,
             "findings": _findings(persona, analyzed, diversification) if analyzed else [],
-            "suggestions": _suggestions(persona, analyzed)}
+            "suggestions": _suggestions(persona, analyzed, scoring, table, scored), "scoring": scoring.applied()}
