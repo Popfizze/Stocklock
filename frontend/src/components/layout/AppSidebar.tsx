@@ -26,7 +26,7 @@ interface NavigationItem {
 const NAVIGATION: NavigationItem[] = [
   { title: 'Tableau de bord', path: '/', icon: Home, matches: '/titres/' },
   { title: 'Comptes', path: '/comptes', icon: Landmark },
-  { title: 'Labo', path: '/labo', icon: FlaskConical },
+  { title: 'Coulisses', path: '/labo', icon: FlaskConical },
 ]
 
 /** Quiet sidebar: the wordmark, three destinations, the active profile. */

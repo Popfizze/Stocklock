@@ -5,6 +5,7 @@ import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl, type MockResponse } from '@/test/mockFetch'
 import { PERSONAS } from '@/test/personas'
 import { LAB_CATALOG, LAB_RUN } from '@/test/lab'
+import { SCORE_RUN_LIST_UNCONFIGURED } from '@/test/pipeline'
 import { LabPage } from './LabPage'
 
 const ORIGINAL_FETCH = globalThis.fetch
@@ -14,6 +15,7 @@ function renderLab(runResponses: MockResponse[] = [json(LAB_RUN)]) {
     { match: '/api/personas', responses: [json(PERSONAS)] },
     { match: '/api/lab/pipelines', responses: [json(LAB_CATALOG)] },
     { match: '/api/lab/run', responses: runResponses },
+    { match: '/api/pipeline/score/runs', responses: [json(SCORE_RUN_LIST_UNCONFIGURED)] },
   ])
   renderWithProviders(<LabPage />, { route: '/labo', personaId: 'amira' })
   return calls
@@ -31,7 +33,7 @@ describe('LabPage', () => {
   it('loads the catalog: one tab per step, inputs at their defaults, options at lab_default ?? default', async () => {
     renderLab()
 
-    expect(screen.getByRole('status')).toHaveTextContent('Chargement des pipelines…')
+    expect(screen.getByText('Chargement des pipelines…')).toHaveAttribute('role', 'status')
     expect(await screen.findByRole('tab', { name: '1. Score' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: '2. Fluctuations' })).toBeInTheDocument()
 

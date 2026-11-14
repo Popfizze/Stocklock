@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { SECTION_MAX_LIMIT, useMarketSection, type MarketSectionInfo } from '@/api/stocks'
 import { Button } from '@/components/ui/button'
 import { formatLongDate, marketErrorMessage } from '@/features/stocks/format'
@@ -19,12 +20,18 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
   const [limit, setLimit] = useState(INITIAL_LIMIT)
   const { data, error, isPending, isFetching, refetch } = useMarketSection(section.id, limit)
   const headingId = `section-${section.id}`
+  // Arriving on `/#section-<id>` (e.g. from a finished score run) brings the section into view.
+  const { hash } = useLocation()
+  const ref = useRef<HTMLElement>(null)
+  useEffect(() => {
+    if (hash === `#${headingId}`) ref.current?.scrollIntoView({ block: 'start' })
+  }, [hash, headingId])
   const items = data?.items ?? []
   // The server served as many cards as asked: there may be more.
   const canShowMore = data?.status === 'ok' && items.length >= limit && limit < SECTION_MAX_LIMIT
 
   return (
-    <section aria-labelledby={headingId} className="scroll-mt-6 space-y-4">
+    <section ref={ref} aria-labelledby={headingId} className="scroll-mt-6 space-y-4">
       <div className="space-y-1">
         <h2 id={headingId} className="text-xl font-semibold tracking-tight">
           {section.title}

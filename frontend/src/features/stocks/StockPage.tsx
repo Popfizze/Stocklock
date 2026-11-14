@@ -91,11 +91,6 @@ export function StockPage() {
 
             <StockScore ticker={stock.ticker} />
 
-            <div className="grid gap-4 md:grid-cols-2">
-              <KeyFigures stock={stock} />
-              <DividendList dividends={stock.stats.dividends} currency={stock.currency} />
-            </div>
-
             {/* Step 2: why the title moved, compared with its index, and the dated events behind it. */}
             <StockMoves ticker={stock.ticker} />
 
@@ -111,6 +106,12 @@ export function StockPage() {
                 datathon ; ce titre n'en fait pas partie.
               </p>
             )}
+
+            {/* Reference figures come after the decision blocks. */}
+            <div className="grid gap-4 border-t border-border pt-8 md:grid-cols-2">
+              <KeyFigures stock={stock} />
+              <DividendList dividends={stock.stats.dividends} currency={stock.currency} />
+            </div>
           </>
         )}
       </div>

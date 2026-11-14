@@ -4,10 +4,11 @@ import { AppLayout, PageHeader } from '@/components/layout'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { catalogErrorMessage, type LabRunRecord } from './labForm'
 import { LabStepPanel } from './LabStepPanel'
+import { ScorePipelineSection } from './pipeline/ScorePipelineSection'
 import { RunsTable } from './RunsTable'
 
 /**
- * The Labo: pick each pipeline stage's options, run a step, look at every
+ * « Coulisses » (the Lab): start the score pipeline, pick each pipeline stage's options, run a step, look at every
  * stage, and compare runs. The runs table lives in this page's state only,
  * so a reload clears it.
  */
@@ -25,9 +26,11 @@ export function LabPage() {
     <AppLayout>
       <div className="space-y-8">
         <PageHeader
-          title="Labo"
-          description="Régler chaque étape d'un pipeline, l'exécuter, puis lire ses décisions et ses jeux de données complets."
+          title="Coulisses"
+          description="Ce qui se passe derrière chaque analyse : lancer le pipeline des scores, régler et exécuter chaque étape, lire ses décisions et ses jeux de données."
         />
+
+        <ScorePipelineSection />
 
         {isPending && (
           <p role="status" className="text-muted-foreground">
