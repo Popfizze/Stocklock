@@ -1,6 +1,7 @@
 """Stock-page bias analysis uses the selected asset and makes uncertainty explicit."""
 
 import pandas as pd
+import pytest
 
 from app.data import starter
 
@@ -23,6 +24,17 @@ def test_stock_bias_uses_selected_ticker_and_exposes_history(client):
 def test_stock_bias_validates_ticker_and_blank_message(client):
     assert client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'AAPL', 'message': '   '}).status_code == 422
     assert client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'ZZZZ', 'message': 'acheter'}).status_code == 422
+    assert client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'AAPL', 'message': 'réfléchir', 'intent': 'invalid'}).status_code == 422
+
+
+@pytest.mark.parametrize(('intent', 'label'), [('buy', 'acheter'), ('sell', 'vendre'), ('undecided', 'indécis')])
+def test_declared_intent_reaches_narration_as_structured_facts(client, fake_narrator, intent, label):
+    response = client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'AAPL',
+                                                     'message': 'Je réfléchis à cette décision.', 'intent': intent})
+    assert response.status_code == 200, response.text
+    narrator = next(call for call in fake_narrator if call['task'] == 'bias')
+    assert narrator['facts']['context']['intention_declaree'] == label
+    assert any(f['name'] == 'Intention déclarée' and f['value'] == label for f in response.json()['analysis']['factors'])
 
 
 def test_profile_changes_the_analysis_for_the_same_cryptoasset(client):

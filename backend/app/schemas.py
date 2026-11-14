@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -136,6 +136,7 @@ class TaxInputs(BaseModel):
 class BiasInputs(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     ticker: str | None = None
+    intent: Literal["buy", "sell", "undecided"] | None = None
 
     @field_validator("ticker")
     @classmethod

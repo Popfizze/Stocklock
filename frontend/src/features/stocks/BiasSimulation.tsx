@@ -14,9 +14,9 @@ export function BiasSimulation({ simulation }: { simulation: BiasResult['simulat
   if (!simulation) return <p className="text-sm text-muted-foreground">Simulation historique indisponible pour ce titre.</p>
   return (
     <section className="space-y-3" aria-labelledby="simulation-heading">
-      <h3 id="simulation-heading" className="font-semibold">Si vous aviez vendu en 2022</h3>
+      <h3 id="simulation-heading" className="font-semibold">Exemple historique : vendre ou conserver en 2022</h3>
       <p className="text-sm text-muted-foreground">
-        Pour {simulation.ticker}, {money(simulation.initial)} investis le {simulation.start} ;
+        Simulation fictive, indépendante de votre intention actuelle. Pour {simulation.ticker}, {money(simulation.initial)} investis le {simulation.start} ;
         {simulation.sell_date ? ` vente le ${simulation.sell_date}` : ' aucune vente déclenchée'}.
         Valeurs au {simulation.end}, en dollars canadiens.
       </p>

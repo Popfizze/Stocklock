@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { useStockBias, type BiasResult } from '@/api/bias'
+import { useStockBias, type BiasIntent, type BiasResult } from '@/api/bias'
 import { Button } from '@/components/ui/button'
 import type { Persona } from '@/api/personas'
 import { useActivePersona } from '@/features/personas/activePersona'
@@ -57,20 +57,34 @@ function BiasDetails({ result, persona }: { result: BiasResult; persona: Persona
 
 function BiasForm({ ticker, persona }: { ticker: string; persona: Persona }) {
   const [message, setMessage] = useState('')
+  const [intent, setIntent] = useState<BiasIntent | null>(null)
   const mutation = useStockBias()
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (message.trim()) mutation.mutate({ ticker, persona_id: persona.id, message: message.trim() })
+    if (message.trim() && intent) mutation.mutate({ ticker, persona_id: persona.id, message: message.trim(), intent })
   }
   return <section id="prendre-du-recul" aria-labelledby="bias-heading" className="scroll-mt-6 space-y-5 border-t border-border pt-6">
     <div className="space-y-1"><h2 id="bias-heading" className="text-2xl font-semibold tracking-tight">Prendre du recul</h2>
       <p className="text-sm text-muted-foreground">Examinez votre intention pour {ticker} à la lumière de l’historique du titre et du profil de {persona.name}.</p></div>
     <form onSubmit={submit} className="space-y-3">
-      <label htmlFor="bias-message" className="block text-sm font-medium">Que souhaitez-vous faire, et pourquoi ?</label>
-      <textarea id="bias-message" value={message} disabled={mutation.isPending} maxLength={4000} rows={3} placeholder="Par exemple : je souhaite vendre parce que le cours a baissé…"
+      <fieldset disabled={mutation.isPending} className="space-y-2">
+        <legend className="text-sm font-medium">Que souhaitez-vous examiner ?</legend>
+        <div className="flex flex-wrap gap-2">
+          {([{ value: 'buy', label: 'Acheter' }, { value: 'sell', label: 'Vendre' },
+            { value: 'undecided', label: 'Je ne sais pas encore' }] as const).map((choice) =>
+            <label key={choice.value} className="cursor-pointer">
+              <input className="peer sr-only" type="radio" name="bias-intent" value={choice.value} checked={intent === choice.value}
+                onChange={() => { setIntent(choice.value); if (mutation.isSuccess || mutation.isError) mutation.reset() }} />
+              <span className="inline-flex min-h-9 items-center rounded-full border border-input px-4 text-sm transition-colors hover:bg-accent peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-focus-visible:ring-2 peer-focus-visible:ring-ring">{choice.label}</span>
+            </label>)}
+        </div>
+      </fieldset>
+      <p className="text-xs text-muted-foreground">Choix pour l’analyse uniquement : aucun ordre réel ne sera passé.</p>
+      <label htmlFor="bias-message" className="block text-sm font-medium">Pourquoi envisagez-vous cette décision ?</label>
+      <textarea id="bias-message" value={message} disabled={mutation.isPending} maxLength={4000} rows={3} placeholder="Par exemple : le cours a baissé et je m’interroge sur la suite…"
         onChange={(event) => { setMessage(event.target.value); if (mutation.isSuccess || mutation.isError) mutation.reset() }}
         className="w-full rounded-lg border border-input bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
-      <Button type="submit" disabled={!message.trim() || mutation.isPending} loading={mutation.isPending} loadingText="Analyse en cours…">Analyser ma décision</Button>
+      <Button type="submit" disabled={!intent || !message.trim() || mutation.isPending} loading={mutation.isPending} loadingText="Analyse en cours…">Analyser ma décision</Button>
     </form>
     {mutation.isPending && <div role="status" className="rounded-lg bg-muted p-4 text-sm">
       <p className="font-medium">Analyse en cours…</p>

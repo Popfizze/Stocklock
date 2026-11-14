@@ -36,6 +36,12 @@ def detect_ticker(message: str) -> str | None:
 
 def message_analysis(ctx: Context) -> None:
     msg = ctx.inputs.message
+    intent = ctx.inputs.intent
+    if intent:
+        intent_label = {"buy": "acheter", "sell": "vendre", "undecided": "indécis"}[intent]
+        ctx.report.context["intention_declaree"] = intent_label
+        ctx.report.factor("Intention déclarée", intent_label)
+        ctx.report.assume("L'intention choisie est déclarative et ne correspond à aucune transaction réelle.")
     ticker = ctx.inputs.ticker or detect_ticker(msg)
     ctx.state["ticker"] = ticker
     ctx.metric("ticker", ticker or "aucun")

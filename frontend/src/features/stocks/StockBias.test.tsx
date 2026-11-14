@@ -19,8 +19,10 @@ it('sends the selected title, active profile and message and shows a limited res
     })] },
   ])
   renderWithProviders(<StockBias ticker="NVDA" />, { personaId: 'robert' })
-  const input = await screen.findByLabelText('Que souhaitez-vous faire, et pourquoi ?')
+  const input = await screen.findByLabelText('Pourquoi envisagez-vous cette décision ?')
   await userEvent.type(input, 'Je veux tout vendre')
+  expect(screen.getByRole('button', { name: 'Analyser ma décision' })).toBeDisabled()
+  await userEvent.click(screen.getByRole('radio', { name: 'Vendre' }))
   await userEvent.click(screen.getByRole('button', { name: 'Analyser ma décision' }))
   expect((await screen.findByText('Panique')).closest('li')).toHaveTextContent('tout vendre')
   expect(screen.getByText(/Historique insuffisant/)).toBeInTheDocument()
@@ -31,7 +33,9 @@ it('sends the selected title, active profile and message and shows a limited res
   expect(screen.getByText('un signal').tagName).toBe('STRONG')
   expect(screen.queryByText(/bedrock_classifier|Analyse pour Robert|\*\*/)).not.toBeInTheDocument()
   const request = calls.find((call) => call.url.includes('/api/bias/stock'))
-  expect(JSON.parse(String(request?.init.body))).toEqual({ persona_id: 'robert', ticker: 'NVDA', message: 'Je veux tout vendre' })
+  expect(JSON.parse(String(request?.init.body))).toEqual({ persona_id: 'robert', ticker: 'NVDA', message: 'Je veux tout vendre', intent: 'sell' })
+  await userEvent.click(screen.getByRole('radio', { name: 'Acheter' }))
+  expect(screen.queryByRole('heading', { name: 'Selon ton profil' })).not.toBeInTheDocument()
 })
 
 it('shows the operations included while the analysis is pending', async () => {
@@ -41,7 +45,8 @@ it('shows the operations included while the analysis is pending', async () => {
     return new Promise<Response>((resolve) => { finish = resolve })
   }) as typeof fetch
   renderWithProviders(<StockBias ticker="NVDA" />, { personaId: 'robert' })
-  await userEvent.type(await screen.findByLabelText('Que souhaitez-vous faire, et pourquoi ?'), 'Je réfléchis')
+  await userEvent.type(await screen.findByLabelText('Pourquoi envisagez-vous cette décision ?'), 'Je réfléchis')
+  await userEvent.click(screen.getByRole('radio', { name: 'Je ne sais pas encore' }))
   await userEvent.click(screen.getByRole('button', { name: 'Analyser ma décision' }))
   expect(screen.getByRole('status')).toHaveTextContent('Analyse en cours')
   expect(screen.getByText(/recherche de contexte médiatique sur le web/)).toBeInTheDocument()

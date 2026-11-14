@@ -20,8 +20,10 @@ export interface BiasResult {
   warnings: string[]
 }
 
+export type BiasIntent = 'buy' | 'sell' | 'undecided'
+
 export function useStockBias() {
-  return useMutation<BiasResult, ApiError, { persona_id: string; ticker: string; message: string }>({
+  return useMutation<BiasResult, ApiError, { persona_id: string; ticker: string; message: string; intent: BiasIntent }>({
     mutationFn: (input) => apiClient.request('/api/bias/stock', {
       method: 'POST', body: JSON.stringify(input),
     }),
