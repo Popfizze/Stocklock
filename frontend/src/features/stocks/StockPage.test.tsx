@@ -236,7 +236,7 @@ describe('StockPage', () => {
     )
   })
 
-  it('hides the account and bias analyses for a title outside the starter kit', async () => {
+  it('offers bias analysis but not account comparison for a title outside the starter kit', async () => {
     const calls = mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
       { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
@@ -247,9 +247,10 @@ describe('StockPage', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '01 Quantum Inc.' })).toBeInTheDocument()
     expect(screen.getByText('ONE.V · TSXV')).toBeInTheDocument()
     expect(screen.getByText(/Cours au 13 novembre 2026 · Yahoo Finance/)).toBeInTheDocument()
-    expect(screen.getByText(/couvrent les\s+31 titres du jeu de données du datathon/)).toBeInTheDocument()
+    expect(screen.getByText(/couvre les 31 titres du jeu de données du datathon/)).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /Quel compte pour/ })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Prendre du recul/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Prendre du recul/ })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Prendre du recul' })).toBeInTheDocument()
     expect(calls.some((call) => call.url.includes('/api/accounts/'))).toBe(false)
   })
 

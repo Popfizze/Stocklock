@@ -18,8 +18,8 @@ import { StockScore } from './StockScore'
 /**
  * A title's page (`/titres/:ticker`, any title of the universe): last price
  * and day change, the price chart over 1S/1M/3M/1A/Max, the StockLock score,
- * key figures and dividends. The datathon's 31 assets also get the bias
- * analysis (step 4) and the account comparison (step 3).
+ * key figures, dividends and bias analysis. The account comparison covers the
+ * datathon's 31 assets.
  */
 export function StockPage() {
   const { ticker = '' } = useParams()
@@ -66,15 +66,13 @@ export function StockPage() {
                 Cours au {formatLongDate(stock.as_of)}
                 {stock.source ? ` · ${stock.source.title}` : ''}
               </p>
-              {stock.starter_kit && (
-                <div className="pt-3">
-                  <Button asChild variant="outline" size="sm">
-                    <a href="#prendre-du-recul">
-                      Prendre du recul <ArrowDown aria-hidden="true" />
-                    </a>
-                  </Button>
-                </div>
-              )}
+              <div className="pt-3">
+                <Button asChild variant="outline" size="sm">
+                  <a href="#prendre-du-recul">
+                    Prendre du recul <ArrowDown aria-hidden="true" />
+                  </a>
+                </Button>
+              </div>
             </header>
 
             <PriceChart
@@ -92,19 +90,16 @@ export function StockPage() {
               <DividendList dividends={stock.stats.dividends} currency={stock.currency} />
             </div>
 
-            {stock.starter_kit ? (
-              <>
-                <StockBias ticker={stock.ticker} />
+            <StockBias ticker={stock.ticker} />
 
-                {/* Step 3: which registered account for this stock, for the active profile. */}
-                <div className="border-t border-border pt-8">
-                  <StockAccountOptions ticker={stock.ticker} />
-                </div>
-              </>
+            {stock.starter_kit ? (
+              <div className="border-t border-border pt-8">
+                <StockAccountOptions ticker={stock.ticker} />
+              </div>
             ) : (
               <p className="border-t border-border pt-6 text-sm text-muted-foreground">
-                L'analyse des biais (étape 4) et la comparaison des comptes (étape 3) couvrent les
-                31 titres du jeu de données du datathon ; ce titre n'en fait pas partie.
+                La comparaison des comptes (étape 3) couvre les 31 titres du jeu de données du
+                datathon ; ce titre n'en fait pas partie.
               </p>
             )}
           </>

@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from app.data import starter
+from app.data import starter, yf_live
 
 
 def test_stock_bias_uses_selected_ticker_and_exposes_history(client):
@@ -21,10 +21,101 @@ def test_stock_bias_uses_selected_ticker_and_exposes_history(client):
     assert any('indisponible' in warning for warning in body['warnings'])  # Bedrock/GDELT offline
 
 
-def test_stock_bias_validates_ticker_and_blank_message(client):
+def test_stock_bias_validates_blank_message_and_intent(client):
     assert client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'AAPL', 'message': '   '}).status_code == 422
-    assert client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'ZZZZ', 'message': 'acheter'}).status_code == 422
     assert client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'AAPL', 'message': 'réfléchir', 'intent': 'invalid'}).status_code == 422
+
+
+def _external_history(monkeypatch, start='2022-01-03', currency='CAD'):
+    monkeypatch.setattr(yf_live, 'info', lambda symbol: {
+        'name': 'Example Inc.', 'currency': currency, 'sector': 'Technology', 'quote_type': 'EQUITY',
+    })
+    dates = pd.bdate_range(start, '2026-11-12')
+    prices = [100.0 if i % 2 == 0 else 120.0 for i in range(len(dates))]
+    frame = pd.DataFrame({'date': dates, 'close': prices, 'adj_close': prices, 'volume': 1000})
+    monkeypatch.setattr(yf_live, 'daily_prices', lambda *args: (frame.copy(), False))
+
+
+def test_external_stock_uses_its_history_and_profile_for_simulation(client, monkeypatch):
+    _external_history(monkeypatch)
+    response = client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'ONE.V',
+                                                     'message': 'Je réfléchis.', 'intent': 'buy'})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body['history']['source'] == 'yfinance'
+    assert body['simulation']['ticker'] == 'ONE.V'
+    assert body['simulation']['start'] == '2022-01-03'
+    assert body['simulation']['end'] <= str(starter.adj_close_cad('ZST.TO').index.max().date())
+    assert any('Volatilité annualisée' in flag for flag in body['profile_flags'])
+    assert any(source['id'] == 'yfinance_history_ONE.V' for source in body['analysis']['sources'])
+
+
+def test_external_stock_without_2022_history_keeps_partial_analysis(client, monkeypatch):
+    _external_history(monkeypatch, start='2024-01-02')
+    response = client.post('/api/bias/stock', json={'persona_id': 'amira', 'ticker': 'ONE.V', 'message': 'Je réfléchis.'})
+    assert response.status_code == 200, response.text
+    assert response.json()['history']['source'] == 'yfinance'
+    assert response.json()['simulation'] is None
+    assert any('aucun historique' in warning for warning in response.json()['warnings'])
+
+
+def test_external_usd_stock_simulation_uses_historical_exchange_rates(client, monkeypatch):
+    _external_history(monkeypatch, currency='USD')
+    response = client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'ONE.V', 'message': 'Je réfléchis.'})
+    assert response.status_code == 200, response.text
+    result = response.json()['simulation']
+    dates = pd.bdate_range('2022-01-03', '2026-11-12')
+    prices = pd.Series([100.0 if i % 2 == 0 else 120.0 for i in range(len(dates))], index=dates)
+    converted = starter.to_cad(prices, 'USD')
+    assert result['hold_final'] == pytest.approx(10_000 * converted.iloc[-1] / converted.iloc[0])
+    assert result['end'] <= str(starter.fx_usdcad().index.max().date())
+
+
+def test_external_stock_without_volume_is_not_reported_as_complete(client, monkeypatch):
+    _external_history(monkeypatch)
+    original = yf_live.daily_prices
+
+    def without_volume(*args):
+        frame, cached = original(*args)
+        frame['volume'] = 0
+        return frame, cached
+
+    monkeypatch.setattr(yf_live, 'daily_prices', without_volume)
+    response = client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'ONE.V', 'message': 'Je réfléchis.'})
+    assert response.status_code == 200, response.text
+    assert response.json()['history']['volume_ratio'] is None
+    assert any('Volumes insuffisants' in warning for warning in response.json()['warnings'])
+
+
+def test_external_stock_with_incomplete_2022_does_not_claim_a_yearly_trough(client, monkeypatch):
+    _external_history(monkeypatch, start='2022-07-01')
+    response = client.post('/api/bias/stock', json={'persona_id': 'amira', 'ticker': 'ONE.V', 'message': 'Je réfléchis.'})
+    assert response.status_code == 200, response.text
+    assert response.json()['simulation'] is None
+    assert any('historique incomplet' in warning for warning in response.json()['warnings'])
+
+
+def test_external_stock_with_unknown_currency_does_not_assume_usd(client, monkeypatch):
+    _external_history(monkeypatch, currency=None)
+    response = client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'ONE.V', 'message': 'Je réfléchis.'})
+    assert response.status_code == 200, response.text
+    assert response.json()['history']['source'] == 'yfinance'
+    assert response.json()['simulation'] is None
+    assert any('devise' in warning for warning in response.json()['warnings'])
+
+
+def test_external_stock_without_prices_still_analyzes_message(client, monkeypatch):
+    monkeypatch.setattr(yf_live, 'info', lambda symbol: {
+        'name': 'Example Inc.', 'currency': 'CAD', 'sector': 'Energy', 'quote_type': 'EQUITY',
+    })
+    response = client.post('/api/bias/stock', json={'persona_id': 'mateo', 'ticker': 'ONE.V',
+                                                     'message': 'Tout le monde achète.'})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body['history'] is None and body['simulation'] is None
+    assert any(signal['category'] == 'autorite_sociale' for signal in body['signals'])
+    assert any('exclu' in flag for flag in body['profile_flags'])
+    assert any('Historique' in warning for warning in body['warnings'])
 
 
 @pytest.mark.parametrize(('intent', 'label'), [('buy', 'acheter'), ('sell', 'vendre'), ('undecided', 'indécis')])

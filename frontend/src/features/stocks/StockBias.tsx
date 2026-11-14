@@ -28,10 +28,10 @@ function BiasDetails({ result, persona }: { result: BiasResult; persona: Persona
     <section className="space-y-2"><h3 className="font-semibold">Contexte du titre</h3>
       {result.history ? <div className="text-sm space-y-1">
         <p>Variation sur 20 séances ({result.history.start} au {result.history.end}) : <strong>{percent(result.history.return_20d)}</strong>.</p>
-        {result.history.from_year_high !== null && <p>Écart au plus haut des 252 dernières séances ({result.history.year_start} au {result.history.year_end}) : {percent(result.history.from_year_high)}.</p>}
+        {result.history.from_year_high !== null && <p>Écart au plus haut sur la période disponible (maximum 252 séances, du {result.history.year_start} au {result.history.year_end}) : {percent(result.history.from_year_high)}.</p>}
         {result.history.volume_ratio !== null && <p>Volume récent / volume habituel : {result.history.volume_ratio.toFixed(2)}×.</p>}
         <p>Signal de battage : {result.hype === null ? 'indisponible' : result.hype ? 'détecté' : 'non détecté'} selon les seuils de prix, de volume et, si disponible, de couverture médiatique.</p>
-        <p className="text-xs text-muted-foreground">Données historiques du datathon, pas des cours en direct. Une variation passée ne prouve pas la motivation de la décision.</p>
+        <p className="text-xs text-muted-foreground">{result.history.source === 'yfinance' ? 'Données historiques Yahoo Finance, susceptibles d’être différées ou révisées.' : 'Données historiques du datathon, pas des cours en direct.'} Une variation passée ne prouve pas la motivation de la décision.</p>
       </div> : <p className="text-sm">Historique insuffisant ou indisponible pour contextualiser cette décision.</p>}
     </section>
     <section className="space-y-2"><h3 className="font-semibold">Lien avec le profil de {persona.name}</h3>

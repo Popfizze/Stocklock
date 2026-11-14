@@ -13,7 +13,6 @@ from pydantic import BaseModel, ValidationError
 
 from app.accounts_api import router as accounts_router
 from app.config import get_settings
-from app.data import starter
 from app.market_api import router as market_router
 from app.personas import get_persona, list_public
 from app.pipeline.core import OptionError, PipelineInputError
@@ -79,8 +78,6 @@ def bias(request: BiasRequest) -> AnalysisResponse:
 def stock_bias(request: StockBiasRequest) -> dict[str, Any]:
     """Bias analysis for a stock page; keep the legacy business and Lab contracts unchanged."""
     persona = get_persona(request.persona_id)
-    if not starter.in_starter(request.ticker):
-        raise HTTPException(status_code=422, detail="Ce titre ne figure pas dans le jeu de données du datathon.")
     try:
         result, response = execute("bias", persona, request.model_dump(exclude={"persona_id"}),
                                    {"simulation_2022.portfolio": "ticker"})

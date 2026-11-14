@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import re
-from datetime import timedelta
+from datetime import date, timedelta
 
 import pandas as pd
 
-from app.data import gdelt, starter
+from app.data import gdelt, starter, yf_live
 from app.data.cache import ExternalUnavailable
 from app.pipeline import common, datasets
-from app.pipeline.core import Choice, Context, InputSpec, OptionSpec, StageSkipped, StageSpec, StepSpec
+from app.pipeline.core import Choice, Context, InputSpec, OptionSpec, PipelineInputError, StageSkipped, StageSpec, StepSpec
 from app.schemas import BiasInputs
 from app.services import lexicon, market, narration, profile, simulation
 
@@ -19,6 +19,39 @@ CASH_PROXY = "ZST.TO"
 NAME_ALIASES = {"nvidia": "NVDA", "tesla": "TSLA", "apple": "AAPL", "microsoft": "MSFT", "amazon": "AMZN",
                 "google": "GOOGL", "alphabet": "GOOGL", "bitcoin": "BTC-USD", "ether": "ETH-USD",
                 "ethereum": "ETH-USD", "shopify": "SHOP.TO", "enbridge": "ENB.TO", "exxon": "XOM"}
+
+
+def _history(ctx: Context, ticker: str) -> pd.DataFrame | None:
+    """Load one adjusted daily history per run, with graceful degradation for external titles."""
+    if "bias_history" in ctx.state:
+        return ctx.state["bias_history"]
+    if starter.in_starter(ticker):
+        frame = starter.history(ticker)
+        source = starter.STARTER_SOURCE_ID
+        ctx.source(source, "AlphaForge starter kit, prices_daily.csv (Yahoo Finance via yfinance)",
+                   as_of=frame.index.max().date().isoformat() if not frame.empty else None)
+    else:
+        source = f"yfinance_history_{ticker}"
+        try:
+            raw, _ = yf_live.daily_prices(ticker, date(2021, 11, 12), date.today() + timedelta(days=1))
+            frame = raw.set_index("date").sort_index()
+            frame = frame.loc[~frame.index.duplicated(keep="last")]
+            frame = frame.dropna(subset=["adj_close"])
+            frame = frame.loc[frame["adj_close"] > 0]
+        except (ExternalUnavailable, ValueError, KeyError) as exc:
+            ctx.warn(f"Historique de {ticker} indisponible : contexte du titre et simulation limités ({type(exc).__name__}).")
+            ctx.state["bias_history"] = None
+            return None
+        if frame.empty:
+            ctx.warn(f"Historique de {ticker} indisponible : contexte du titre et simulation limités.")
+            ctx.state["bias_history"] = None
+            return None
+        ctx.source(source, f"Yahoo Finance via yfinance, historique {ticker}",
+                   f"https://finance.yahoo.com/quote/{ticker}/history", as_of=frame.index.max().date().isoformat())
+        ctx.report.limit("Les cours ajustés Yahoo Finance peuvent être révisés et ne constituent pas des cours en temps réel.")
+    ctx.state["bias_history"] = frame
+    ctx.state["bias_history_source"] = source
+    return frame
 
 
 def detect_ticker(message: str) -> str | None:
@@ -53,16 +86,26 @@ def message_analysis(ctx: Context) -> None:
                 "impossibles."),
                "entrée « ticker », sinon premier symbole du kit (3 lettres et plus) puis nom connu (Nvidia, Tesla…)")
     if ticker:
-        info, origin = common.resolve_asset(ticker, ctx)
+        try:
+            info, origin = common.resolve_asset(ticker, ctx)
+            if origin != "starter_universe":
+                # Do not infer USD when Yahoo omits the trading currency.
+                info["currency"] = yf_live.info(ticker).get("currency")
+        except (PipelineInputError, ExternalUnavailable):
+            info = {"ticker": ticker, "name": ticker, "market": None, "currency": None,
+                    "sector": None, "asset_class": None, "in_universe": False}
+            origin = "unavailable"
+            ctx.warn(f"Fiche de {ticker} indisponible : secteur, devise et classe d'actif non vérifiés.")
         ctx.state["asset"] = info
         ctx.report.context.update(ticker=ticker, name=info["name"])
         # listed on the stage only: the business response's sources stay as they were
-        ctx.record.sources.append(
-            {"id": "starter_universe", "title": "AlphaForge starter kit, assets_universe.csv (31 actifs)"}
-            if origin == "starter_universe" else
-            {"id": f"yfinance_info_{ticker}", "title": f"Yahoo Finance, fiche {ticker}",
-             "url": f"https://finance.yahoo.com/quote/{ticker}"})
-        datasets.asset(ctx, info, origin)
+        if origin != "unavailable":
+            ctx.record.sources.append(
+                {"id": "starter_universe", "title": "AlphaForge starter kit, assets_universe.csv (31 actifs)"}
+                if origin == "starter_universe" else
+                {"id": f"yfinance_info_{ticker}", "title": f"Yahoo Finance, fiche {ticker}",
+                 "url": f"https://finance.yahoo.com/quote/{ticker}"})
+            datasets.asset(ctx, info, origin)
     method = ctx.opt("method")
     ctx.decide("Comment détecter les biais ?", {"lexicon": "lexique", "haiku": "Claude Haiku"}.get(method, "lexique et "
                "Claude Haiku"), "Les extraits proposés par Haiku ne sont gardés que s'ils figurent mot pour mot dans le "
@@ -132,9 +175,10 @@ def hype_signal(ctx: Context) -> None:
     ticker = ctx.state.get("ticker")
     if not ticker:
         raise StageSkipped("Aucun titre identifié dans le message.")
-    if not starter.in_starter(ticker):
-        raise StageSkipped(f"{ticker} hors du kit : pas d'historique de volume.")
-    hist = starter.history(ticker)
+    hist = _history(ctx, ticker)
+    if hist is None or hist.empty:
+        raise StageSkipped(f"Historique de {ticker} indisponible.")
+    source = ctx.state["bias_history_source"]
     px, vol = hist["adj_close"], hist["volume"]
     if len(px.dropna()) <= 20:
         ctx.warn("Historique insuffisant pour comparer les 20 dernières séances.")
@@ -150,7 +194,9 @@ def hype_signal(ctx: Context) -> None:
     z = float((last20 - ret20.mean()) / ret20.std()) if ret20.std() > 0 else 0.0
     v_recent = float(vol.iloc[-20:].mean())
     v_base = float(vol.iloc[-140:-20].mean()) if len(vol) > 140 else float(vol.mean())
-    v_ratio = v_recent / v_base if v_base > 0 else float("nan")
+    v_ratio = v_recent / v_base if pd.notna(v_base) and v_base > 0 and pd.notna(v_recent) else None
+    if v_ratio is None:
+        ctx.warn("Volumes insuffisants : le critère de volume du signal de battage est indisponible.")
     year = px.dropna().tail(252)
     ctx.state["market_history"] = {
         "start": px.index[-21].date().isoformat(), "end": px.index[-1].date().isoformat(),
@@ -160,17 +206,17 @@ def hype_signal(ctx: Context) -> None:
         "year_high": float(year.max()), "latest": float(year.iloc[-1]),
         "from_year_high": float(year.iloc[-1] / year.max() - 1) if year.max() > 0 else None,
         "currency": ctx.state["asset"].get("currency"),
+        "source": "starter" if starter.in_starter(ticker) else "yfinance",
     }
     if ctx.state["market_history"]["from_year_high"] is not None:
         ctx.report.factor("Écart au plus haut des 252 dernières séances",
                           ctx.state["market_history"]["from_year_high"], "ratio",
-                          source_id=starter.STARTER_SOURCE_ID)
+                          source_id=source)
     ctx.report.assume("Les variations et volumes historiques contextualisent le message ; ils ne prouvent pas "
                       "qu'une décision est impulsive ni ne permettent de prédire les cours.")
-    ctx.source(starter.STARTER_SOURCE_ID, "AlphaForge starter kit, prices_daily.csv (Yahoo Finance via yfinance)",
-               as_of=px.index.max().date().isoformat())
-    datasets.price_history(ctx, ticker, hist, "starter", True, hist.index.min(), hist.index.max())
-    hype = z >= 2 or v_ratio >= 1.5
+    datasets.price_history(ctx, ticker, hist, "starter" if starter.in_starter(ticker) else "yfinance_live",
+                           True, hist.index.min(), hist.index.max())
+    hype = z >= 2 or (v_ratio is not None and v_ratio >= 1.5)
     ctx.metric("rendement 20 séances", last20)
     ctx.metric("z-score du rendement 20 séances", z)
     ctx.metric("volume 20 séances / 120 précédentes", v_ratio)
@@ -198,7 +244,7 @@ def hype_signal(ctx: Context) -> None:
         ctx.warn(f"GDELT indisponible ({exc.reason}) : signal de battage fondé sur les prix et volumes seulement.")
         ctx.decide("Couverture médiatique utilisée ?", "non", f"GDELT indisponible ({exc.reason}) : le signal "
                    "repose sur les prix et volumes seulement.")
-    triggered = [name for name, hit in (("z ≥ 2", z >= 2), ("volume × 1,5", v_ratio >= 1.5),
+    triggered = [name for name, hit in (("z ≥ 2", z >= 2), ("volume × 1,5", v_ratio is not None and v_ratio >= 1.5),
                                         ("couverture GDELT × 1,5", gdelt_ratio is not None and gdelt_ratio >= 1.5))
                  if hit]
     ctx.decide("Battage détecté ?", "oui" if hype else "non",
@@ -210,9 +256,9 @@ def hype_signal(ctx: Context) -> None:
     ctx.state["hype"] = hype
     ctx.metric("battage détecté", "oui" if hype else "non")
     ctx.preview(["date", "adj_close", "volume"], [[d, r["adj_close"], r["volume"]] for d, r in hist.tail(20).iterrows()])
-    ctx.report.factor(f"Rendement de {ticker} sur 20 séances", last20, "ratio", source_id=starter.STARTER_SOURCE_ID)
-    ctx.report.factor("Z-score de ce rendement", z, "σ", source_id=starter.STARTER_SOURCE_ID, digits=2)
-    ctx.report.factor("Volume récent / volume habituel", v_ratio, "x", source_id=starter.STARTER_SOURCE_ID, digits=2)
+    ctx.report.factor(f"Rendement de {ticker} sur 20 séances", last20, "ratio", source_id=source)
+    ctx.report.factor("Z-score de ce rendement", z, "σ", source_id=source, digits=2)
+    ctx.report.factor("Volume récent / volume habituel", v_ratio, "x", source_id=source, digits=2)
     ctx.report.factor("Signal de battage", "détecté" if hype else "non détecté",
                       effect="seuils : z ≥ 2, volume × 1,5 ou couverture GDELT × 1,5")
 
@@ -223,21 +269,25 @@ def profile_check(ctx: Context) -> None:
     cats = {s["category"] for s in ctx.state.get("signals", [])}
     ticker = ctx.state.get("ticker")
     vol = None
-    if ticker and starter.in_starter(ticker):
-        vol = market.annualized_volatility(market.window(starter.adj_close(ticker),
-                                                         starter.last_price_date() - pd.DateOffset(years=1),
-                                                         starter.last_price_date()))
+    if ticker and ctx.state.get("asset"):
+        hist = _history(ctx, ticker)
+        if hist is not None and not hist.empty:
+            last = hist.index.max()
+            vol = market.annualized_volatility(market.window(hist["adj_close"], last - pd.DateOffset(years=1), last))
+        if vol is None:
+            ctx.warn("Volatilité indisponible : le risque du titre ne peut pas être comparé entièrement au profil.")
         flags += profile.asset_flags(ctx.persona, ctx.state["asset"], vol)
-        ctx.report.factor(f"Volatilité annualisée de {ticker} (1 an)", vol, "ratio", source_id=starter.STARTER_SOURCE_ID)
-        ctx.source(starter.STARTER_SOURCE_ID, "AlphaForge starter kit, prices_daily.csv (Yahoo Finance via yfinance)")
+        ctx.report.factor(f"Volatilité annualisée de {ticker} (jusqu'à 1 an disponible)", vol, "ratio",
+                          source_id=ctx.state.get("bias_history_source"))
         asset_flags = flags[:]
-        ctx.decide(f"{ticker} compatible avec le profil ?", "à surveiller" if asset_flags else "oui",
-                   " ".join(asset_flags) if asset_flags else "Aucun écart avec les contraintes du profil.",
+        verdict = "à surveiller" if asset_flags else ("données incomplètes" if vol is None else "aucun écart détecté")
+        ctx.decide(f"{ticker} compatible avec le profil ?", verdict,
+                   " ".join(asset_flags) if asset_flags else "Aucun écart détecté avec les données disponibles.",
                    f"volatilité 1 an ≤ {c['max_volatility'] * 100:.0f} %, cryptos "
                    f"{'permises' if c['allow_crypto'] else 'exclues'}, secteurs et titres exclus",
                    {"volatilité": vol})
     else:
-        ctx.decide("Titre confronté au profil ?", "non", "Aucun titre du kit identifié : seuls les biais du message "
+        ctx.decide("Titre confronté au profil ?", "non", "Aucun titre identifié : seuls les biais du message "
                    "sont confrontés au profil.")
     lo, hi = c["horizon_years"]
     checks = (
@@ -286,24 +336,44 @@ def simulation_2022(ctx: Context) -> None:
     choice = ctx.opt("portfolio")
     ticker = ctx.state.get("ticker")
     question, rule = "Quel portefeuille simuler ?", f"option portfolio = {choice}"
-    if choice == "ticker" and (not ticker or not starter.in_starter(ticker)):
-        ctx.warn("Portefeuille « titre » demandé sans titre du kit identifié : simulation sur le 60/40.")
-        choice = "60_40"
-        ctx.decide(question, "60/40 SPY/AGG (repli)", "Portefeuille « titre » demandé sans titre du kit identifié.",
-                   rule)
+    if choice == "ticker" and not ticker:
+        ctx.warn("Simulation indisponible : aucun titre identifié.")
+        ctx.decide(question, "aucun", "Aucun titre identifié.", rule)
+        return
     else:
         ctx.decide(question, "60/40 SPY/AGG" if choice == "60_40" else f"100 % {ticker}",
                    "Choix de l'option de l'étape.", rule)
     weights = {"SPY": 0.6, "AGG": 0.4} if choice == "60_40" else {ticker: 1.0}
     tickers = list(weights)
-    prices = pd.concat({t: starter.adj_close_cad(t) for t in tickers}, axis=1, join="inner").dropna()
+    cash = starter.adj_close_cad(CASH_PROXY)
+    source = starter.STARTER_SOURCE_ID
+    if choice == "ticker" and not starter.in_starter(ticker):
+        hist = _history(ctx, ticker)
+        currency = ctx.state.get("asset", {}).get("currency")
+        if hist is None or currency not in {"CAD", "USD"}:
+            ctx.warn("Simulation indisponible : historique ou devise CAD/USD du titre manquant.")
+            return
+        source = ctx.state["bias_history_source"]
+        closes = hist["adj_close"]
+        # Cash and FX are fixed starter-kit series: never carry them beyond their last observed date.
+        end = min(cash.index.max(), starter.fx_usdcad().index.max()) if currency == "USD" else cash.index.max()
+        closes = closes.loc[closes.index <= end]
+        prices = pd.DataFrame({ticker: starter.to_cad(closes, currency)}).dropna()
+        ctx.report.limit(f"Simulation limitée au {end.date()} au plus : dernières données disponibles "
+                         "pour les liquidités et, si nécessaire, le taux de change du kit.")
+    else:
+        prices = pd.concat({t: starter.adj_close_cad(t) for t in tickers}, axis=1, join="inner").dropna()
     start = pd.Timestamp("2022-01-01")
     if prices.loc[prices.index.year == 2022].empty:
         ctx.warn("Simulation indisponible : aucun historique de prix commun en 2022 pour ce titre.")
         ctx.decide("Simuler ?", "non", "Aucun historique de prix commun en 2022 pour ce portefeuille.")
         return
+    year_prices = prices.loc[prices.index.year == 2022]
+    if year_prices.index.min() > pd.Timestamp("2022-01-07") or year_prices.index.max() < pd.Timestamp("2022-12-23"):
+        ctx.warn("Simulation indisponible : historique incomplet pour comparer l'année 2022.")
+        ctx.decide("Simuler ?", "non", "L'historique ne couvre pas le début et la fin de l'année 2022.")
+        return
     value = simulation.portfolio_value(prices, weights, start, INITIAL_CAD)
-    cash = starter.adj_close_cad(CASH_PROXY)
     res = simulation.simulate_panic(value, cash, ctx.opt("sell_point"), ctx.opt("reentry"))
     sell_rule = f"option sell_point = {ctx.opt('sell_point')}"
     if res.sell_date is None:
@@ -350,15 +420,15 @@ def simulation_2022(ctx: Context) -> None:
                 [[d, r["hold"], r["panic"]] for d, r in monthly.iterrows()])
     ctx.dataset("quarterly_values", "Valeurs de fin de trimestre",
                 ["fin de trimestre", "conservation (CAD)", "vente panique (CAD)"],
-                ([d, r["hold"], r["panic"]] for d, r in monthly.iterrows()), starter.STARTER_SOURCE_ID)
+                ([d, r["hold"], r["panic"]] for d, r in monthly.iterrows()), source)
     if ctx.collect_datasets:
         daily = prices.rename(columns=lambda t: f"{t} (CAD)")
         daily[f"{CASH_PROXY} (CAD)"] = cash
         daily["conservation (CAD)"] = res.hold_path
         daily["vente panique (CAD)"] = res.panic_path
         ctx.dataset_frame("daily_paths", f"Simulation quotidienne : prix en CAD et valeur du portefeuille {label}",
-                          daily.loc[daily.index >= res.start], starter.STARTER_SOURCE_ID, index="date")
-    src = starter.STARTER_SOURCE_ID
+                          daily.loc[daily.index >= res.start], source, index="date")
+    src = source
     ctx.report.factor("Simulation 2022 — portefeuille", label)
     ctx.report.factor("Montant initial simulé", INITIAL_CAD, "$", source_id=src, digits=0)
     if res.sell_date is not None:
@@ -375,7 +445,7 @@ def simulation_2022(ctx: Context) -> None:
                       "ratio", source_id=src)
     ctx.report.factor("Rendement annualisé après vente panique",
                       simulation.cagr(res.initial, res.panic_final, res.start, res.end), "ratio", source_id=src)
-    ctx.report.assume(f"Simulation en CAD : achat de {INITIAL_CAD:,.0f} $ le premier jour de bourse de 2022, sans "
+    ctx.report.assume(f"Simulation en CAD : achat de {INITIAL_CAD:,.0f} $ le {res.start.date()} (première séance disponible en 2022), sans "
                       "rééquilibrage ; produit de la vente placé dans ZST.TO (obligations ultra-courtes) comme "
                       "équivalent de liquidités.".replace(",", " "))
     sp = "au creux de 2022" if ctx.opt("sell_point") == "trough" else "le premier jour à −20 % de la valeur initiale"

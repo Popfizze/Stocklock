@@ -12,7 +12,7 @@ export interface BiasResult {
   signals: { category: string; excerpt: string; method: string }[]
   profile_flags: string[]
   history: { start: string; end: string; return_20d: number; volume_ratio: number | null;
-    year_start: string; year_end: string; from_year_high: number | null } | null
+    year_start: string; year_end: string; from_year_high: number | null; source?: 'starter' | 'yfinance' } | null
   hype: boolean | null
   simulation: { ticker: string; start: string; end: string; sell_date: string | null;
     initial: number; hold_final: number; panic_final: number;
