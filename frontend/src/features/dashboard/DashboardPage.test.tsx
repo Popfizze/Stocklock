@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl, mockFetchUnreachable, type MockResponse } from '@/test/mockFetch'
+import { FIT_NVDA_ROBERT, FIT_RY_ROBERT } from '@/test/persona'
 import { PERSONAS } from '@/test/personas'
 import {
   KPIS,
@@ -34,6 +35,8 @@ function mockApi(overrides: Overrides = {}) {
   return mockFetchByUrl([
     { match: '/api/personas', responses: [json(PERSONAS)] },
     { match: '/api/market/kpis', responses: [json(KPIS)] },
+    { match: /\/api\/fit$/, responses: [json({ persona_id: 'amira', items: [FIT_NVDA_ROBERT, FIT_RY_ROBERT], missing: [] })] },
+    { match: '/api/fit/', responses: [json(FIT_NVDA_ROBERT)] },
     { match: '/api/universe/search', responses: overrides.search ?? [json(SEARCH_RY)] },
     { match: '/api/market/sections/populaires', responses: overrides.populaires ?? [json(SECTION_POPULAIRES)] },
     { match: '/api/market/sections/meilleurs-scores', responses: overrides.best ?? [json(SECTION_BEST_EMPTY)] },
@@ -94,6 +97,25 @@ describe('DashboardPage', () => {
     expect(kpis.getByText('Titres suivis')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Sections du tableau de bord' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Meilleurs scores' })).not.toBeInTheDocument()
+  })
+
+  it('marks each card with its fit for the active profile', async () => {
+    const calls = mockApi()
+    renderDashboard()
+
+    const populaires = within(await section('Les plus populaires'))
+    const nvda = await populaires.findByRole('link', { name: /NVDA/ })
+    expect(await within(nvda).findByText('Hors profil')).toHaveAttribute(
+      'title',
+      'Hors profil pour Robert : volatilité trop élevée.',
+    )
+    // A title the batch does not cover keeps its card, without a pastille.
+    expect(within(populaires.getByRole('link', { name: /INTC/ })).queryByText(/Compatible|Hors profil|À surveiller/)).not.toBeInTheDocument()
+    const canada = within(await section('Populaires au Canada'))
+    expect(await within(await canada.findByRole('link', { name: /RY\.TO/ })).findByText('Compatible')).toBeInTheDocument()
+
+    const batch = calls.find((call) => call.url.endsWith('/api/fit') && String(call.init.body).includes('NVDA'))
+    expect(JSON.parse(String(batch?.init.body))).toEqual({ persona_id: 'amira', tickers: ['NVDA', 'NU', 'INTC'] })
   })
 
   it('explains why « Meilleurs scores » is empty until the pipeline has run', async () => {

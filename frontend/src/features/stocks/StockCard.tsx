@@ -1,17 +1,21 @@
 import { Link } from 'react-router-dom'
+import type { FitResult } from '@/api/persona'
 import type { StockCardData } from '@/api/stocks'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
+import { FitBadge } from './FitBadge'
 import { TREND_TEXT, formatCardPrice, formatSignedPercent, trendOf } from './format'
 import { ScoreBadge } from './ScoreBadge'
 import { Sparkline } from './Sparkline'
 
 interface StockCardProps {
   stock: StockCardData
+  /** The title's fit for the active profile, once known. */
+  fit?: FitResult
 }
 
-/** A compact card of the Tableau de bord's grid: symbol, name, month curve, price, day change, score when known. */
-export function StockCard({ stock }: StockCardProps) {
+/** A compact card of the Tableau de bord's grid: symbol, name, month curve, price, day change, score and profile fit when known. */
+export function StockCard({ stock, fit }: StockCardProps) {
   return (
     <Link
       to={`/titres/${encodeURIComponent(stock.ticker)}`}
@@ -36,6 +40,10 @@ export function StockCard({ stock }: StockCardProps) {
           </span>
         )}
       </span>
+      {/* The pastille keeps its line while the verdicts load, so the cards do not jump. */}
+      <span className="flex h-4 items-center">
+        {fit && <FitBadge verdict={fit.verdict} summary={fit.summary} />}
+      </span>
     </Link>
   )
 }
@@ -48,6 +56,7 @@ export function StockCardSkeleton() {
       <Skeleton className="h-3 w-24" />
       <Skeleton className="h-9 w-full" />
       <Skeleton className="h-4 w-20" />
+      <Skeleton className="h-4 w-16" />
     </div>
   )
 }

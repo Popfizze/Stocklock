@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowDown } from 'lucide-react'
+import { useFit } from '@/api/persona'
 import { useStock, type StockRange } from '@/api/stocks'
 import { AppLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
@@ -12,7 +13,9 @@ import { formatLongDate, formatPrice, stockErrorMessage } from './format'
 import { KeyFigures } from './KeyFigures'
 import { PriceChange } from './PriceChange'
 import { PriceChart } from './PriceChart'
+import { useActivePersona } from '@/features/personas/activePersona'
 import { StockBias } from './StockBias'
+import { StockFit } from './StockFit'
 import { StockMoves } from './StockMoves'
 import { StockScore } from './StockScore'
 
@@ -26,6 +29,8 @@ export function StockPage() {
   const { ticker = '' } = useParams()
   const [range, setRange] = useState<StockRange>('1M')
   const { data: stock, error, isPending, isPlaceholderData } = useStock(ticker, range)
+  const { persona, personaId } = useActivePersona()
+  const fit = useFit(stock?.ticker ?? '', personaId)
 
   return (
     <AppLayout>
@@ -80,6 +85,11 @@ export function StockPage() {
                 </Button>
               </div>
             </header>
+
+            {/* The decision blocks come first: is this title for me? */}
+            {persona && (
+              <StockFit personaName={persona.name} fit={fit.data} error={fit.error} isPending={fit.isPending} />
+            )}
 
             <PriceChart
               points={stock.points}

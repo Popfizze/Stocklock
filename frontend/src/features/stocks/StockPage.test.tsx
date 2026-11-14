@@ -6,6 +6,7 @@ import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl } from '@/test/mockFetch'
 import { PERSONAS } from '@/test/personas'
 import { stockProjection } from '@/test/accounts'
+import { FIT_NVDA_AMIRA, FIT_NVDA_ROBERT } from '@/test/persona'
 import {
   BTC_1M,
   NVDA_1M,
@@ -48,6 +49,7 @@ describe('StockPage', () => {
   it('shows the close, the day change, the key figures and the dividends', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
@@ -84,6 +86,7 @@ describe('StockPage', () => {
   it('switches the chart period and colors it by the trend over that period', async () => {
     const calls = mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
@@ -115,6 +118,7 @@ describe('StockPage', () => {
   it('says « Aucun dividende » for an asset that pays none', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/BTC-USD?range=1M', responses: [json(BTC_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('BTC-USD', 'Bitcoin'))] },
@@ -129,6 +133,7 @@ describe('StockPage', () => {
   it('shows which account suits this stock for the active profile', async () => {
     const calls = mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
@@ -151,6 +156,7 @@ describe('StockPage', () => {
   it('says the score is not computed yet while the pipeline has not run', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/NVDA', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
@@ -166,6 +172,7 @@ describe('StockPage', () => {
   it('says so when the table does not cover the title', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/NVDA', responses: [json(SCORE_NOT_SCORED)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
@@ -180,6 +187,7 @@ describe('StockPage', () => {
   it('shows the score, its six sub-scores and the raw indicators behind one', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/NVDA', responses: [json(SCORE_AAPL)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
@@ -222,6 +230,7 @@ describe('StockPage', () => {
   it('marks a partial score and its missing sub-scores', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/NVDA', responses: [json(SCORE_XIU_PARTIAL)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
       { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
@@ -239,6 +248,7 @@ describe('StockPage', () => {
   it('offers bias analysis but not account comparison for a title outside the starter kit', async () => {
     const calls = mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/ONE.V?range=1M', responses: [json(ONE_V_1M)] },
     ])
@@ -254,9 +264,59 @@ describe('StockPage', () => {
     expect(calls.some((call) => call.url.includes('/api/accounts/'))).toBe(false)
   })
 
+  it('says first whether the title suits the active profile, with the reasons', async () => {
+    const calls = mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_ROBERT)] },
+      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
+      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
+    ])
+    renderWithProviders(
+      <Routes>
+        <Route path="/titres/:ticker" element={<StockPage />} />
+      </Routes>,
+      { personaId: 'robert', route: '/titres/NVDA' },
+    )
+
+    const block = within(await screen.findByRole('region', { name: 'Pour Robert' }))
+    expect(await block.findByText('Hors profil')).toHaveClass('text-destructive')
+    expect(block.getByText('Hors profil pour Robert : volatilité trop élevée.')).toBeInTheDocument()
+    const reasons = within(block.getByRole('list', { name: 'Raisons du verdict' })).getAllByRole('listitem')
+    expect(reasons).toHaveLength(3)
+    expect(reasons[0]).toHaveTextContent(
+      'Bloquant : Volatilité sur 1 an de 48,6 % au-dessus du maximum de 25 % du profil de Robert.',
+    )
+    expect(reasons[2]).toHaveTextContent('À noter : Position maximale pour Robert : 10 % du portefeuille.')
+    expect(block.getByText(/volatilité maximale 25 %, position\s+maximale 10 % par titre/)).toBeInTheDocument()
+    expect(calls.some((call) => call.url.endsWith('/api/fit/NVDA?persona=robert'))).toBe(true)
+    // The verdict comes before the score.
+    const score = screen.getByRole('region', { name: 'Score StockLock' })
+    expect(
+      screen.getByRole('region', { name: 'Pour Robert' }).compareDocumentPosition(score) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('stays quiet when the verdict cannot be computed', async () => {
+    mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json({ detail: 'x' }, 503)] },
+      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
+      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
+    ])
+    renderStock('NVDA')
+
+    const block = within(await screen.findByRole('region', { name: 'Pour Amira' }))
+    expect(await block.findByText(/Verdict de profil indisponible/, undefined, { timeout: 4000 })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'NVIDIA' })).toBeInTheDocument()
+  })
+
   it('explains an unknown ticker', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
       { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/', responses: [json({ detail: "titre inconnu 'NOPE'" }, 404)] },
     ])

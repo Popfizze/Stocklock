@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
+import { fitByTicker, useFitBatch } from '@/api/persona'
 import { SECTION_MAX_LIMIT, useMarketSection, type MarketSectionInfo } from '@/api/stocks'
+import { useActivePersona } from '@/features/personas/activePersona'
 import { Button } from '@/components/ui/button'
 import { formatLongDate, marketErrorMessage } from '@/features/stocks/format'
 import { STOCK_GRID, StockCard, StockCardSkeleton } from '@/features/stocks/StockCard'
@@ -27,6 +29,10 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
     if (hash === `#${headingId}`) ref.current?.scrollIntoView({ block: 'start' })
   }, [hash, headingId])
   const items = data?.items ?? []
+  // The cards' verdict for the active profile: one batch per section, quietly absent if it fails.
+  const { personaId } = useActivePersona()
+  const { data: fitBatch } = useFitBatch(personaId, items.map((item) => item.ticker))
+  const fits = fitByTicker(fitBatch)
   // The server served as many cards as asked: there may be more.
   const canShowMore = data?.status === 'ok' && items.length >= limit && limit < SECTION_MAX_LIMIT
 
@@ -61,7 +67,7 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
           <ul className={STOCK_GRID}>
             {items.map((stock) => (
               <li key={stock.ticker}>
-                <StockCard stock={stock} />
+                <StockCard stock={stock} fit={fits[stock.ticker]} />
               </li>
             ))}
           </ul>
