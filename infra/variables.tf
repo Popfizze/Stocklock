@@ -41,13 +41,13 @@ variable "extra_cors_origins" {
   default     = ["http://localhost:5173"]
 }
 
-variable "site_basic_auth_b64" {
-  description = "base64(\"user:password\") expected by the CloudFront Basic Auth gate (GitHub secret SITE_BASIC_AUTH_B64)."
+variable "site_password_sha256" {
+  description = "Lowercase hex SHA-256 of the site password, expected in the stocklock_access cookie (GitHub secret SITE_PASSWORD_SHA256)."
   type        = string
   sensitive   = true
 
   validation {
-    condition     = nonsensitive(can(regex("^[A-Za-z0-9+/]{4,}={0,2}$", var.site_basic_auth_b64)))
-    error_message = "site_basic_auth_b64 must be a non-empty base64 string."
+    condition     = nonsensitive(can(regex("^[0-9a-f]{64}$", var.site_password_sha256)))
+    error_message = "site_password_sha256 must be a lowercase hex SHA-256 (64 characters)."
   }
 }

@@ -87,7 +87,7 @@ jobs:
       - name: Terraform apply
         working-directory: infra
         env:
-          TF_VAR_site_basic_auth_b64: ${{ secrets.SITE_BASIC_AUTH_B64 }}
+          TF_VAR_site_password_sha256: ${{ secrets.SITE_PASSWORD_SHA256 }}
         run: terraform apply -input=false -auto-approve -var "agent_code_key=${{ steps.agent.outputs.key }}"
 
       - name: Outputs

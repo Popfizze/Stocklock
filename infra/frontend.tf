@@ -34,13 +34,17 @@ data "aws_cloudfront_cache_policy" "optimized" {
   name = "Managed-CachingOptimized"
 }
 
-# Password gate (HTTP Basic Auth) evaluated on every viewer request, before the cache.
-resource "aws_cloudfront_function" "basic_auth" {
-  name    = "${local.name}-basic-auth"
+# Password gate evaluated on every viewer request (assets included), before the cache:
+# without the access cookie, the function answers with the login page itself.
+resource "aws_cloudfront_function" "site_gate" {
+  name    = "${local.name}-site-gate"
   runtime = "cloudfront-js-2.0"
-  comment = "StockLock HTTP Basic Auth gate"
+  comment = "StockLock password gate (access cookie + login page)"
   publish = true
-  code    = templatefile("${path.module}/functions/basic-auth.js.tftpl", { auth_b64 = var.site_basic_auth_b64 })
+  code = templatefile("${path.module}/functions/site-gate.js.tftpl", {
+    password_sha256 = var.site_password_sha256
+    login_page      = jsonencode(file("${path.module}/functions/login.html"))
+  })
 }
 
 resource "aws_cloudfront_distribution" "frontend" {
@@ -67,7 +71,7 @@ resource "aws_cloudfront_distribution" "frontend" {
 
     function_association {
       event_type   = "viewer-request"
-      function_arn = aws_cloudfront_function.basic_auth.arn
+      function_arn = aws_cloudfront_function.site_gate.arn
     }
   }
 
