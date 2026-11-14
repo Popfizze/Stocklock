@@ -43,7 +43,7 @@ class Settings:
     data_dir: Path = REPO_DIR / "alphaforge_starter"
     cache_dir: Path = BACKEND_DIR / ".cache"
     http_timeout_s: float = 8.0
-    gdelt_timeout_s: float = 20.0
+    gdelt_timeout_s: float = 15.0
     agent_timeout_s: float = 90.0
 
 
@@ -74,6 +74,6 @@ def get_settings() -> Settings:
         data_dir=data_dir,
         cache_dir=cache_dir,
         http_timeout_s=float(_env("HTTP_TIMEOUT_S", "8")),
-        gdelt_timeout_s=float(_env("GDELT_TIMEOUT_S", "20")),
+        gdelt_timeout_s=float(_env("GDELT_TIMEOUT_S", "15")),
         agent_timeout_s=float(_env("AGENT_TIMEOUT_S", "90")),
     )

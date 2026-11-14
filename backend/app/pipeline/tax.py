@@ -45,6 +45,12 @@ def rules_stage(ctx: Context) -> None:
         ["CELIAPP durée maximale (ans)", r["fhsa"]["max_participation_years"], "cra_fhsa"],
         ["Taux d'inclusion des gains en capital", r["capital_gains"]["inclusion_rate"], "cra_capital_gains"],
     ])
+    ctx.report.factor("Plafond annuel CELI", float(r["tfsa"]["annual_limits"][str(year)]), "$", source_id="cra_limits", digits=0)
+    ctx.report.factor("Plafond annuel REER (dollars)", float(r["rrsp"]["dollar_limit"]), "$", source_id="cra_limits", digits=0)
+    ctx.report.factor("Plafond CELIAPP annuel / à vie", f"{_money(r['fhsa']['annual_limit'])} / {_money(r['fhsa']['lifetime_limit'])}",
+                      source_id="cra_fhsa")
+    ctx.report.factor("Taux d'inclusion des gains en capital", float(r["capital_gains"]["inclusion_rate"]), "ratio",
+                      source_id="cra_capital_gains")
     ctx.report.factor("Droits de cotisation CELI disponibles la 1re année", tfsa_room, "$", source_id="cra_tfsa", digits=0)
     ctx.report.factor("Droits REER annuels retenus", rrsp_room, "$", source_id="cra_rrsp", digits=0)
     ctx.report.assume(f"Droits CELI cumulés depuis l'année des 18 ans de {ctx.persona['name']} ({age} ans en "

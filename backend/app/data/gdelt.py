@@ -22,7 +22,7 @@ from app.data.http import get_json
 SOURCE = "GDELT DOC 2.0"
 API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 MIN_INTERVAL_S = 5.5
-COOLDOWN_S = 60.0  # after a refusal, fail fast instead of waiting ~15 s for another 429
+COOLDOWN_S = 300.0  # after a refusal, fail fast instead of waiting ~15 s for another 429
 
 _lock = threading.Lock()
 _last_call = 0.0

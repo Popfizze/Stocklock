@@ -188,6 +188,12 @@ def deterministic_answer(ctx: Context) -> str:
     return "\n".join(lines)
 
 
+def strip_headings(text: str) -> str:
+    """Markdown titles are not wanted in answers (the prompt says so; models sometimes ignore it)."""
+    lines = [line.lstrip("#").lstrip() if line.lstrip().startswith("#") else line for line in text.splitlines()]
+    return "\n".join(lines).strip()
+
+
 def narration_stage(ctx: Context) -> None:
     choice = ctx.opt("model")
     ctx.state["narration_model"] = choice
@@ -206,6 +212,7 @@ def narration_stage(ctx: Context) -> None:
         ctx.state["narration_model"] = "none"
         ctx.warn(f"Narration indisponible ({type(exc).__name__}) : résumé déterministe utilisé.")
         return
+    answer = strip_headings(answer)
     ctx.metric("latence agent (ms)", round((time.perf_counter() - t0) * 1000))
     ctx.metric("caractères", len(answer))
     ctx.source("bedrock_narrator", f"Amazon Bedrock, {model_id} (narration des faits calculés)")
@@ -224,8 +231,8 @@ def governance_stage(ctx: Context) -> None:
         feedback = ("Ces chiffres ne figurent pas dans les faits et doivent être retirés ou remplacés "
                     f"par des valeurs des faits : {', '.join(bad)}.")
         try:
-            new = narration.narrate(ctx.step.id, ctx.persona, ctx.report.facts(),
-                                    ctx.state["narration_model"], feedback=feedback)
+            new = strip_headings(narration.narrate(ctx.step.id, ctx.persona, ctx.report.facts(),
+                                                   ctx.state["narration_model"], feedback=feedback))
             answer, verdict, bad = gov.check(new, ctx.report, ctx.persona, inputs)
         except Exception as exc:
             ctx.warn(f"Relance de la narration impossible ({type(exc).__name__}).", limit=False)
