@@ -61,6 +61,19 @@ data "aws_iam_policy_document" "api" {
     resources = [aws_s3_bucket.data.arn]
   }
 
+  # Labo button: start and follow the score pipeline (score_pipeline.tf).
+  statement {
+    sid       = "ScorePipelineStart"
+    actions   = ["states:StartExecution", "states:ListExecutions"]
+    resources = [local.score_state_machine_arn]
+  }
+
+  statement {
+    sid       = "ScorePipelineFollow"
+    actions   = ["states:DescribeExecution"]
+    resources = [local.score_execution_arns]
+  }
+
   statement {
     sid     = "AgentCoreInvoke"
     actions = ["bedrock-agentcore:InvokeAgentRuntime"]
@@ -107,6 +120,9 @@ resource "aws_lambda_function" "api" {
       DATA_BUCKET           = aws_s3_bucket.data.bucket
       GUARDRAIL_ID          = aws_bedrock_guardrail.stocklock.guardrail_id
       GUARDRAIL_VERSION     = aws_bedrock_guardrail_version.stocklock.version
+      # The score collector may only write under score/ (step_pipeline IAM), hence this key.
+      SCORE_TABLE_KEY    = "score/gold/score_par_titre/latest.json"
+      SCORE_PIPELINE_ARN = local.score_pipeline_enabled ? local.score_state_machine_arn : ""
     }
   }
 

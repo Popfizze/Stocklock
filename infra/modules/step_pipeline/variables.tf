@@ -48,3 +48,26 @@ variable "log_retention_days" {
   type    = number
   default = 14
 }
+
+variable "timeout" {
+  description = "Lambda timeout in seconds (900 at most)."
+  type        = number
+  default     = 300
+}
+
+variable "ephemeral_storage_mb" {
+  type    = number
+  default = 512
+}
+
+variable "schedule_enabled" {
+  description = "Whether EventBridge Scheduler invokes the Lambda daily (off when a state machine drives it)."
+  type        = bool
+  default     = true
+}
+
+variable "extra_env" {
+  description = "Extra environment variables of the collector Lambda."
+  type        = map(string)
+  default     = {}
+}

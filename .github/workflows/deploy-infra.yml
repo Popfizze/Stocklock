@@ -10,6 +10,11 @@ on:
       - "!infra/bootstrap/**"
       - "backend/app/agents/**"
       - "backend/collectors/**"
+      # The collector zips embed the app package (infra/scripts/build-collectors.sh).
+      - "backend/app/score_pipeline/**"
+      - "backend/app/data/**"
+      - "backend/app/config.py"
+      - "backend/app/services/score_table.py"
       - ".github/workflows/deploy-infra.yml"
   workflow_dispatch:
 

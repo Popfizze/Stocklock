@@ -3,8 +3,12 @@ output "function_name" {
   value       = var.enabled ? aws_lambda_function.collector[0].function_name : null
 }
 
+output "function_arn" {
+  value = var.enabled ? aws_lambda_function.collector[0].arn : null
+}
+
 output "schedule_name" {
-  value = var.enabled ? aws_scheduler_schedule.daily[0].name : null
+  value = var.enabled && var.schedule_enabled ? aws_scheduler_schedule.daily[0].name : null
 }
 
 output "data_prefix" {

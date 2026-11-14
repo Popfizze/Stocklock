@@ -58,6 +58,7 @@ class Settings:
     score_table_key: str = "gold/score_par_titre/latest.json"
     # Yahoo Finance symbols of the dashboard's market KPIs, by tile id (see app.services.kpis).
     kpi_symbols: dict[str, str] = field(default_factory=dict)
+    score_pipeline_arn: str = ""
 
 
 @lru_cache(maxsize=1)
@@ -92,4 +93,5 @@ def get_settings() -> Settings:
         data_bucket=_env("DATA_BUCKET", ""),
         score_table_key=_env("SCORE_TABLE_KEY", "gold/score_par_titre/latest.json"),
         kpi_symbols=_parse_pairs(_env("KPI_SYMBOLS", DEFAULT_KPI_SYMBOLS)),
+        score_pipeline_arn=_env("SCORE_PIPELINE_ARN", ""),
     )

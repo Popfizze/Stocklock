@@ -41,4 +41,30 @@ module "step_pipeline" {
   data_bucket_arn  = aws_s3_bucket.data.arn
   artifacts_bucket = data.aws_s3_bucket.artifacts.bucket
   sec_user_agent   = var.sec_user_agent
+
+  # The score pipeline runs one stage per invocation, driven by its state machine (score_pipeline.tf).
+  timeout              = each.key == "score" ? 900 : 300
+  memory_size          = each.key == "score" ? 3008 : 1024
+  ephemeral_storage_mb = each.key == "score" ? 2048 : 512
+  schedule_enabled     = each.key != "score"
+  extra_env = each.key == "score" ? {
+    BEDROCK_FAST_MODEL_ID = var.bedrock_fast_model_id
+    CACHE_DIR             = "/tmp/cache"
+  } : {}
+}
+
+# Raw (bronze) copies of the score pipeline are kept 30 days; silver, gold and run records stay.
+resource "aws_s3_bucket_lifecycle_configuration" "data" {
+  bucket = aws_s3_bucket.data.id
+
+  rule {
+    id     = "expire-score-bronze"
+    status = "Enabled"
+    filter {
+      prefix = "score/bronze/"
+    }
+    expiration {
+      days = 30
+    }
+  }
 }

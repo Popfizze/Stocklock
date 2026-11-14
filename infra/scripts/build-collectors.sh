@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds one Lambda zip per collector that has a handler.py:
-#   backend/collectors/<step>/  ->  build/collectors/<step>.zip
+#   backend/collectors/<step>/ + backend/app/  ->  build/collectors/<step>.zip
 # The optional requirements.txt is installed for the Lambda runtime (Python 3.12, x86_64) with uv.
 # Usage: bash infra/scripts/build-collectors.sh   (needs uv and Python 3)
 set -euo pipefail
@@ -25,6 +25,10 @@ for dir in "$src"/*/; do
       --only-binary=:all: --target "$stage" -r "$dir/requirements.txt"
   fi
   cp -R "$dir". "$stage/"
+  # Collectors reuse the API's code (data loaders, config, score table contract): the `app` package
+  # goes next to handler.py, without the narration agents (AgentCore code, Strands dependencies).
+  cp -R "$root/backend/app" "$stage/app"
+  rm -rf "$stage/app/agents"
   find "$stage" \( -name __pycache__ -o -name '*.pyc' -o -name requirements.txt \) -prune -exec rm -rf {} +
   # Sorted entries, fixed timestamps and modes keep the zip, hence the Lambda code hash, stable.
   "$python" - "$stage" "$work/$step.zip" <<'EOF'

@@ -108,14 +108,18 @@ resource "aws_lambda_function" "collector" {
   s3_key           = aws_s3_object.package[0].key
   source_code_hash = filebase64sha256(var.package_file)
   memory_size      = var.memory_size
-  timeout          = 300
+  timeout          = var.timeout
+
+  ephemeral_storage {
+    size = var.ephemeral_storage_mb
+  }
 
   environment {
-    variables = {
+    variables = merge({
       DATA_BUCKET    = var.data_bucket
       STEP           = var.step
       SEC_USER_AGENT = var.sec_user_agent
-    }
+    }, var.extra_env)
   }
 
   depends_on = [aws_cloudwatch_log_group.collector, aws_iam_role_policy.collector]
@@ -139,13 +143,13 @@ data "aws_iam_policy_document" "scheduler_trust" {
 }
 
 resource "aws_iam_role" "scheduler" {
-  count              = local.count
+  count              = var.enabled && var.schedule_enabled ? 1 : 0
   name               = "${local.function_name}-scheduler"
   assume_role_policy = data.aws_iam_policy_document.scheduler_trust.json
 }
 
 resource "aws_iam_role_policy" "scheduler" {
-  count = local.count
+  count = var.enabled && var.schedule_enabled ? 1 : 0
   name  = "invoke-${local.dashed}"
   role  = aws_iam_role.scheduler[0].id
   policy = jsonencode({
@@ -158,8 +162,9 @@ resource "aws_iam_role_policy" "scheduler" {
   })
 }
 
+# Steps whose collection is orchestrated elsewhere (score: a Step Functions state machine) turn it off.
 resource "aws_scheduler_schedule" "daily" {
-  count                        = local.count
+  count                        = var.enabled && var.schedule_enabled ? 1 : 0
   name                         = local.function_name
   description                  = "Daily data collection for the ${var.step} step"
   schedule_expression          = var.schedule_expression
