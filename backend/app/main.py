@@ -11,6 +11,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError
 
+from app.accounts_api import router as accounts_router
 from app.config import get_settings
 from app.personas import get_persona, list_public
 from app.pipeline.core import OptionError, PipelineInputError
@@ -23,6 +24,7 @@ app = FastAPI(title="StockLock API", version="0.1.0",
               description="Assistant d'investissement agentique et auto-explicatif (simulation, données publiques).")
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=False,
                    allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["*"])
+app.include_router(accounts_router)
 
 
 @app.get("/api/health")

@@ -1,0 +1,22 @@
+{
+  "year": 2026,
+  "sources": [
+    {
+      "id": "iqpf_2026",
+      "title": "Institut de planification financière et FP Canada, Normes d'hypothèses de projection 2026 (en vigueur le 30 avril 2026 ; projections de plus de 10 ans, pas une prévision à court terme)",
+      "url": "https://institutpf.org/en/communique/linstitut-de-planification-financiere-et-fp-canada-et-publient-les-normes-dhypotheses-de-projection-2026",
+      "as_of": "2026-11-14"
+    }
+  ],
+  "returns": {
+    "inflation": 0.021,
+    "short_term": 0.024,
+    "fixed_income": 0.032,
+    "canadian_equities": 0.063,
+    "us_equities": 0.064,
+    "international_equities": 0.066,
+    "emerging_equities": 0.075
+  },
+  "source_id": "iqpf_2026",
+  "scenario_spread": 0.02
+}

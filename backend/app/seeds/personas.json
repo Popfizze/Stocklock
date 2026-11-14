@@ -15,6 +15,10 @@
       "allow_crypto": true,
       "excluded_sectors": [],
       "excluded_tickers": []
+    },
+    "tax_profile": {
+      "income": 62000,
+      "first_home_buyer": true
     }
   },
   {
@@ -33,6 +37,10 @@
       "allow_crypto": false,
       "excluded_sectors": ["Energy"],
       "excluded_tickers": []
+    },
+    "tax_profile": {
+      "income": 95000,
+      "first_home_buyer": false
     }
   },
   {
@@ -51,6 +59,10 @@
       "allow_crypto": false,
       "excluded_sectors": [],
       "excluded_tickers": []
+    },
+    "tax_profile": {
+      "income": 110000,
+      "first_home_buyer": false
     }
   }
 ]
