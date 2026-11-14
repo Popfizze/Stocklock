@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 from typing import Any
@@ -16,6 +17,7 @@ from app.score_pipeline.runs import GOLD_LATEST_KEY, RunContext, StageRecorder, 
 from app.services.score_table import ScoreRow, ScoreTable
 
 MIN_SECTOR = 5
+MIN_SELF_RANKED = 50  # below this, a run is ranked with the latest gold table's other titles
 MIN_PRICE_DAYS = 150
 STALE_DAYS = 550
 METHOD = (
@@ -265,6 +267,70 @@ def build_row(symbol: str, as_of: str, raw: dict[str, Value], ranks: dict[str, d
             "comparison_set": comparison, "sub_scores": out, "sources": sources}
 
 
+# --- Comparison set and merge --------------------------------------------------------------------------
+
+def _sector_of(row: dict[str, Any]) -> str | None:
+    if row.get("sector"):
+        return str(row["sector"])
+    text = str(row.get("comparison_set") or "")
+    small = re.search(r"secteur (.+?) trop petit", text)
+    if small:
+        return small.group(1)
+    if not text or text.startswith(("Ensemble", "Toutes")):
+        return None
+    return text.split(",")[0].strip() or None
+
+
+def reference_set(table: dict[str, Any], exclude: set[str]) -> tuple[dict[str, dict[str, Value]], dict[str, str]]:
+    """Raw indicators and sectors of the latest table's other titles, as measured by their own run."""
+    raw: dict[str, dict[str, Value]] = {}
+    sectors: dict[str, str] = {}
+    for row in table.get("rows") or []:
+        symbol = row.get("symbol")
+        if not symbol or symbol in exclude:
+            continue
+        values = {i: Value(None) for i in ind.INDICATORS}
+        fundamentals_seen = False
+        for sub in row.get("sub_scores") or []:
+            for item in sub.get("indicators") or []:
+                if item.get("id") not in values:
+                    continue
+                note = item.get("note")
+                worst = item.get("rank") == 0 and "dernier rang" in (note or "")
+                values[item["id"]] = Value(item.get("value"), worst, note)
+                if sub.get("id") not in ("momentum_risque", "evenements") and values[item["id"]].present:
+                    fundamentals_seen = True
+        raw[symbol] = values
+        asset_type = row.get("asset_type") or ("action" if fundamentals_seen or values["events_90d"].present
+                                               else "FNB")
+        if asset_type == "action":
+            sectors[symbol] = _sector_of(row) or "Non classé"
+    return raw, sectors
+
+
+def comparison_rule(n_run: int, n_reference: int, has_table: bool) -> str:
+    if n_reference:
+        return (f"Groupe de {n_run} titres (moins de {MIN_SELF_RANKED}) : rangs calculés avec les {n_reference} "
+                f"autres titres de la dernière table gold (leurs indicateurs bruts, mesurés par leur propre run), "
+                f"soit {n_run + n_reference} titres comparés ; seules les lignes du groupe sont recalculées")
+    if n_run < MIN_SELF_RANKED:
+        why = "aucune table gold de référence" if not has_table else "table gold de référence sans autre titre"
+        return (f"Groupe de {n_run} titres, {why} : rangs calculés dans le groupe seul "
+                f"(peu significatifs sous {MIN_SELF_RANKED} titres)")
+    return f"Rangs calculés sur les {n_run} titres de ce run (au moins {MIN_SELF_RANKED} : il se compare à lui-même)"
+
+
+def merge(previous: dict[str, Any] | None, rows: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], int, int]:
+    """(this run's rows + the previous table's other rows, rows replaced, rows kept), best score first."""
+    new = {r["symbol"] for r in rows}
+    old_rows = (previous or {}).get("rows") or []
+    old_run = (previous or {}).get("run_id")
+    kept = [{**r, "run_id": r.get("run_id") or old_run} for r in old_rows if r.get("symbol") not in new]
+    replaced = sum(1 for r in old_rows if r.get("symbol") in new)
+    merged = sorted([*rows, *kept], key=lambda r: (-float(r["score"]), r["symbol"]))
+    return merged, replaced, len(kept)
+
+
 # --- Stage ---------------------------------------------------------------------------------------------
 
 def _load(ctx: RunContext, store: st.Store) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, dict]:
@@ -348,24 +414,39 @@ def run(ctx: RunContext, store: st.Store, rec: StageRecorder, deadline: float) -
         last_close = float(t.closes.iloc[-1]) if price_as_of is not None else None
         values.update(fundamentals(t, run_date, usdcad, last_close))
         values["events_90d"] = events_indicator(t, run_date)
+        for v in values.values():  # as stored in the table, so a later run compares like with like
+            v.value = None if v.value is None else round(v.value, 6)
         raw[u.symbol] = values
         as_of[u.symbol] = price_as_of.date().isoformat() if price_as_of is not None else ctx.date
         if u.asset_type == "action":
             sectors[u.symbol] = t.sector
-    capped, ranks, groups = rank_all(raw, sectors)
+    try:
+        previous = st.get_json(store, GOLD_LATEST_KEY)
+    except st.NotFound:
+        previous = None
+    ref_raw: dict[str, dict[str, Value]] = {}
+    ref_sectors: dict[str, str] = {}
+    if len(raw) < MIN_SELF_RANKED and previous:
+        ref_raw, ref_sectors = reference_set(previous, set(raw))
+    combined = {**ref_raw, **raw}
+    capped, ranks, comparisons = rank_all(combined, {**ref_sectors, **sectors})
+    comparison = comparison_rule(len(raw), len(ref_raw), previous is not None)
+    rec.decide("info", comparison, len(combined))
 
     rows, rejected = [], 0
     for u in univ.itertuples():
-        comparison = groups.get(u.symbol) or f"Ensemble, {len(raw)} titres"
+        label = comparisons.get(u.symbol) or f"Ensemble, {len(combined)} titres"
         srcs = row_sources(u.symbol, manifest, index, rel_by_symbol.get(u.symbol),
                            as_of[u.symbol] if u.symbol in closes else None, ctx.date,
                            raw[u.symbol]["events_90d"].value is not None and bool(ev_by_symbol.get(u.symbol)))
-        row = build_row(u.symbol, as_of[u.symbol], raw[u.symbol], ranks, comparison, srcs)
+        row = build_row(u.symbol, as_of[u.symbol], raw[u.symbol], ranks, label, srcs)
         if row is None:
             rejected += 1
             continue
-        rows.append(ScoreRow.model_validate(row).model_dump(mode="json"))
-    rows.sort(key=lambda r: -r["score"])
+        row["run_id"] = ctx.run_id
+        rows.append({**ScoreRow.model_validate(row).model_dump(mode="json"), "asset_type": u.asset_type,
+                     "sector": sectors.get(u.symbol)})
+    rows.sort(key=lambda r: (-r["score"], r["symbol"]))
     rec.decide("missing", "Titres sans aucun sous-score calculable (ni cours ni relevés) : non notés", rejected)
     partial = sum(1 for r in rows if r["partiel"])
     rec.decide("info", "Lignes partielles : un sous-score manquant cède son poids aux autres", partial)
@@ -373,22 +454,31 @@ def run(ctx: RunContext, store: st.Store, rec: StageRecorder, deadline: float) -
         n = sum(1 for r in rows for s in r["sub_scores"] if s["id"] == sub.id and s["score"] is None)
         rec.decide("missing", f"Sous-score « {sub.label} » manquant", n)
     rec.decide("info", f"Valorisation rangée dans le secteur (au moins {MIN_SECTOR} titres), sinon parmi "
-                       "toutes les actions ; autres indicateurs rangés sur l'ensemble des titres notés")
+                       "toutes les actions ; autres indicateurs rangés sur tout l'ensemble de comparaison")
 
     long_raw = [{"symbol": s, "indicator": i, "value": v.value, "worst": v.worst, "note": v.note}
                 for s, vals in raw.items() for i, v in vals.items()]
+    everyone = f"Ensemble, {len(combined)} titres"
     long_ranks = [{"symbol": s, "indicator": i, "capped_value": capped[i].get(s), "rank": r,
-                   "comparison": groups.get(s) if i in ind.VALUATION else "Ensemble"}
-                  for i, by_symbol in ranks.items() for s, r in by_symbol.items()]
+                   "comparison": comparisons.get(s) if i in ind.VALUATION else everyone}
+                  for i, by_symbol in ranks.items() for s, r in by_symbol.items() if s in raw]
     st.put_csv(store, rec.output(ctx.key("gold", "indicateurs_bruts", "indicateurs_bruts.csv")), pd.DataFrame(long_raw))
     st.put_csv(store, rec.output(ctx.key("gold", "rangs", "rangs.csv")), pd.DataFrame(long_ranks))
-    table = {"schema_version": 1, "generated_at": now_iso(), "method": METHOD, "run_id": ctx.run_id,
-             "date": ctx.date, "rows": rows}
-    ScoreTable.model_validate(table)
-    st.put_json(store, rec.output(ctx.key("gold", "score_par_titre", "score_par_titre.json")), table)
-    st.put_json(store, rec.output(GOLD_LATEST_KEY), table)
+    own = {"schema_version": 1, "generated_at": now_iso(), "method": METHOD, "run_id": ctx.run_id,
+           "date": ctx.date, "rows": rows}
+    ScoreTable.model_validate(own)
+    st.put_json(store, rec.output(ctx.key("gold", "score_par_titre", "score_par_titre.json")), own)
+    merged, replaced, kept = merge(previous, rows)
+    latest = {**own, "rows": merged}
+    ScoreTable.model_validate(latest)
+    st.put_json(store, rec.output(GOLD_LATEST_KEY), latest)
+    rec.decide("info", f"Table gold fusionnée : {len(rows)} lignes de ce run ({replaced} remplacées, "
+                       f"{len(rows) - replaced} nouvelles) et {kept} lignes d'autres runs gardées telles quelles ; "
+                       "chaque ligne porte son run_id et la date de ses données", len(merged))
     rec.rows.update(indicateurs_bruts=len(long_raw), rangs=len(long_ranks), score_par_titre=len(rows))
     rec.metrics.update(titles_scored=len(rows), partial=partial, table_key=st.ROOT_PREFIX + GOLD_LATEST_KEY,
+                       table_rows=len(merged), comparison=comparison, comparison_size=len(combined),
+                       reference_titles=len(ref_raw),
                        mean_score=round(sum(r["score"] for r in rows) / len(rows), 2) if rows else None,
                        top=[{"symbol": r["symbol"], "score": r["score"], "partiel": r["partiel"]} for r in rows[:5]])
     wide = pd.DataFrame([{"symbol": s, **{i: v.value for i, v in vals.items()}} for s, vals in raw.items()])

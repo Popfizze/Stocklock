@@ -15,6 +15,9 @@ evenements 10 %. Each indicator is capped at the 5th/95th percentile of the comp
 ranked 0-100 (valuation within the sector); a sub-score is the mean of its ranks. A missing sub-score
 (`score` null) has its weight redistributed over the others (`effective_weight`) and the row is
 flagged `partiel`.
+
+Each pipeline run merges its rows into the table (the other titles keep their latest row), so rows can
+come from different runs: `run_id` and `date` say which run computed a row and on which day's data.
 """
 
 from __future__ import annotations
@@ -69,6 +72,8 @@ class ScoreRow(BaseModel):
     comparison_set: str | None = Field(default=None, description="e.g. « Technologie, 48 titres »")
     sub_scores: list[SubScore]
     sources: list[ScoreSource] = []
+    run_id: str | None = Field(default=None, description="Pipeline run that computed this row (the table merges "
+                                                          "the rows of several runs, each with its own date)")
 
 
 class ScoreTable(BaseModel):

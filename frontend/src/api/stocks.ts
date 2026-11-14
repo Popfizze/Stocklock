@@ -250,6 +250,8 @@ export interface ScoreRow {
   comparison_set: string | null
   sub_scores: SubScore[]
   sources: ScoreSource[]
+  /** Pipeline run that computed this row: the table merges the rows of several runs, each dated by `date`. */
+  run_id?: string | null
 }
 
 /**

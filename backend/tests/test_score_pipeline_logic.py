@@ -131,16 +131,18 @@ def test_select_keeps_universe_titles_in_screener_order_with_filters():
                                   _quote("OLD", days_ago=12), _quote("BBB")]},
         "ca_actions": {"quotes": [_quote("AAPL.TO", name="APPLE CDR (CAD HEDGED)"), _quote("RY.TO")]},
     }
-    chosen, counts = titres.select(universe_rows, screens, {"us_actions": 2, "ca_actions": 1}, date(2026, 11, 14))
+    chosen, counts, excluded = titres.select(universe_rows, screens, {"us_actions": 2, "ca_actions": 1},
+                                             date(2026, 11, 14))
     assert [r["symbol"] for r in chosen] == ["AAA", "GOOGL", "RY.TO"]
+    assert {"symbol": "NOTLISTED", "reason": "absent de l'univers SEC/TMX"} in excluded
     assert counts["hors_univers"] == 1 and counts["cdr"] == 1
     assert chosen[0]["asset_type"] == "action" and chosen[0]["popularity_rank"] == 1
-    _chosen, counts = titres.select(universe_rows, screens, {"us_actions": 5}, date(2026, 11, 14))
+    _chosen, counts, _excluded = titres.select(universe_rows, screens, {"us_actions": 5}, date(2026, 11, 14))
     assert counts["doublons_societe"] == 1 and counts["inactifs"] == 1
     brk = {"BRK-A": {**universe_rows["AAA"], "symbol": "BRK-A", "company_key": "cik:9"},
            "BRK-B": {**universe_rows["AAA"], "symbol": "BRK-B", "company_key": "cik:9"}}
     by_volume = {"us_actions": {"quotes": [_quote("BRK-A", volume=1_000), _quote("BRK-B", volume=5_000_000)]}}
-    chosen, _counts = titres.select(brk, by_volume, {"us_actions": 1}, date(2026, 11, 14))
+    chosen, _counts, _excluded = titres.select(brk, by_volume, {"us_actions": 1}, date(2026, 11, 14))
     assert [r["symbol"] for r in chosen] == ["BRK-B"]  # the most traded class stands for the company
 
 

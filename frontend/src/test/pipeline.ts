@@ -1,5 +1,7 @@
 import type {
+  ScoreGroupOptions,
   ScoreRun,
+  ScoreRunGroupResolution,
   ScoreRunInfo,
   ScoreRunList,
   ScoreRunParams,
@@ -16,6 +18,31 @@ export const SCORE_RUN_PARAMS: ScoreRunParams = {
   etf_share: 0.1,
   news_per_title: 6,
   max_llm_articles: 1200,
+}
+
+export const SCORE_GROUP_AUTO: ScoreRunGroupResolution = {
+  kind: 'auto',
+  label: 'Sélection automatique : 15 titres (actions américaines, TSX, FNB)',
+  requested: null,
+  resolved: null,
+  unknown: [],
+  aliases: {},
+  excluded: [],
+  comparison: null,
+}
+
+export const SCORE_GROUP_OPTIONS: ScoreGroupOptions = {
+  sections: [
+    { id: 'populaires', title: 'Les plus populaires' },
+    { id: 'meilleurs-scores', title: 'Meilleurs scores' },
+    { id: 'canada-populaires', title: 'Populaires au Canada' },
+  ],
+  sectors: [
+    { name: 'Technology', label: 'Technologie' },
+    { name: 'Financial Services', label: 'Services financiers' },
+    { name: 'Energy', label: 'Énergie' },
+  ],
+  max_tickers: 100,
 }
 
 export const SCORE_STAGE_DEFS: ScoreStageDef[] = [
@@ -87,6 +114,7 @@ export const SCORE_RUN_RUNNING: ScoreRun = {
   trigger: 'api',
   date: '2026-11-14',
   params: SCORE_RUN_PARAMS,
+  group: SCORE_GROUP_AUTO,
   started_at: '2026-11-14T21:53:36Z',
   finished_at: null,
   duration_s: null,
@@ -184,6 +212,7 @@ function info(run: ScoreRun): ScoreRunInfo {
     trigger: run.trigger,
     date: run.date,
     params: run.params,
+    group: run.group,
     started_at: run.started_at,
     finished_at: run.finished_at,
     duration_s: run.duration_s,
@@ -193,10 +222,90 @@ function info(run: ScoreRun): ScoreRunInfo {
   }
 }
 
+/** A run on 5 requested tickers: one unknown, one read with an alias, ranked with the latest gold table. */
+const TICKERS_RUN_ID = '20261114T231500Z-5t1ck3'
+const TICKERS_COMPARISON =
+  'Groupe de 4 titres (moins de 50) : rangs calculés avec les 196 autres titres de la dernière table gold ' +
+  '(leurs indicateurs bruts, mesurés par leur propre run), soit 200 titres comparés ; ' +
+  'seules les lignes du groupe sont recalculées'
+
+export const SCORE_GROUP_TICKERS: ScoreRunGroupResolution = {
+  kind: 'tickers',
+  label: '5 titres choisis',
+  requested: ['AAPL', 'RY.TO', 'BRK.B', 'ZZZZ', 'SHOP.TO'],
+  resolved: ['AAPL', 'RY.TO', 'BRK-B', 'SHOP.TO'],
+  unknown: ['ZZZZ'],
+  aliases: { 'BRK.B': 'BRK-B' },
+  excluded: [],
+  comparison: TICKERS_COMPARISON,
+}
+
+export const SCORE_RUN_TICKERS: ScoreRun = {
+  ...SCORE_RUN_SUCCEEDED,
+  run_id: TICKERS_RUN_ID,
+  params: { ...SCORE_RUN_PARAMS, max_titles: 5, ca_share: 0, etf_share: 0 },
+  group: SCORE_GROUP_TICKERS,
+  started_at: '2026-11-14T23:15:00Z',
+  finished_at: '2026-11-14T23:16:40Z',
+  duration_s: 100.0,
+  summary: {
+    titles_selected: 4,
+    titles_scored: 4,
+    partial: 1,
+    table_key: 'score/gold/score_par_titre/latest.json',
+    bedrock_calls: 2,
+    bedrock_input_tokens: 4100,
+    bedrock_output_tokens: 2300,
+    top: [
+      { symbol: 'SHOP.TO', score: 61.2, partiel: false },
+      { symbol: 'AAPL', score: 56.1, partiel: false },
+    ],
+    table_rows: 201,
+    comparison: TICKERS_COMPARISON,
+    group: SCORE_GROUP_TICKERS,
+  },
+  stages: SCORE_RUN_SUCCEEDED.stages.map((s) =>
+    s.id === 'silver_univers'
+      ? {
+          ...s,
+          rows: { univers_complet: 14409, univers: 4, univers_action: 4 },
+          decisions: [
+            { kind: 'parameter', message: 'Titres demandés : AAPL, RY.TO, BRK.B, ZZZZ, SHOP.TO', count: 5 },
+            { kind: 'info', message: 'Symboles interprétés : BRK.B → BRK-B', count: 1 },
+            { kind: 'missing', message: "Titres inconnus de l'univers SEC/TMX, non notés : ZZZZ", count: 1 },
+          ],
+          metrics: { group: 'tickers' },
+        }
+      : s.id === 'gold'
+        ? {
+            ...s,
+            rows: { score_par_titre: 4 },
+            metrics: { titles_scored: 4, partial: 1, table_rows: 201, comparison: TICKERS_COMPARISON },
+            decisions: [
+              { kind: 'info', message: TICKERS_COMPARISON, count: 200 },
+              {
+                kind: 'info',
+                message:
+                  'Table gold fusionnée : 4 lignes de ce run (3 remplacées, 1 nouvelles) et 197 lignes ' +
+                  "d'autres runs gardées telles quelles ; chaque ligne porte son run_id et la date de ses données",
+                count: 201,
+              },
+            ],
+          }
+        : s,
+  ),
+}
+
 export const SCORE_RUN_LIST: ScoreRunList = {
   configured: true,
   stages: SCORE_STAGE_DEFS,
+  group_options: SCORE_GROUP_OPTIONS,
   runs: [info(SCORE_RUN_SUCCEEDED), { ...info(SCORE_RUN_FAILED), run_id: '20261113T110000Z-aa11bb', trigger: 'schedule' }],
+}
+
+export const SCORE_RUN_LIST_WITH_GROUP: ScoreRunList = {
+  ...SCORE_RUN_LIST,
+  runs: [info(SCORE_RUN_TICKERS), ...SCORE_RUN_LIST.runs],
 }
 
 export const SCORE_RUN_LIST_RUNNING: ScoreRunList = {
@@ -207,5 +316,6 @@ export const SCORE_RUN_LIST_RUNNING: ScoreRunList = {
 export const SCORE_RUN_LIST_UNCONFIGURED: ScoreRunList = {
   configured: false,
   stages: SCORE_STAGE_DEFS,
+  group_options: SCORE_GROUP_OPTIONS,
   runs: [],
 }

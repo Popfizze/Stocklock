@@ -17,8 +17,9 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import pandas as pd
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
+from app.score_pipeline import groups
 from app.score_pipeline import store as st
 
 SCHEMA_VERSION = 1
@@ -61,13 +62,30 @@ BY_ID = {s.id: s for s in STAGES}
 
 
 class RunParams(BaseModel):
-    """Parameters of a run (body of POST /api/pipeline/score/runs); all optional."""
+    """Parameters of a run (body of POST /api/pipeline/score/runs); all optional.
 
-    max_titles: int = Field(200, ge=5, le=600, description="Number of titles scored (most valuable first)")
-    ca_share: float = Field(0.3, ge=0, le=1, description="Share of Canadian (TSX) stocks among the stocks")
-    etf_share: float = Field(0.1, ge=0, le=0.5, description="Share of ETFs among the titles")
-    news_per_title: int = Field(6, ge=0, le=20, description="Most articles kept per title")
+    `group` says which titles are scored (see groups.py), the automatic selection by default. The
+    top-level `max_titles`, `ca_share` and `etf_share` are the automatic selection's settings (the first
+    contract): without a `group` they build it; with one, they mirror it (requested size, shares).
+    """
+
+    group: groups.Group | None = None
+    max_titles: int = Field(200, ge=1, le=600, description="Auto group: titles scored (mirror of the group)")
+    ca_share: float = Field(0.3, ge=0, le=1, description="Auto group: share of TSX stocks among the stocks")
+    etf_share: float = Field(0.1, ge=0, le=0.5, description="Auto group: share of ETFs among the titles")
+    news_per_title: int = Field(6, ge=0, le=50, description="Most articles kept per title")
     max_llm_articles: int = Field(1200, ge=0, le=5000, description="Most articles sent to Bedrock in a run")
+
+    @model_validator(mode="after")
+    def _group(self) -> RunParams:
+        if self.group is None:
+            self.group = groups.AutoGroup(max_titles=max(5, self.max_titles), ca_share=self.ca_share,
+                                          etf_share=self.etf_share)
+        g = self.group
+        self.max_titles = groups.requested_size(g)
+        self.ca_share = getattr(g, "ca_share", 0.0)
+        self.etf_share = getattr(g, "etf_share", 0.0)
+        return self
 
 
 @dataclass
@@ -233,6 +251,9 @@ def summary_of(stages: list[dict[str, Any]]) -> dict[str, Any]:
         "bedrock_input_tokens": events.get("input_tokens"),
         "bedrock_output_tokens": events.get("output_tokens"),
         "top": gold.get("top"),
+        "table_rows": gold.get("table_rows"),
+        "comparison": gold.get("comparison"),
+        "group": by_id.get("silver_univers", {}).get("metrics", {}).get("group"),
     }
 
 

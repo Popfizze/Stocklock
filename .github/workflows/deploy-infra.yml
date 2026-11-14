@@ -15,6 +15,7 @@ on:
       - "backend/app/data/**"
       - "backend/app/config.py"
       - "backend/app/services/score_table.py"
+      - "backend/app/services/sections.py"
       - ".github/workflows/deploy-infra.yml"
   workflow_dispatch:
 

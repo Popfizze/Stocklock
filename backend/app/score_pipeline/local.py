@@ -1,6 +1,7 @@
 """Run the whole score pipeline on this machine, into a local folder laid out like the bucket.
 
     cd backend && python -m app.score_pipeline.local --max-titles 12 --out ../build/score-local
+    python -m app.score_pipeline.local --tickers AAPL RY BRK.B      (or --section populaires, --sector Energy)
 
 Real sources (SEC, TMX, Yahoo, GDELT, Federal Register); Bedrock needs AWS credentials, or pass
 --no-llm to skip the event extraction (every title's events sub-score is then missing).
@@ -23,6 +24,9 @@ def main() -> None:
     parser.add_argument("--max-titles", type=int, default=12)
     parser.add_argument("--out", type=Path, default=Path("../build/score-local"))
     parser.add_argument("--no-llm", action="store_true")
+    parser.add_argument("--tickers", nargs="+")
+    parser.add_argument("--section")
+    parser.add_argument("--sector")
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
     store = st.FileStore(args.out)
@@ -31,8 +35,15 @@ def main() -> None:
             raise RuntimeError("Bedrock désactivé (--no-llm)")
 
         stages.RUNNERS["silver_evenements"] = lambda c, s, r, d: evenements.silver(c, s, r, d, converse=no_llm)
+    params: dict = {"max_titles": args.max_titles}
+    if args.tickers:
+        params["group"] = {"kind": "tickers", "tickers": args.tickers}
+    elif args.section:
+        params["group"] = {"kind": "section", "id": args.section, "limit": args.max_titles}
+    elif args.sector:
+        params["group"] = {"kind": "sector", "name": args.sector, "max_titles": max(5, args.max_titles)}
     run = stages.handle({"stage": "init", "execution_name": stages.new_run_id(),
-                         "input": {"trigger": "local", "params": {"max_titles": args.max_titles}}}, store)["run"]
+                         "input": {"trigger": "local", "params": params}}, store)["run"]
     try:
         for stage in STAGE_IDS:
             result = stages.handle({"stage": stage, "run": run}, store, remaining_ms=900_000)
