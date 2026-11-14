@@ -34,6 +34,15 @@ data "aws_cloudfront_cache_policy" "optimized" {
   name = "Managed-CachingOptimized"
 }
 
+# Password gate (HTTP Basic Auth) evaluated on every viewer request, before the cache.
+resource "aws_cloudfront_function" "basic_auth" {
+  name    = "${local.name}-basic-auth"
+  runtime = "cloudfront-js-2.0"
+  comment = "StockLock HTTP Basic Auth gate"
+  publish = true
+  code    = templatefile("${path.module}/functions/basic-auth.js.tftpl", { auth_b64 = var.site_basic_auth_b64 })
+}
+
 resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   comment             = "StockLock frontend"
@@ -55,6 +64,11 @@ resource "aws_cloudfront_distribution" "frontend" {
     cached_methods         = ["GET", "HEAD"]
     cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
     compress               = true
+
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.basic_auth.arn
+    }
   }
 
   # Client-side routes (/choisir-profil, /labo, ...) are not objects in the bucket.
