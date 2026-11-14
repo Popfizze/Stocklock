@@ -77,7 +77,7 @@ export function PipelineScene({ nodes, onSelect, name }: PipelineSceneProps) {
     <Tile3D
       tiles={tiles}
       flows={flows}
-      view="iso"
+      view="front"
       onSelect={(tile) => tile.id && onSelect(tile.id)}
       label={`Convoyeur 3D ${name}, des entrées à la sortie : ${reading}. Le même état est détaillé étape par étape dans le diagramme ci-dessous.`}
       className="h-48 sm:h-56"
