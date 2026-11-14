@@ -1,84 +1,101 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl, type MockResponse } from '@/test/mockFetch'
 import { PERSONAS } from '@/test/personas'
-import { LAB_CATALOG } from '@/test/lab'
-import { SCORE_RUN_LIST, SCORE_RUN_LIST_UNCONFIGURED } from '@/test/pipeline'
+import { SCORE_RUN_LIST } from '@/test/pipeline'
+import { RUN_BATCH, RUN_DETAIL_BATCH, RUN_LAB, RUN_PAGE, RUN_SCORE_PIPELINE } from '@/test/runs'
 import { LabPage } from './LabPage'
-import { storeLabRuns, type StoredLabRun } from './labHistory'
 
 const ORIGINAL_FETCH = globalThis.fetch
 
-function renderLab(scoreRuns: MockResponse = json(SCORE_RUN_LIST), catalog: MockResponse = json(LAB_CATALOG)) {
-  mockFetchByUrl([
+function renderLab(runs: MockResponse = json(RUN_PAGE)) {
+  const calls = mockFetchByUrl([
     { match: '/api/personas', responses: [json(PERSONAS)] },
-    { match: '/api/lab/pipelines', responses: [catalog] },
-    { match: '/api/pipeline/score/runs', responses: [scoreRuns] },
+    { match: '/api/pipeline/score/runs', responses: [json(SCORE_RUN_LIST)] },
+    { match: `/api/runs/${RUN_BATCH.run_id}`, responses: [json(RUN_DETAIL_BATCH)] },
+    { match: '/api/runs?', responses: [runs] },
   ])
-  return renderWithProviders(<LabPage />, { route: '/labo', personaId: 'amira' })
+  renderWithProviders(<LabPage />, { route: '/labo', personaId: 'amira' })
+  return calls
 }
 
-const STORED: StoredLabRun = {
-  runId: 'run-1',
-  at: '2026-11-14T15:30:00Z',
-  status: 'warning',
-  durationMs: 1840,
-  keyResult: 'Score : 72',
-  governancePassed: false,
-  changedOptions: [],
-  params: {},
-  decisions: {},
-}
-
-describe('LabPage', () => {
+describe('LabPage (Exécutions)', () => {
   afterEach(() => {
     globalThis.fetch = ORIGINAL_FETCH
-    vi.restoreAllMocks()
   })
 
-  it('lists the pipelines, each one opening its page', async () => {
+  it('lists every run of every pipeline, each one opening its page, with the 3D frieze described', async () => {
     renderLab()
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Labo des pipelines' })).toBeInTheDocument()
-    const list = within(screen.getByRole('list', { name: 'Pipelines' }))
-    expect(list.getByRole('link', { name: /Table des scores/ })).toHaveAttribute('href', '/labo/scores')
-    expect(await list.findByRole('link', { name: /1\. Score/ })).toHaveAttribute('href', '/labo/score')
-    const fluctuations = list.getByRole('link', { name: /2\. Fluctuations/ })
-    expect(fluctuations).toHaveAttribute('href', '/labo/fluctuations')
-    expect(fluctuations).toHaveTextContent('Synchrone · 1 étapes')
-    expect(list.getByRole('link', { name: /1\. Score/ })).toHaveTextContent('Collecte → Notation')
+    expect(screen.getByRole('heading', { level: 1, name: 'Labo des exécutions' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Lancer un run' })).toHaveAttribute('href', '/labo/lancer')
+
+    const list = within(await screen.findByRole('list', { name: /^Exécutions du/ }))
+    expect(list.getByRole('link', { name: /SHOP\.TO/ })).toHaveAttribute('href', `/labo/executions/${RUN_LAB.run_id}`)
+    expect(list.getByRole('link', { name: /Les plus populaires/ })).toHaveAttribute('href', `/labo/executions/${RUN_BATCH.run_id}`)
+    const scheduled = list.getByRole('link', { name: /Pipeline de score du 2026-11-14/ })
+    expect(scheduled).toHaveAttribute('href', `/labo/executions/${RUN_SCORE_PIPELINE.run_id}`)
+    expect(scheduled).toHaveTextContent('Planifié')
+    expect(list.getByText('Score : 72')).toBeInTheDocument()
+    expect(list.getByText('En cours')).toBeInTheDocument()
+
+    expect(screen.getByRole('img', { name: /Frise 3D des exécutions.*3 exécutions, 1 en cours/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Exécutions plus anciennes' })).toBeInTheDocument()
   })
 
-  it('shows the last run of each pipeline, or that it never ran', async () => {
-    storeLabRuns('score', [STORED])
+  it('sends the filters to the registry', async () => {
+    const user = userEvent.setup()
+    const calls = renderLab()
+    await screen.findByRole('list', { name: /^Exécutions du/ })
+
+    await user.click(screen.getByRole('radio', { name: 'Pipeline de score' }))
+    await user.click(screen.getByRole('radio', { name: 'Planifié' }))
+    await user.click(screen.getByRole('radio', { name: 'Mateo' }))
+
+    const last = calls.filter((call) => call.url.includes('/api/runs?')).pop()
+    expect(last?.url).toContain('pipeline=score_pipeline')
+    expect(last?.url).toContain('trigger=schedule')
+    expect(last?.url).toContain('persona=mateo')
+  })
+
+  it('opens a group to show its titles, each one its own run', async () => {
+    const user = userEvent.setup()
     renderLab()
 
-    const list = within(screen.getByRole('list', { name: 'Pipelines' }))
-    // The score pipeline's last run comes from AWS.
-    const scores = list.getByRole('link', { name: /Table des scores/ })
-    expect(await within(scores).findByText('Terminé')).toBeInTheDocument()
-    expect(scores).toHaveTextContent(/14 nov\. 2026/)
-    // The lab pipelines' from this browser's history.
-    const score = await list.findByRole('link', { name: /1\. Score/ })
-    expect(within(score).getByText('Avertissement')).toBeInTheDocument()
-    expect(score).toHaveTextContent(/14 nov\. 2026/)
-    expect(list.getByRole('link', { name: /2\. Fluctuations/ })).toHaveTextContent('Jamais exécuté')
+    await user.click(await screen.findByRole('button', { name: '3 titres' }))
+
+    const titles = within(await screen.findByRole('list', { name: 'Titres du groupe' }))
+    expect(titles.getByRole('link', { name: /NVDA/ })).toHaveAttribute('href', '/labo/executions/run-nvda')
+    expect(titles.getAllByRole('link')).toHaveLength(3)
   })
 
-  it('says the score pipeline never ran where it is not deployed', async () => {
-    renderLab(json(SCORE_RUN_LIST_UNCONFIGURED))
+  it('offers the comparison once two runs are picked', async () => {
+    const user = userEvent.setup()
+    renderLab()
 
-    const scores = screen.getByRole('link', { name: /Table des scores/ })
-    expect(await within(scores).findByText('Jamais exécuté')).toBeInTheDocument()
-  })
+    await user.click(await screen.findByRole('button', { name: 'Comparer SHOP.TO' }))
+    expect(screen.getByText('Choisissez un second run à comparer.')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Comparer Groupe/ }))
 
-  it('explains a catalog that cannot be loaded, and still lists the score pipeline', async () => {
-    renderLab(json(SCORE_RUN_LIST), json({ detail: 'boom' }, 500))
-
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      "Le serveur n'a pas pu fournir les pipelines (erreur 500)",
+    expect(screen.getByRole('link', { name: 'Comparer les 2 runs choisis' })).toHaveAttribute(
+      'href',
+      `/labo/comparer?a=${RUN_LAB.run_id}&b=${RUN_BATCH.run_id}`,
     )
-    expect(screen.getByRole('link', { name: /Table des scores/ })).toBeInTheDocument()
+  })
+
+  it('falls back to the score pipeline records when the registry is unavailable', async () => {
+    renderLab(json({ detail: 'Registre des exécutions illisible' }, 503))
+
+    expect(await screen.findByRole('note')).toHaveTextContent("Le registre des exécutions n'est pas disponible")
+    const links = await screen.findAllByRole('link', { name: /Sélection automatique : 15 titres/ })
+    expect(links).toHaveLength(2)
+  })
+
+  it('says so when no run matches', async () => {
+    renderLab(json({ runs: [], next_cursor: null, stored: true }))
+
+    expect(await screen.findByText('Aucune exécution pour ces filtres.')).toBeInTheDocument()
   })
 })

@@ -1,135 +1,126 @@
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight } from 'lucide-react'
-import { useLabPipelines } from '@/api/lab'
-import { useScoreRuns } from '@/api/pipeline'
+import { Play } from 'lucide-react'
+import { usePersonas } from '@/api/personas'
+import type { RunFilters as Filters } from '@/api/runs'
 import { AppLayout, PageHeader } from '@/components/layout'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
-import { catalogErrorMessage } from './labForm'
-import { formatRunTime, readLabRuns } from './labHistory'
-import { STATUS_LABELS, STATUS_VARIANTS, formatDateTime } from './pipeline/pipelineFormat'
-import { SCORE_PIPELINE, SCORE_PIPELINE_ID } from './pipelines'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { comparePath, LAUNCH_PATH } from './labRoutes'
+import { RunFilters } from './runs/RunFilters'
+import { RunList } from './runs/RunList'
+import { feedErrorMessage, formatCount, withinRange, type DateRange } from './runs/runModel'
+import { RunTimeline } from './runs/RunTimeline'
+import { useRunFeed } from './runs/useRunFeed'
 
-type Variant = 'secondary' | 'warning' | 'success' | 'destructive'
-
-interface LastRun {
-  label: string
-  variant: Variant
-  when: string
-}
-
-const LAB_STATUS: Record<string, { label: string; variant: Variant }> = {
-  ok: { label: 'OK', variant: 'success' },
-  warning: { label: 'Avertissement', variant: 'warning' },
-  error: { label: 'Erreur', variant: 'destructive' },
-  skipped: { label: 'Ignoré', variant: 'secondary' },
-}
-
-interface PipelineRowProps {
-  to: string
-  title: string
-  kind: string
-  description: string
-  /** `undefined` while it loads, `null` when the pipeline never ran. */
-  lastRun: LastRun | null | undefined
-}
-
-function PipelineRow({ to, title, kind, description, lastRun }: PipelineRowProps) {
-  return (
-    <li>
-      <Link
-        to={to}
-        className="group flex flex-wrap items-center gap-x-6 gap-y-2 px-2 py-6 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
-      >
-        <span className="min-w-0 flex-1 basis-72">
-          <span className="block font-display text-2xl leading-tight">{title}</span>
-          <span className="eyebrow mt-1 block">{kind}</span>
-          <span className="mt-1 block max-w-2xl text-sm text-muted-foreground">{description}</span>
-        </span>
-        <span className="flex w-56 shrink-0 flex-col items-start gap-1 text-sm">
-          <span className="eyebrow">Dernier run</span>
-          {lastRun === undefined ? (
-            <Skeleton className="h-5 w-32" />
-          ) : lastRun === null ? (
-            <span className="text-muted-foreground">Jamais exécuté</span>
-          ) : (
-            <span className="flex flex-wrap items-center gap-2">
-              <Badge variant={lastRun.variant}>{lastRun.label}</Badge>
-              <span className="tabular-nums">{lastRun.when}</span>
-            </span>
-          )}
-        </span>
-        <ArrowRight
-          aria-hidden="true"
-          className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
-        />
-      </Link>
-    </li>
-  )
-}
-
-/**
- * The Labo: the console of the pipelines. Each entry opens the pipeline's
- * live diagram; it shows the status and time of its last run (the score
- * pipeline's from AWS, the others' from this browser's history).
- */
+/** « Exécutions », the Labo's home: every run of every pipeline, as a 3D frieze and as a list. */
 export function LabPage() {
-  const { data: catalog, error, isPending } = useLabPipelines()
-  const scoreRuns = useScoreRuns()
+  const [filters, setFilters] = useState<Filters>({})
+  const [range, setRange] = useState<DateRange>('all')
+  const [picked, setPicked] = useState<string[]>([])
+  const personas = usePersonas()
+  const feed = useRunFeed(filters)
 
-  const lastScoreRun = scoreRuns.data?.runs[0]
-  const scoreLast: LastRun | null | undefined = scoreRuns.isPending
-    ? undefined
-    : lastScoreRun
-      ? {
-          label: STATUS_LABELS[lastScoreRun.status],
-          variant: STATUS_VARIANTS[lastScoreRun.status],
-          when: formatDateTime(lastScoreRun.started_at),
-        }
-      : null
+  const runs = useMemo(() => {
+    const now = new Date()
+    return feed.runs.filter((run) => withinRange(run, range, now))
+  }, [feed.runs, range])
+  const personaNames = useMemo(
+    () => Object.fromEntries((personas.data ?? []).map((persona) => [persona.id, persona.name])),
+    [personas.data],
+  )
+  // Picking a third run replaces the oldest pick.
+  const pick = (runId: string) =>
+    setPicked((current) => (current.includes(runId) ? current.filter((id) => id !== runId) : [...current, runId].slice(-2)))
 
   return (
     <AppLayout>
-      <div className="space-y-8">
+      <div className="space-y-10">
         <PageHeader
+          eyebrow="Console des pipelines"
           title="Labo"
-          accent="des pipelines"
-          description="La console des pipelines : ouvrez-en un pour voir son diagramme en direct, le lancer, lire les décisions et les données de chaque étape, et comparer deux runs."
+          accent="des exécutions"
+          description="Chaque exécution de chaque pipeline — le pipeline de score sur AWS, ses runs planifiés, les runs du Labo sur un titre ou sur un groupe — avec tout ce qu'elle a produit."
+          actions={
+            <Button asChild>
+              <Link to={LAUNCH_PATH}>
+                <Play aria-hidden="true" data-icon="inline-start" />
+                Lancer un run
+              </Link>
+            </Button>
+          }
         />
 
-        <ul aria-label="Pipelines" className="divide-y divide-border border-y border-border">
-          <PipelineRow
-            to={`/labo/${SCORE_PIPELINE_ID}`}
-            title={SCORE_PIPELINE.title}
-            kind="AWS · Step Functions · Bronze → Silver → Gold"
-            description={SCORE_PIPELINE.description}
-            lastRun={scoreLast}
-          />
-          {(catalog?.steps ?? []).map((step) => {
-            const last = readLabRuns(step.id)[0]
-            const status = last ? (LAB_STATUS[last.status] ?? LAB_STATUS.ok) : null
-            return (
-              <PipelineRow
-                key={step.id}
-                to={`/labo/${encodeURIComponent(step.id)}`}
-                title={step.label}
-                kind={`Synchrone · ${step.stages.length} étapes`}
-                description={step.stages.map((stage) => stage.name).join(' → ')}
-                lastRun={last && status ? { ...status, when: formatRunTime(last.at) } : null}
-              />
-            )
-          })}
-        </ul>
+        <RunFilters
+          filters={filters}
+          range={range}
+          personas={personas.data ?? []}
+          onFilters={setFilters}
+          onRange={setRange}
+        />
 
-        {isPending && (
-          <p role="status" className="text-muted-foreground">
-            Chargement des pipelines…
+        {feed.source === 'score' && !feed.isLoading && !feed.error && (
+          <p role="note" className="text-sm text-muted-foreground">
+            Le registre des exécutions n'est pas disponible sur ce serveur : seuls les runs du pipeline de score sont listés.
           </p>
         )}
-        {error && (
-          <p role="alert" className="text-destructive">
-            {catalogErrorMessage(error)}
+
+        {feed.isLoading ? (
+          <p role="status" className="text-muted-foreground">
+            Chargement des exécutions…
           </p>
+        ) : feed.error ? (
+          <p role="alert" className="text-destructive">
+            {feedErrorMessage(feed.error)}
+          </p>
+        ) : runs.length === 0 ? (
+          <Card>
+            <CardContent className="space-y-4 py-10 text-center">
+              <p className="font-display text-2xl">Aucune exécution pour ces filtres.</p>
+              <p className="text-muted-foreground">Élargissez les filtres, ou lancez un run sur un groupe de titres.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <section aria-labelledby="frise" className="space-y-3">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 id="frise" className="text-2xl">
+                  Frise
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Hauteur : titres traités · teinte : statut · une rangée par pipeline · cliquez une tuile pour ouvrir le run.
+                </p>
+              </div>
+              <Card>
+                <CardContent>
+                  <RunTimeline runs={runs} />
+                </CardContent>
+              </Card>
+            </section>
+
+            <section aria-labelledby="liste" className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="liste" className="text-2xl">
+                  {formatCount(runs.length)} exécution{runs.length > 1 ? 's' : ''}
+                </h2>
+                {picked.length === 2 ? (
+                  <Button asChild size="sm">
+                    <Link to={comparePath(picked[0], picked[1])}>Comparer les 2 runs choisis</Link>
+                  </Button>
+                ) : (
+                  <p className="text-sm text-muted-foreground" aria-live="polite">
+                    {picked.length === 1 ? 'Choisissez un second run à comparer.' : 'Choisissez deux runs pour les comparer.'}
+                  </p>
+                )}
+              </div>
+              <RunList runs={runs} personaNames={personaNames} picked={picked} onPick={pick} />
+              {feed.hasMore && (
+                <Button type="button" variant="outline" loading={feed.isLoadingMore} onClick={feed.loadMore}>
+                  Exécutions plus anciennes
+                </Button>
+              )}
+            </section>
+          </>
         )}
       </div>
     </AppLayout>
