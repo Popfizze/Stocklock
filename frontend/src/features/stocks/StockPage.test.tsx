@@ -5,15 +5,14 @@ import { Route, Routes } from 'react-router-dom'
 import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl } from '@/test/mockFetch'
 import { PERSONAS } from '@/test/personas'
-import { stockProjection } from '@/test/accounts'
-import { FIT_NVDA_AMIRA, FIT_NVDA_ROBERT } from '@/test/persona'
+import { PROJECTION } from '@/test/accounts'
+import { FIT_NVDA_ROBERT, FIT_PLTR_ROBERT, HYPE_PLTR_HIGH } from '@/test/persona'
+import { mockStockPage } from '@/test/stockPage'
 import {
-  BTC_1M,
   NVDA_1M,
   NVDA_1Y,
   ONE_V_1M,
   SCORE_AAPL,
-  SCORE_ABSENT,
   SCORE_NOT_SCORED,
   SCORE_XIU_PARTIAL,
 } from '@/test/stocks'
@@ -22,12 +21,12 @@ import { StockPage } from './StockPage'
 const ORIGINAL_FETCH = globalThis.fetch
 const NBSP = ' '
 
-function renderStock(ticker: string) {
+function renderStock(ticker: string, personaId = 'amira') {
   return renderWithProviders(
     <Routes>
       <Route path="/titres/:ticker" element={<StockPage />} />
     </Routes>,
-    { personaId: 'amira', route: `/titres/${ticker}` },
+    { personaId, route: `/titres/${ticker}` },
   )
 }
 
@@ -37,8 +36,7 @@ function chartColor(container: HTMLElement) {
   return /--color-close: ([^;]+);/.exec(style)?.[1]
 }
 
-/** The value next to a « Chiffres clés » label. */
-const figure = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling
+const region = (name: string) => screen.findByRole('region', { name })
 
 afterEach(() => {
   globalThis.fetch = ORIGINAL_FETCH
@@ -46,50 +44,47 @@ afterEach(() => {
 })
 
 describe('StockPage', () => {
-  it('shows the close, the day change, the key figures and the dividends', async () => {
-    mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
-      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
-    ])
+  it('opens with who the title is, its price, the day change, the date and the source', async () => {
+    mockStockPage(NVDA_1M)
     renderStock('NVDA')
 
     expect(await screen.findByRole('heading', { level: 1, name: 'NVIDIA' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: '← Tableau de bord' })).toHaveAttribute('href', '/')
     expect(screen.getByText('NVDA · NASDAQ')).toBeInTheDocument()
+    expect(screen.getByText('Actions · Information Technology')).toBeInTheDocument()
     // fr-CA: no-break spaces, decimal comma (text matchers see them as plain spaces).
     expect(screen.getByText('166,19 $ US').textContent).toBe(`166,19${NBSP}$${NBSP}US`)
     expect(screen.getByText('-7,54 $ US (-4,34 %)')).toHaveClass('text-destructive')
-
-    expect(figure('Ouverture')).toHaveTextContent('151,01 $ US')
-    expect(figure('Haut du jour')).toHaveTextContent('167,14 $ US')
-    expect(figure('Bas du jour')).toHaveTextContent('148,80 $ US')
-    expect(figure('Volume')?.textContent).toBe(`742${NBSP}789${NBSP}000`)
-    expect(figure('Volume moyen (3 mois)')?.textContent).toBe(`140${NBSP}898${NBSP}889`)
-    expect(figure('Haut 52 semaines')).toHaveTextContent('243,37 $ US')
-    expect(figure('Bas 52 semaines')).toHaveTextContent('148,80 $ US')
-    expect(figure('Rendement du dividende (12 mois)')?.textContent).toBe(`0,31${NBSP}%`)
-    expect(figure('Devise')).toHaveTextContent('USD')
-    expect(figure('Catégorie')).toHaveTextContent('Actions')
-    expect(figure('Secteur')).toHaveTextContent('Information Technology')
-
-    const card = screen.getByText('Dividendes').closest<HTMLElement>('[data-slot="card"]')
-    const dividends = within(card as HTMLElement).getAllByRole('listitem')
-    expect(dividends.map((item) => item.textContent)).toEqual([
-      `10 septembre 2026${'0,25'}${NBSP}$${NBSP}US`,
-      `5 mars 2024${'0,004'}${NBSP}$${NBSP}US`,
-    ])
+    expect(screen.getByText(/Cours au 12 novembre 2026/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Yahoo Finance (cours quotidiens, différés)' })).toHaveAttribute(
+      'href',
+      'https://finance.yahoo.com/',
+    )
   })
 
-  it('switches the chart period and colors it by the trend over that period', async () => {
-    const calls = mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
-      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
+  it('puts the blocks in decision order, each one a named region', async () => {
+    mockStockPage(NVDA_1M)
+    renderStock('NVDA')
+    await screen.findByRole('heading', { level: 1, name: 'NVIDIA' })
+
+    const names = [
+      'Pour Amira',
+      'Score StockLock',
+      'Prendre du recul',
+      'Comprendre les fluctuations',
+      "L'impôt selon le compte",
+      'ESG et controverses',
+      'Détails',
+    ]
+    const blocks = names.map((name) => screen.getByRole('region', { name }))
+    blocks.slice(1).forEach((block, index) => {
+      expect(blocks[index].compareDocumentPosition(block) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    })
+    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual(names)
+  })
+
+  it('switches the chart period, says its change and colors it by the trend over that period', async () => {
+    const calls = mockStockPage(NVDA_1M, {}, [
       { match: '/api/stocks/NVDA?range=1Y', responses: [json(NVDA_1Y)] },
     ])
     const { container } = renderStock('NVDA')
@@ -105,6 +100,8 @@ describe('StockPage', () => {
     ])
     expect(within(periods).getByRole('button', { name: '1M' })).toHaveAttribute('aria-pressed', 'true')
     expect(chartColor(container)).toBe('var(--destructive)')
+    expect(screen.getByText('-12,58 %')).toHaveClass('text-destructive')
+    expect(screen.getByText('sur 1 mois')).toBeInTheDocument()
 
     await userEvent.click(within(periods).getByRole('button', { name: '1A' }))
 
@@ -113,89 +110,90 @@ describe('StockPage', () => {
     expect(within(periods).getByRole('button', { name: '1M' })).toHaveAttribute('aria-pressed', 'false')
     expect(calls.some((call) => call.url.endsWith('/api/stocks/NVDA?range=1Y'))).toBe(true)
     await vi.waitFor(() => expect(chartColor(container)).toBe('var(--success)'))
+    expect(screen.getByText('+18,54 %')).toHaveClass('text-success')
   })
 
-  it('says « Aucun dividende » for an asset that pays none', async () => {
-    mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
-      { match: '/api/stocks/BTC-USD?range=1M', responses: [json(BTC_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('BTC-USD', 'Bitcoin'))] },
-    ])
-    renderStock('BTC-USD')
+  it('says first whether the title suits the active profile, with the reasons', async () => {
+    const calls = mockStockPage(NVDA_1M, { fit: json(FIT_NVDA_ROBERT) })
+    renderStock('NVDA', 'robert')
 
-    expect(await screen.findByText('Aucun dividende')).toBeInTheDocument()
-    expect(figure('Rendement du dividende (12 mois)')).toHaveTextContent('—')
-    expect(figure('Catégorie')).toHaveTextContent('Cryptoactifs')
+    const block = within(await region('Pour Robert'))
+    expect(await block.findByText('Hors profil')).toBeInTheDocument()
+    expect(block.getByText('Hors profil pour Robert : volatilité trop élevée.')).toBeInTheDocument()
+    const reasons = within(block.getByRole('list', { name: 'Raisons du verdict' })).getAllByRole('listitem')
+    expect(reasons).toHaveLength(3)
+    expect(reasons[0]).toHaveTextContent(
+      'Bloquant : Volatilité sur 1 an de 48,6 % au-dessus du maximum de 25 % du profil de Robert.',
+    )
+    expect(reasons[2]).toHaveTextContent('À noter : Position maximale pour Robert : 10 % du portefeuille.')
+    expect(block.getByText(/63 ans, tolérance au risque faible, horizon court terme/)).toBeInTheDocument()
+    expect(block.getByText(/volatilité maximale 25 %, position maximale 10 % par titre/)).toBeInTheDocument()
+    expect(calls.some((call) => call.url.endsWith('/api/fit/NVDA?persona=robert'))).toBe(true)
   })
 
-  it('shows the stock after tax in each account for the active profile', async () => {
-    const calls = mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
-      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
-    ])
+  it('sums every block up in one line that leads to it, and flags what the verdict warns about', async () => {
+    mockStockPage(NVDA_1M, {
+      fit: json(FIT_PLTR_ROBERT),
+      hype: json(HYPE_PLTR_HIGH),
+      score: json(SCORE_XIU_PARTIAL),
+    })
+    renderStock('NVDA', 'robert')
+
+    const brief = within(await screen.findByRole('navigation', { name: 'En bref' }))
+    const score = await brief.findByRole('link', { name: /Score StockLock/ })
+    expect(score).toHaveAttribute('href', '#score')
+    expect(score).toHaveTextContent('61,8 / 100 · partiel')
+    const hype = brief.getByRole('link', { name: /Battage/ })
+    expect(hype).toHaveAttribute('href', '#prendre-du-recul')
+    await vi.waitFor(() => expect(hype).toHaveTextContent('À vérifier : Élevé'))
+    expect(brief.getByRole('link', { name: /Fluctuations/ })).toHaveAttribute('href', '#comprendre')
+    const account = brief.getByRole('link', { name: /Après impôt, le plus élevé/ })
+    expect(account).toHaveAttribute('href', '#compte')
+    await vi.waitFor(() => expect(account).toHaveTextContent('REER'))
+    const esg = brief.getByRole('link', { name: /Risque ESG/ })
+    expect(esg).toHaveAttribute('href', '#esg')
+    await vi.waitFor(() => expect(esg).toHaveTextContent('Faible'))
+    expect(esg).not.toHaveTextContent('À vérifier')
+  })
+
+  it('keeps the page when the verdict cannot be computed, and offers to retry', async () => {
+    mockStockPage(NVDA_1M, { fit: json({ detail: 'Yahoo Finance ne répond pas.' }, 503) })
     renderStock('NVDA')
 
-    expect(
-      await screen.findByRole('heading', { level: 2, name: "L'impôt selon le compte" }),
-    ).toBeInTheDocument()
-    const request = calls.find((call) => call.url.endsWith('/api/accounts/projection'))
-    expect(JSON.parse(String(request?.init.body))).toEqual({
-      persona_id: 'amira',
-      ticker: 'NVDA',
-      annual_contribution: 7000,
-      years: 15,
-    })
-    expect(await screen.findByText(/le REER donne le montant après impôt le plus élevé/)).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: 'Simple' })).toHaveAttribute('aria-checked', 'true')
+    const block = within(await region('Pour Amira'))
+    expect(await block.findByText('Verdict de profil indisponible')).toBeInTheDocument()
+    expect(block.getByText('Yahoo Finance ne répond pas.')).toBeInTheDocument()
+    expect(block.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'NVIDIA' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Score StockLock' })).toBeInTheDocument()
   })
 
   it('says the score is not computed yet while the pipeline has not run', async () => {
-    mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/NVDA', responses: [json(SCORE_ABSENT)] },
-      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
-    ])
+    mockStockPage(NVDA_1M)
     renderStock('NVDA')
 
-    const score = within(await screen.findByRole('region', { name: 'Score StockLock' }))
+    const score = within(await region('Score StockLock'))
     expect(await score.findByText('Score pas encore calculé')).toBeInTheDocument()
     expect(score.getByText(/le pipeline de score n'a pas encore été exécuté/)).toBeInTheDocument()
     expect(score.getByRole('link', { name: 'Labo' })).toHaveAttribute('href', '/labo')
+    const brief = within(screen.getByRole('navigation', { name: 'En bref' }))
+    expect(brief.getByRole('link', { name: /Score StockLock/ })).toHaveTextContent('Pas encore calculé')
   })
 
   it('says so when the table does not cover the title', async () => {
-    mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/NVDA', responses: [json(SCORE_NOT_SCORED)] },
-      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
-    ])
+    mockStockPage(NVDA_1M, { score: json(SCORE_NOT_SCORED) })
     renderStock('NVDA')
 
-    const score = within(await screen.findByRole('region', { name: 'Score StockLock' }))
+    const score = within(await region('Score StockLock'))
     expect(await score.findByText('Score pas encore calculé')).toBeInTheDocument()
     expect(score.getByText(/il ne figure pas dans la dernière table calculée/)).toBeInTheDocument()
   })
 
   it('shows the score, its six sub-scores and the raw indicators behind one', async () => {
-    mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/NVDA', responses: [json(SCORE_AAPL)] },
-      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
-    ])
+    mockStockPage(NVDA_1M, { score: json(SCORE_AAPL) })
     renderStock('NVDA')
 
-    const score = within(await screen.findByRole('region', { name: 'Score StockLock' }))
+    const score = within(await region('Score StockLock'))
     expect(await score.findByText('65,4')).toBeInTheDocument()
     expect(score.queryByText('Partiel')).not.toBeInTheDocument()
     expect(score.getByText('Données au').nextElementSibling).toHaveTextContent('13 novembre 2026')
@@ -229,103 +227,56 @@ describe('StockPage', () => {
   })
 
   it('marks a partial score and its missing sub-scores', async () => {
-    mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/NVDA', responses: [json(SCORE_XIU_PARTIAL)] },
-      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
-    ])
+    mockStockPage(NVDA_1M, { score: json(SCORE_XIU_PARTIAL) })
     renderStock('NVDA')
 
-    const score = within(await screen.findByRole('region', { name: 'Score StockLock' }))
+    const score = within(await region('Score StockLock'))
     expect(await score.findByText('Partiel')).toBeInTheDocument()
+    expect(score.getByText(/au moins un sous-score manque, son poids est redistribué/)).toBeInTheDocument()
     expect(score.getByRole('button', { name: /Rentabilité/ })).toHaveTextContent('Non disponible')
     expect(score.getByRole('button', { name: /Momentum et risque/ })).toHaveTextContent(
       'Poids 15 % · 60 % après redistribution',
     )
   })
 
-  it('offers bias analysis but not account comparison for a title outside the starter kit', async () => {
-    const calls = mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
-      { match: '/api/stocks/ONE.V?range=1M', responses: [json(ONE_V_1M)] },
-    ])
+  it('explains what a title outside the datathon’s assets gets instead of its own account projection', async () => {
+    const calls = mockStockPage(ONE_V_1M, { account: json(PROJECTION) })
     renderStock('ONE.V')
 
     expect(await screen.findByRole('heading', { level: 1, name: '01 Quantum Inc.' })).toBeInTheDocument()
     expect(screen.getByText('ONE.V · TSXV')).toBeInTheDocument()
-    expect(screen.getByText(/Cours au 13 novembre 2026 · Yahoo Finance/)).toBeInTheDocument()
-    expect(screen.getByText(/couvre les 31 titres du jeu de données du datathon/)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: "L'impôt selon le compte" })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /Prendre du recul/ })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Prendre du recul' })).toBeInTheDocument()
-    expect(calls.some((call) => call.url.includes('/api/accounts/'))).toBe(false)
-  })
 
-  it('says first whether the title suits the active profile, with the reasons', async () => {
-    const calls = mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_ROBERT)] },
-      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
-      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
-    ])
-    renderWithProviders(
-      <Routes>
-        <Route path="/titres/:ticker" element={<StockPage />} />
-      </Routes>,
-      { personaId: 'robert', route: '/titres/NVDA' },
+    const account = within(await region("L'impôt selon le compte"))
+    expect(account.getByText(/couvre les 31 titres du jeu de données du datathon ; ONE\.V n’en fait pas\s+partie/)).toBeInTheDocument()
+    expect(await account.findByText(/le CELIAPP donne le montant après impôt le plus élevé/)).toBeInTheDocument()
+    expect(account.getByRole('link', { name: 'Voir la projection en chiffres dans Comptes' })).toHaveAttribute(
+      'href',
+      '/comptes?vue=chiffres',
     )
-
-    const block = within(await screen.findByRole('region', { name: 'Pour Robert' }))
-    expect(await block.findByText('Hors profil')).toHaveClass('text-destructive')
-    expect(block.getByText('Hors profil pour Robert : volatilité trop élevée.')).toBeInTheDocument()
-    const reasons = within(block.getByRole('list', { name: 'Raisons du verdict' })).getAllByRole('listitem')
-    expect(reasons).toHaveLength(3)
-    expect(reasons[0]).toHaveTextContent(
-      'Bloquant : Volatilité sur 1 an de 48,6 % au-dessus du maximum de 25 % du profil de Robert.',
-    )
-    expect(reasons[2]).toHaveTextContent('À noter : Position maximale pour Robert : 10 % du portefeuille.')
-    expect(block.getByText(/volatilité maximale 25 %, position\s+maximale 10 % par titre/)).toBeInTheDocument()
-    expect(calls.some((call) => call.url.endsWith('/api/fit/NVDA?persona=robert'))).toBe(true)
-    // The verdict comes before the score.
-    const score = screen.getByRole('region', { name: 'Score StockLock' })
-    expect(
-      screen.getByRole('region', { name: 'Pour Robert' }).compareDocumentPosition(score) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-  })
-
-  it('stays quiet when the verdict cannot be computed', async () => {
-    mockFetchByUrl([
-      { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json({ detail: 'x' }, 503)] },
-      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
-      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
-      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
-    ])
-    renderStock('NVDA')
-
-    const block = within(await screen.findByRole('region', { name: 'Pour Amira' }))
-    expect(await block.findByText(/Verdict de profil indisponible/, undefined, { timeout: 4000 })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: 'NVIDIA' })).toBeInTheDocument()
+    // The profile's general projection: no ticker in the request.
+    const request = calls.find((call) => call.url.endsWith('/api/accounts/projection'))
+    expect(JSON.parse(String(request?.init.body))).toEqual({
+      persona_id: 'amira',
+      annual_contribution: 7000,
+      years: 15,
+      expected_return: 0.05,
+    })
+    const brief = within(screen.getByRole('navigation', { name: 'En bref' }))
+    expect(brief.getByRole('link', { name: /Après impôt, le plus élevé \(épargne\)/ })).toHaveTextContent('CELIAPP')
+    // The other blocks cover any title.
+    expect(screen.getByRole('region', { name: 'Prendre du recul' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Expliquer les mouvements' })).toBeInTheDocument()
   })
 
   it('explains an unknown ticker', async () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
-      { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
-      { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
       { match: '/api/stocks/', responses: [json({ detail: "titre inconnu 'NOPE'" }, 404)] },
     ])
     renderStock('NOPE')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      'Ce titre est introuvable',
-    )
+    expect(await screen.findByRole('alert')).toHaveTextContent('Ce titre est introuvable')
+    expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: '← Tableau de bord' })).toBeInTheDocument()
   })
 })

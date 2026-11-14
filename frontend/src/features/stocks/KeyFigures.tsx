@@ -1,7 +1,7 @@
 import type { StockDetail } from '@/api/stocks'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ASSET_CLASS_LABELS } from '@/features/accounts/accountMeta'
 import { formatInteger, formatPrice, formatRatio } from './format'
+import { TileStrip } from './TileStrip'
 
 const NONE = '—'
 
@@ -28,22 +28,32 @@ export function KeyFigures({ stock }: KeyFiguresProps) {
     ['Catégorie', ASSET_CLASS_LABELS[stock.asset_class] ?? stock.asset_class],
     ['Secteur', stock.sector],
   ]
+  const span = stats.high_52w - stats.low_52w
+  // Where the last price sits between the year's low (0) and high (1).
+  const position = span > 0 ? Math.min(Math.max((stock.last_close - stats.low_52w) / span, 0), 1) : null
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Chiffres clés</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <dl className="divide-y divide-border">
-          {figures.map(([label, value]) => (
-            <div key={label} className="flex justify-between gap-4 py-2 first:pt-0 last:pb-0">
-              <dt className="text-muted-foreground">{label}</dt>
-              <dd className="text-right font-medium">{value}</dd>
-            </div>
-          ))}
-        </dl>
-      </CardContent>
-    </Card>
+    <section aria-labelledby="chiffres-cles" className="space-y-3">
+      <h3 id="chiffres-cles" className="text-xl">
+        Chiffres clés
+      </h3>
+      {position !== null && (
+        <div className="space-y-1.5">
+          <p className="text-sm text-muted-foreground">
+            Le dernier cours dans sa fourchette de 52 semaines
+          </p>
+          {/* The low, the high and the last price are in the list below and the header. */}
+          <TileStrip value={position} mode="spot" tiles={24} />
+        </div>
+      )}
+      <dl className="divide-y divide-border border-y border-border text-sm">
+        {figures.map(([label, value]) => (
+          <div key={label} className="flex justify-between gap-4 py-2">
+            <dt className="text-muted-foreground">{label}</dt>
+            <dd className="text-right font-medium">{value}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   )
 }

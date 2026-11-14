@@ -19,7 +19,7 @@ export function EventLine({ event }: { event: MoveEvent }) {
       {redated && <span className="text-muted-foreground"> (publié le {formatLongDate(event.date)})</span>}
       {' — '}
       {event.url ? (
-        <a className="underline underline-offset-2" href={event.url} target="_blank" rel="noreferrer">
+        <a className="link" href={event.url} target="_blank" rel="noreferrer">
           {event.summary}
         </a>
       ) : (

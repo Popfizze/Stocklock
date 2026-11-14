@@ -16,7 +16,7 @@ function MoveItem({ move, benchmark }: { move: MarkedMove; benchmark: string }) 
   const context = others.filter((event) => event.category === 'politique' || event.category === 'direction')
   const rest = others.filter((event) => !context.includes(event))
   return (
-    <li className="space-y-2 rounded-lg border border-border p-4">
+    <li className="space-y-2 py-4 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="font-medium">{formatLongDate(move.date)}</p>
         <Badge variant={meta.variant} title={meta.help}>{meta.label}</Badge>
@@ -76,7 +76,7 @@ export function MoveList({ moves, benchmark }: MoveListProps) {
   const shown = showAll ? moves : moves.slice(0, SHOWN)
   return (
     <div className="space-y-3">
-      <ul className="space-y-3">
+      <ul aria-label="Mouvements marquants" className="divide-y divide-border">
         {shown.map((move) => <MoveItem key={move.date} move={move} benchmark={benchmark} />)}
       </ul>
       {moves.length > SHOWN && (

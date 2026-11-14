@@ -38,7 +38,7 @@ export function KeyEvents({ events, benchmark }: KeyEventsProps) {
   return (
     <section className="space-y-3" aria-labelledby="key-events-heading">
       <div className="space-y-1">
-        <h4 id="key-events-heading" className="font-semibold">Événements politiques et économiques de la période</h4>
+        <h4 id="key-events-heading" className="font-display text-lg font-medium">Événements politiques et économiques de la période</h4>
         <p className="text-sm text-muted-foreground">
           Décrets et proclamations de la présidence américaine (tarifs, sanctions, secteur du titre), pics de couverture
           mondiale des tarifs et sanctions, décisions de taux et changements de direction : ceux où le titre a le plus
@@ -47,9 +47,9 @@ export function KeyEvents({ events, benchmark }: KeyEventsProps) {
         </p>
       </div>
       {events.length ? (
-        <ul className="space-y-2">
+        <ul className="divide-y divide-border border-y border-border">
           {events.map((event) => (
-            <li key={`${event.kind}-${event.id}-${event.date}`} className="space-y-1 rounded-lg bg-muted p-3">
+            <li key={`${event.kind}-${event.id}-${event.date}`} className="space-y-1 py-3">
               <div className="flex flex-wrap items-start justify-between gap-2 text-sm">
                 <EventLine event={event} />
                 {event.on_move && <Badge variant="outline">Mouvement marquant</Badge>}

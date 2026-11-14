@@ -168,3 +168,21 @@ export function formatIndicator(value: number | null, unit: 'ratio' | 'multiple'
   if (unit === 'multiple') return `${DECIMAL.format(value)}×`
   return DECIMAL.format(value)
 }
+
+/** A share, a volatility or a return: 0.486 → 48,6 % */
+export function formatPercent(ratio: number): string {
+  return RATIO.format(ratio)
+}
+
+const COMPACT = new Intl.NumberFormat(LOCALE, { notation: 'compact', maximumFractionDigits: 1 })
+
+/** A large count, shortened: 182 400 000 → 182,4 M */
+export function formatCompact(value: number): string {
+  return COMPACT.format(value)
+}
+
+/** Errors of a stock page block: the server explains its 404, 422 and 503 in French. */
+export function blockErrorMessage(error: ApiError): string {
+  const explained = [404, 422, 503].includes(error.status) && error.message !== 'Request failed'
+  return explained && error.message ? error.message : marketErrorMessage(error)
+}

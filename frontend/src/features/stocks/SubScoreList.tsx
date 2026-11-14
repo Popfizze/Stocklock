@@ -5,7 +5,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
+import { cn } from '@/lib/utils'
 import { formatIndicator, formatPoints, formatScore, formatWeight } from './format'
+import { SUB_SCORE_SWATCH } from './scoreMeta'
+import { TileStrip } from './TileStrip'
 
 const BETTER_LABELS: Record<ScoreIndicator['better'], string> = {
   higher: 'Plus haut, mieux',
@@ -23,10 +26,10 @@ interface SubScoreListProps {
 export function SubScoreList({ subScores }: SubScoreListProps) {
   return (
     <Accordion type="multiple" className="rounded-none border-x-0 border-y">
-      {subScores.map((subScore) => (
+      {subScores.map((subScore, index) => (
         <AccordionItem key={subScore.id} value={subScore.id} className="data-open:bg-transparent">
           <AccordionTrigger className="items-center gap-4 px-0 py-3.5 hover:no-underline">
-            <SubScoreRow subScore={subScore} />
+            <SubScoreRow subScore={subScore} swatch={SUB_SCORE_SWATCH[index % SUB_SCORE_SWATCH.length]} />
           </AccordionTrigger>
           <AccordionContent className="px-0">
             <IndicatorTable subScore={subScore} />
@@ -37,30 +40,32 @@ export function SubScoreList({ subScores }: SubScoreListProps) {
   )
 }
 
-function SubScoreRow({ subScore }: { subScore: SubScore }) {
+function SubScoreRow({ subScore, swatch }: { subScore: SubScore; swatch: string }) {
   const missing = subScore.score === null
   const redistributed = Math.abs(subScore.effective_weight - subScore.weight) > 0.0005
 
   return (
     <span className="grid flex-1 grid-cols-[1fr_auto] items-center gap-x-4 gap-y-2 sm:grid-cols-[minmax(0,14rem)_1fr_auto]">
       <span className="min-w-0">
-        <span className="block font-medium">{subScore.label}</span>
-        <span className="block text-xs font-normal text-muted-foreground">
+        <span className="flex items-center gap-2 font-medium">
+          {/* The sub-score's step in the composition bar above. */}
+          <span
+            aria-hidden="true"
+            className={cn('size-2.5 shrink-0', missing ? 'border border-border' : swatch)}
+          />
+          {subScore.label}
+        </span>
+        <span className="block pl-4.5 text-xs font-normal text-muted-foreground">
           Poids {formatWeight(subScore.weight)}
           {redistributed && !missing && ` · ${formatWeight(subScore.effective_weight)} après redistribution`}
         </span>
       </span>
       {/* Decorative: the figures on the right say the same thing. */}
-      <span
-        aria-hidden="true"
-        className="col-span-2 row-start-2 block h-1.5 overflow-hidden rounded-full bg-muted sm:col-span-1 sm:row-start-auto"
-      >
-        {!missing && (
-          <svg viewBox="0 0 100 1" preserveAspectRatio="none" className="block size-full text-foreground">
-            <rect width={subScore.score ?? 0} height="1" fill="currentColor" />
-          </svg>
-        )}
-      </span>
+      <TileStrip
+        value={(subScore.score ?? 0) / 100}
+        tiles={20}
+        className="col-span-2 row-start-2 sm:col-span-1 sm:row-start-auto"
+      />
       <span className="text-right tabular-nums">
         {missing ? (
           <span className="text-sm font-normal text-muted-foreground">Non disponible</span>

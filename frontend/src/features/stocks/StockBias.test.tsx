@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { json, mockFetchByUrl } from '@/test/mockFetch'
+import { HYPE_AAPL_LOW, HYPE_PLTR_HIGH } from '@/test/persona'
 import { PERSONAS } from '@/test/personas'
 import { renderWithProviders } from '@/test/render'
 import { StockBias } from './StockBias'
@@ -53,4 +54,28 @@ it('shows the operations included while the analysis is pending', async () => {
   finish?.(new Response(JSON.stringify({ detail: 'Test terminé' }), { status: 503 }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Test terminé')
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+it('proposes the tempted buyer’s case while the hype is high, and lets the user write their own', async () => {
+  mockFetchByUrl([{ match: '/api/personas', responses: [json(PERSONAS)] }])
+  renderWithProviders(<StockBias ticker="PLTR" hype={HYPE_PLTR_HIGH} />, { personaId: 'robert' })
+  const input = await screen.findByLabelText<HTMLTextAreaElement>('Pourquoi envisagez-vous cette décision ?')
+  expect(screen.getByRole('note')).toHaveTextContent('Battage élevé sur PLTR.')
+  expect(screen.getByRole('radio', { name: 'Acheter' })).toBeChecked()
+  expect(input.value).toMatch(/^Le titre a pris 38,2\s% en un mois et on en parle partout/)
+  expect(screen.getByRole('button', { name: 'Analyser ma décision' })).toBeEnabled()
+
+  await userEvent.clear(input)
+  await userEvent.type(input, 'Mon beau-frère en a acheté')
+  await userEvent.click(screen.getByRole('radio', { name: 'Je ne sais pas encore' }))
+  expect(input).toHaveValue('Mon beau-frère en a acheté')
+  expect(screen.getByRole('radio', { name: 'Acheter' })).not.toBeChecked()
+})
+
+it('proposes nothing while the hype is not high', async () => {
+  mockFetchByUrl([{ match: '/api/personas', responses: [json(PERSONAS)] }])
+  renderWithProviders(<StockBias ticker="AAPL" hype={HYPE_AAPL_LOW} />, { personaId: 'robert' })
+  expect(await screen.findByLabelText('Pourquoi envisagez-vous cette décision ?')).toHaveValue('')
+  expect(screen.getByRole('radio', { name: 'Acheter' })).not.toBeChecked()
+  expect(screen.queryByRole('note')).not.toBeInTheDocument()
 })

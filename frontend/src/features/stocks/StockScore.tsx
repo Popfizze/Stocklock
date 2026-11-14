@@ -2,7 +2,9 @@ import { Link } from 'react-router-dom'
 import { useStockScore, type ScoreRow } from '@/api/stocks'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { formatLongDate, formatScore, marketErrorMessage } from './format'
+import { formatLongDate, formatScore } from './format'
+import { ScoreGauge } from './ScoreGauge'
+import { BlockError, StockSection } from './StockSection'
 import { SubScoreList } from './SubScoreList'
 
 interface StockScoreProps {
@@ -10,40 +12,40 @@ interface StockScoreProps {
 }
 
 /**
- * « Score StockLock » of a title, read from the gold table: the score 0-100,
- * its six sub-scores and their raw indicators — or, while the score pipeline
- * has not produced it, a plain « Score pas encore calculé ».
+ * « Score StockLock » of a title (step 1), read from the gold table: the score
+ * 0-100, how its six sub-scores add up to it, and the raw indicators behind
+ * each — or, while the score pipeline has not produced it, a plain « Score pas
+ * encore calculé ».
  */
 export function StockScore({ ticker }: StockScoreProps) {
-  const { data, error, isPending } = useStockScore(ticker)
+  const { data, error, isPending, refetch } = useStockScore(ticker)
 
   return (
-    <section aria-labelledby="score-titre" className="space-y-5">
-      <h2 id="score-titre" className="text-xl font-semibold tracking-tight">
-        Score StockLock
-      </h2>
-
+    <StockSection
+      id="score"
+      eyebrow="Étape 1 · Score d’entreprise"
+      title="Score"
+      accent="StockLock"
+      description="Une note de 0 à 100 : la somme de six sous-scores pondérés, chacun calculé à partir d’indicateurs publics et classé parmi des titres comparables."
+    >
       {isPending ? (
         <div role="status" aria-label="Chargement du score" className="space-y-3">
           <Skeleton className="h-14 w-40" />
           <Skeleton className="h-40 w-full" />
         </div>
       ) : error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {marketErrorMessage(error)}
-        </p>
+        <BlockError error={error} subject="Score" onRetry={() => refetch()} />
       ) : data.status === 'available' && data.score ? (
         <ScoreDetails row={data.score} generatedAt={data.generated_at} />
       ) : (
-        <div className="rounded-xl border border-border p-5">
-          <p className="font-medium">
+        <div className="rounded-3xl border border-border p-6">
+          <p className="font-display text-xl">
             {data.status === 'unavailable' ? 'Score indisponible' : 'Score pas encore calculé'}
           </p>
           {data.message && <p className="mt-1 text-sm text-muted-foreground">{data.message}</p>}
           <p className="mt-3 text-sm text-muted-foreground">
-            Le score (0 à 100) combine six sous-scores : rentabilité, solidité financière,
-            croissance, valorisation, momentum et risque, événements. Le pipeline se lance depuis
-            le{' '}
+            Le score combine six sous-scores : rentabilité, solidité financière, croissance,
+            valorisation, momentum et risque, événements. Le pipeline se lance depuis le{' '}
             <Link to="/labo" className="link text-foreground">
               Labo
             </Link>
@@ -51,7 +53,7 @@ export function StockScore({ ticker }: StockScoreProps) {
           </p>
         </div>
       )}
-    </section>
+    </StockSection>
   )
 }
 
@@ -63,43 +65,47 @@ interface ScoreDetailsProps {
 function ScoreDetails({ row, generatedAt }: ScoreDetailsProps) {
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-x-8 gap-y-3">
-        <p className="flex items-baseline gap-2">
-          <span className="text-6xl font-semibold tracking-tight tabular-nums">
-            {formatScore(row.score)}
-          </span>
-          <span className="text-lg text-muted-foreground">/ 100</span>
-          {row.partiel && (
-            <Badge variant="warning" className="ml-2 self-center">
-              Partiel
-            </Badge>
-          )}
-        </p>
-        <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-          <div>
-            <dt className="text-xs text-muted-foreground">Données au</dt>
-            <dd className="font-medium">{formatLongDate(row.date)}</dd>
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-end gap-x-10 gap-y-5">
+          <ScoreGauge score={row.score} subScores={row.sub_scores} />
+          <div className="space-y-4">
+            <p className="flex items-baseline gap-2">
+              <span className="display flip-in inline-block text-7xl sm:text-8xl">{formatScore(row.score)}</span>
+              <span className="font-display text-xl text-muted-foreground">/ 100</span>
+              {row.partiel && (
+                <Badge variant="warning" className="ml-2 self-center">
+                  Partiel
+                </Badge>
+              )}
+            </p>
+            <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+            <div>
+              <dt className="text-xs text-muted-foreground">Données au</dt>
+              <dd className="font-medium">{formatLongDate(row.date)}</dd>
+            </div>
+            {row.comparison_set && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Comparé à</dt>
+                <dd className="font-medium">{row.comparison_set}</dd>
+              </div>
+            )}
+            {generatedAt && (
+              <div>
+                <dt className="text-xs text-muted-foreground">Calculé le</dt>
+                <dd className="font-medium">{formatLongDate(generatedAt)}</dd>
+              </div>
+            )}
+            </dl>
           </div>
-          {row.comparison_set && (
-            <div>
-              <dt className="text-xs text-muted-foreground">Comparé à</dt>
-              <dd className="font-medium">{row.comparison_set}</dd>
-            </div>
-          )}
-          {generatedAt && (
-            <div>
-              <dt className="text-xs text-muted-foreground">Calculé le</dt>
-              <dd className="font-medium">{formatLongDate(generatedAt)}</dd>
-            </div>
-          )}
-        </dl>
-      </div>
-
-      {row.partiel && (
+        </div>
         <p className="text-sm text-muted-foreground">
-          Score partiel : au moins un sous-score manque, son poids est redistribué sur les autres.
+          {row.partiel
+            ? 'Score partiel : au moins un sous-score manque, son poids est redistribué sur les autres. '
+            : ''}
+          Une tuile par point : sa teinte est celle du sous-score qui l’apporte. Ouvrez un sous-score
+          pour voir ses indicateurs bruts et leur rang.
         </p>
-      )}
+      </div>
 
       <SubScoreList subScores={row.sub_scores} />
 

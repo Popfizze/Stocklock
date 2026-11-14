@@ -1,46 +1,46 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ArrowDown } from 'lucide-react'
+import { useParams } from 'react-router-dom'
 import { useFit } from '@/api/persona'
 import { useStock, type StockRange } from '@/api/stocks'
 import { AppLayout } from '@/components/layout'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-// Straight from the component, not the feature's index: that would pull the whole Comptes tab in.
-import { StockAccountOptions } from '@/features/accounts/StockAccountOptions'
-import { DividendList } from './DividendList'
-import { formatLongDate, formatPrice, stockErrorMessage } from './format'
-import { KeyFigures } from './KeyFigures'
-import { PriceChange } from './PriceChange'
-import { PriceChart } from './PriceChart'
 import { useActivePersona } from '@/features/personas/activePersona'
-import { StockBias } from './StockBias'
-import { StockFit } from './StockFit'
+import { DecisionSummary } from './DecisionSummary'
+import { DividendList } from './DividendList'
+import { stockErrorMessage } from './format'
+import { KeyFigures } from './KeyFigures'
+import { PriceChart } from './PriceChart'
+import { ProfileFit } from './ProfileFit'
+import { StockAccount } from './StockAccount'
+import { StockEsg } from './StockEsg'
+import { BackLink, StockHeader } from './StockHeader'
 import { StockMoves } from './StockMoves'
+import { StockRecul } from './StockRecul'
 import { StockScore } from './StockScore'
+import { StockSection } from './StockSection'
 
 /**
- * A title's page (`/titres/:ticker`, any title of the universe): last price
- * and day change, the price chart over 1S/1M/3M/1A/Max, the StockLock score,
- * key figures, dividends, why it moved (step 2) and the bias analysis (step 4).
- * The account comparison (step 3) covers the datathon's 31 assets.
+ * A title's page (`/titres/:ticker`, any title of the universe), built as a
+ * decision page for the active investor profile. Top to bottom: who the title
+ * is and its price chart; « Pour {profil} », the profile's verdict with its
+ * reasons and a one-line summary of every block (a rail beside the page on
+ * wide screens); the StockLock score (step 1); the hype signal and the bias
+ * analysis (step 4); why it moved (step 2); the best account (step 3); ESG
+ * and controversies; then the reference figures. Each block loads, fails and
+ * stays empty on its own.
  */
 export function StockPage() {
   const { ticker = '' } = useParams()
   const [range, setRange] = useState<StockRange>('1M')
-  const { data: stock, error, isPending, isPlaceholderData } = useStock(ticker, range)
+  const { data: stock, error, isPending, isPlaceholderData, refetch } = useStock(ticker, range)
   const { persona, personaId } = useActivePersona()
   const fit = useFit(stock?.ticker ?? '', personaId)
 
   return (
     <AppLayout>
-      <div className="mx-auto max-w-5xl space-y-8">
-        <Link
-          to="/"
-          className="inline-block rounded-sm text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          ← Tableau de bord
-        </Link>
+      <div className="mx-auto max-w-6xl space-y-6">
+        <BackLink />
 
         {isPending ? (
           <div role="status" aria-label="Chargement du titre" className="space-y-4">
@@ -49,80 +49,62 @@ export function StockPage() {
             <Skeleton className="h-72 w-full" />
           </div>
         ) : error ? (
-          <p role="alert" className="text-destructive">
-            {stockErrorMessage(error)}
-          </p>
+          <div role="alert" className="space-y-3">
+            <p className="text-destructive">{stockErrorMessage(error)}</p>
+            {error.status !== 404 && (
+              <Button type="button" variant="outline" size="sm" onClick={() => refetch()}>
+                Réessayer
+              </Button>
+            )}
+          </div>
         ) : (
-          <>
-            <header className="space-y-1">
-              <h1 className="text-3xl font-semibold tracking-tight">{stock.name}</h1>
-              <p className="text-muted-foreground">
-                {stock.ticker} · {stock.market}
-              </p>
-              <p className="pt-3 text-5xl font-semibold tracking-tight tabular-nums">
-                {formatPrice(stock.last_close, stock.currency)}
-              </p>
-              <PriceChange
-                changeAbs={stock.change_abs}
-                changePct={stock.change_pct}
+          <div className="grid gap-x-12 gap-y-10 lg:grid-cols-3">
+            <div className="min-w-0 space-y-6 lg:col-span-2">
+              <StockHeader stock={stock} />
+              <PriceChart
+                points={stock.points}
                 currency={stock.currency}
-                className="block font-medium"
+                range={range}
+                onRangeChange={setRange}
+                isUpdating={isPlaceholderData}
               />
-              <p className="pt-1 text-xs text-muted-foreground">
-                Cours au {formatLongDate(stock.as_of)}
-                {stock.source ? ` · ${stock.source.title}` : ''}
-              </p>
-              <div className="flex flex-wrap gap-2 pt-3">
-                <Button asChild variant="outline" size="sm">
-                  <a href="#comprendre">
-                    Pourquoi le titre a bougé ? <ArrowDown aria-hidden="true" />
-                  </a>
-                </Button>
-                <Button asChild variant="outline" size="sm">
-                  <a href="#prendre-du-recul">
-                    Prendre du recul <ArrowDown aria-hidden="true" />
-                  </a>
-                </Button>
-              </div>
-            </header>
-
-            {/* The decision blocks come first: is this title for me? */}
-            {persona && (
-              <StockFit personaName={persona.name} fit={fit.data} error={fit.error} isPending={fit.isPending} />
-            )}
-
-            <PriceChart
-              points={stock.points}
-              currency={stock.currency}
-              range={range}
-              onRangeChange={setRange}
-              isUpdating={isPlaceholderData}
-            />
-
-            <StockScore ticker={stock.ticker} />
-
-            {/* Step 2: why the title moved, compared with its index, and the dated events behind it. */}
-            <StockMoves ticker={stock.ticker} />
-
-            <StockBias ticker={stock.ticker} />
-
-            {stock.starter_kit ? (
-              <div className="border-t border-border pt-8">
-                <StockAccountOptions ticker={stock.ticker} />
-              </div>
-            ) : (
-              <p className="border-t border-border pt-6 text-sm text-muted-foreground">
-                La comparaison des comptes (étape 3) couvre les 31 titres du jeu de données du
-                datathon ; ce titre n'en fait pas partie.
-              </p>
-            )}
-
-            {/* Reference figures come after the decision blocks. */}
-            <div className="grid gap-4 border-t border-border pt-8 md:grid-cols-2">
-              <KeyFigures stock={stock} />
-              <DividendList dividends={stock.stats.dividends} currency={stock.currency} />
             </div>
-          </>
+
+            {/* The decision first: right after the chart on a phone, a rail that follows the page on wide screens. */}
+            {persona && (
+              <aside className="min-w-0 lg:col-start-3 lg:row-span-2 lg:row-start-1">
+                <div className="lg:sticky lg:top-6 lg:max-h-[calc(100svh-3rem)] lg:overflow-y-auto">
+                  <ProfileFit
+                    persona={persona}
+                    fit={fit.data}
+                    error={fit.error}
+                    isPending={fit.isPending}
+                    onRetry={() => fit.refetch()}
+                  >
+                    <DecisionSummary ticker={stock.ticker} starterKit={stock.starter_kit} fit={fit.data} />
+                  </ProfileFit>
+                </div>
+              </aside>
+            )}
+
+            <div className="min-w-0 space-y-10 lg:col-span-2">
+              <StockScore ticker={stock.ticker} />
+              {persona && <StockRecul ticker={stock.ticker} personaName={persona.name} fit={fit.data} />}
+              <StockMoves ticker={stock.ticker} />
+              <StockAccount ticker={stock.ticker} starterKit={stock.starter_kit} />
+              {persona && <StockEsg ticker={stock.ticker} personaName={persona.name} fit={fit.data} />}
+              <StockSection
+                id="details"
+                title="Détails"
+                description="Les chiffres de référence de la dernière séance et de l’année, et les dividendes versés."
+              >
+                <div className="grid gap-x-12 gap-y-8 md:grid-cols-2">
+                  <KeyFigures stock={stock} />
+                  <DividendList dividends={stock.stats.dividends} currency={stock.currency} />
+                </div>
+              </StockSection>
+            </div>
+          </div>
         )}
       </div>
     </AppLayout>

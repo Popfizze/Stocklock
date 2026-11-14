@@ -35,8 +35,9 @@ it('runs only when asked, then shows the figures, the narration and each move’
   expect(screen.queryByText(/starter_prices\]|Analyse pour Robert/)).not.toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Écart avec le profil de Robert' })).toBeInTheDocument()
 
-  const items = within(screen.getByRole('heading', { name: 'Mouvements marquants' }).parentElement as HTMLElement)
-    .getAllByRole('listitem')
+  // The moves themselves: each one nests the lists of its own dated events.
+  const items = Array.from(screen.getByRole('list', { name: 'Mouvements marquants' }).children) as HTMLElement[]
+  expect(items).toHaveLength(3)
   expect(within(items[0]).getByText('Fait daté')).toBeInTheDocument()
   // the tariff decree of the day before is shown as political context, not folded away
   expect(items[0]).toHaveTextContent('Contexte politique et de direction :')

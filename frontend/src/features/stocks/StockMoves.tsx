@@ -11,12 +11,13 @@ import { MovesChart } from './MovesChart'
 import { MovesSources } from './MovesSources'
 import { METHODS, PERIODS, signedRatio } from './movesMeta'
 import { TREND_TEXT, formatLongDate, trendOf } from './format'
+import { StockSection } from './StockSection'
 
 function Figure({ label, value, tone }: { label: string; value: string; tone?: string }) {
   return (
-    <div className="rounded-lg bg-muted p-3">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className={cn('text-lg font-semibold tabular-nums', tone)}>{value}</dd>
+    <div className="min-w-0">
+      <dt className="eyebrow truncate">{label}</dt>
+      <dd className={cn('display mt-1.5 text-3xl', tone)}>{value}</dd>
     </div>
   )
 }
@@ -30,7 +31,7 @@ function MovesResult({ result, persona }: { result: StockMovesResult; persona: P
   return (
     <div className="space-y-6" aria-live="polite">
       <div className="space-y-2">
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 border-y border-border py-4 sm:grid-cols-4">
           <Figure label={result.ticker} value={ratioOrDash(returns.asset)} tone={toneOf(returns.asset)} />
           <Figure label={`Indice ${benchmark}`} value={ratioOrDash(returns.benchmark)} tone={toneOf(returns.benchmark)} />
           <Figure label="Écart avec l’indice" value={ratioOrDash(returns.abnormal)} tone={toneOf(returns.abnormal)} />
@@ -45,7 +46,7 @@ function MovesResult({ result, persona }: { result: StockMovesResult; persona: P
       {result.series.length > 1 && <MovesChart result={result} />}
 
       <section className="space-y-2">
-        <h3 className="font-semibold">Ce qu’on peut en dire</h3>
+        <h3 className="text-xl">Ce qu’on peut en dire</h3>
         <BiasNarrative answer={result.analysis.answer} />
         {!result.analysis.governance.passed && (
           <p role="alert" className="text-sm text-destructive">
@@ -56,7 +57,7 @@ function MovesResult({ result, persona }: { result: StockMovesResult; persona: P
 
       {result.profile_flags.length > 0 && (
         <section className="space-y-1">
-          <h3 className="font-semibold">Écart avec le profil de {persona.name}</h3>
+          <h3 className="text-xl">Écart avec le profil de {persona.name}</h3>
           <ul className="list-disc pl-5 text-sm">
             {result.profile_flags.map((flag) => <li key={flag}>{flag}</li>)}
           </ul>
@@ -64,7 +65,7 @@ function MovesResult({ result, persona }: { result: StockMovesResult; persona: P
       )}
 
       <section className="space-y-3">
-        <h3 className="font-semibold">Mouvements marquants</h3>
+        <h3 className="text-xl">Mouvements marquants</h3>
         <p className="text-sm text-muted-foreground">
           Séances où le titre s’écarte de plus de 2 σ de ce que prévoit {benchmark}, chacune avec ses faits datés
           (entreprise, direction, décisions politiques et de taux) et son explication : fait daté, hypothèse ou aucun
@@ -86,14 +87,19 @@ function MovesSection({ ticker, persona }: { ticker: string; persona: Persona })
   const periodName = PERIODS.find((candidate) => candidate.value === period)?.name ?? period
 
   return (
-    <section id="comprendre" aria-labelledby="moves-heading" className="scroll-mt-6 space-y-5 border-t border-border pt-6">
-      <div className="space-y-1">
-        <h2 id="moves-heading" className="text-2xl font-semibold tracking-tight">Pourquoi le titre a bougé ?</h2>
-        <p className="text-sm text-muted-foreground">
-          {ticker} comparé à son indice sur {periodName}, et les événements datés (décisions politiques et de taux,
-          dépôts SEC, changements de direction, articles) qui précèdent ses plus grands écarts.
-        </p>
-      </div>
+    <StockSection
+      id="comprendre"
+      eyebrow="Étape 2 · Événements politiques et économiques"
+      title="Comprendre"
+      accent="les fluctuations"
+      description={
+        <>
+          Pourquoi le titre a bougé : {ticker} comparé à son indice sur {periodName}, et les événements datés
+          (décisions politiques et de taux, dépôts SEC, changements de direction, articles) qui précèdent ses plus
+          grands écarts.
+        </>
+      }
+    >
 
       <div className="flex flex-wrap items-center gap-3">
         <div role="group" aria-label="Période analysée" className="flex flex-wrap gap-1">
@@ -117,7 +123,7 @@ function MovesSection({ ticker, persona }: { ticker: string; persona: Persona })
       </div>
 
       {query.isFetching && (
-        <div role="status" className="rounded-lg bg-muted p-4 text-sm">
+        <div role="status" className="rounded-2xl border border-border p-5 text-sm">
           <p className="font-medium">Analyse en cours…</p>
           <p className="mt-1 text-muted-foreground">Elle peut prendre une demi-minute :</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
@@ -135,7 +141,7 @@ function MovesSection({ ticker, persona }: { ticker: string; persona: Persona })
         </p>
       )}
       {query.data && !query.isFetching && <MovesResult result={query.data} persona={persona} />}
-    </section>
+    </StockSection>
   )
 }
 

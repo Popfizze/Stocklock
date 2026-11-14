@@ -27,7 +27,7 @@ export function MovesSources({ result }: { result: StockMovesResult }) {
             {analysis.sources.map((source) => (
               <li key={source.id}>
                 {source.url ? (
-                  <a className="underline" href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
+                  <a className="link" href={source.url} target="_blank" rel="noreferrer">{source.title}</a>
                 ) : (
                   source.title
                 )}
