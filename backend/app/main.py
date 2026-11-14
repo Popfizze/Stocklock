@@ -18,7 +18,9 @@ from app.personas import get_persona, list_public
 from app.pipeline import batch
 from app.pipeline.core import OptionError, PipelineInputError
 from app.pipeline.registry import STEPS, catalog, execute
+from app.registry import lab as stored_runs
 from app.profile_api import router as profile_router
+from app.runs_api import router as runs_router
 from app.score_pipeline_api import router as score_pipeline_router
 from app.scoring_api import router as scoring_router
 from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabBatchRequest, LabRunRequest,
@@ -35,6 +37,7 @@ app.include_router(scoring_router)  # POST /api/scores/reweight before the marke
 app.include_router(market_router)
 app.include_router(profile_router)
 app.include_router(score_pipeline_router)
+app.include_router(runs_router)
 
 
 @app.get("/api/health")
@@ -138,12 +141,15 @@ def lab_run(request: LabRunRequest) -> dict[str, Any]:
     if request.step not in STEPS:
         raise HTTPException(status_code=422, detail=f"étape inconnue {request.step!r} ; étapes : {sorted(STEPS)}")
     persona = get_persona(request.persona_id)
+    started_at = stored_runs.now_iso()
     try:
         result, response = execute(request.step, persona, request.inputs, request.options, datasets=True)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors(include_url=False, include_context=False)) from exc
     except (OptionError, PipelineInputError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    # stored with every row first: to_dict cuts the datasets to fit the response
+    stored_runs.save_single(STEPS[request.step], request.persona_id, result, response, started_at)
     return result.to_dict(response.model_dump(mode="json"))
 
 

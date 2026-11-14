@@ -10,9 +10,10 @@ before the Lambda's limit, and a title that did not finish is reported `timeout`
 
 Titles run in parallel on a bounded pool; EDGAR requests share the process-wide SEC limiter
 (`app.data.http`), GDELT its throttle and cooldown (a refusal falls back as in a single run). Each
-title returns a summary — status, key result, governance, main decisions, error — and a `run_request`
-to fetch its full run (stages, datasets, decisions) on demand with POST /api/lab/run: full datasets
-of 25 titles would not fit in one response.
+title is stored in the run registry as it finishes, with every stage and dataset (`app.registry`),
+then the group run itself; the response only carries a summary per title — status, key result,
+governance, main decisions, error, its stored `run_id` and a `run_request` to run it again alone:
+full datasets of 25 titles would not fit in one response.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ from typing import Any
 from app.data import gdelt
 from app.pipeline.core import PipelineInputError, RunResult, StepSpec, _cell, resolve_options
 from app.pipeline.registry import STEPS, execute, parse_inputs
+from app.registry import lab as stored_runs
 from app.services.lab_groups import MAX_TITLES, ResolvedGroup
 
 WORKERS = 6
@@ -192,21 +194,25 @@ def _summary_item(step: StepSpec, ticker: str, name: str | None, run_request: di
 
 def _run_title(step: StepSpec, persona: dict[str, Any], ticker: str, name: str | None, inputs: dict[str, Any],
                options: dict[str, Any], run_request: dict[str, Any], row_fn: Callable[[RunResult], dict[str, Any]],
-               deadline: float) -> tuple[dict[str, Any], dict[str, Any]]:
+               deadline: float, batch_id: str
+               ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any] | None]:
     if time.monotonic() > deadline:
         item = _summary_item(step, ticker, name, run_request, "timeout",
                              f"Non commencé dans le temps imparti ({BUDGET_S:.0f} s) : relancez ce titre seul.")
-        return item, {}
+        return item, {}, None
     t0 = time.perf_counter()
+    started_at = stored_runs.now_iso()
     try:
-        result, response = execute(step.id, persona, inputs, options)
+        result, response = execute(step.id, persona, inputs, options, datasets=True)
     except PipelineInputError as exc:
         return _summary_item(step, ticker, name, run_request, "error", f"Titre non analysable : {exc}.",
-                             round((time.perf_counter() - t0) * 1000, 1)), {}
+                             round((time.perf_counter() - t0) * 1000, 1)), {}, None
     except Exception as exc:  # one title must never break the group
         return _summary_item(step, ticker, name, run_request, "error", f"{type(exc).__name__} : {exc}",
-                             round((time.perf_counter() - t0) * 1000, 1)), {}
+                             round((time.perf_counter() - t0) * 1000, 1)), {}, None
     duration = round((time.perf_counter() - t0) * 1000, 1)
+    stored = stored_runs.save_single(step, run_request["persona_id"], result, response, started_at,
+                                     kind="batch_item", parent_id=batch_id)
     stages = result.stages
     failed = next((s for s in stages if s["status"] == "error"), None)
     status = "error" if failed else ("warning" if any(s["status"] == "warning" for s in stages) else "ok")
@@ -220,7 +226,7 @@ def _run_title(step: StepSpec, persona: dict[str, Any], ticker: str, name: str |
         "run_id": result.run_id, "run_request": run_request,
     }
     row = {**row_fn(result), "governance": "réussie" if response.governance.passed else "échouée"}
-    return item, row
+    return item, row, stored
 
 
 # --- the group ---------------------------------------------------------------------------------------
@@ -238,6 +244,8 @@ def run_batch(step_id: str, persona: dict[str, Any], persona_id: str, group: Res
     """Runs `step_id` on each title of `group`. Raises BatchError, OptionError or ValidationError (422)."""
     step = check_step(step_id)
     started = time.monotonic()
+    started_at = stored_runs.now_iso()
+    batch_id = uuid.uuid4().hex
     resolved = resolve_options(step, options)
     base = {k: v for k, v in (inputs or {}).items() if k != step.group_input}
     parse_inputs(step, {**base, step.group_input: group.tickers[0]})  # every input but the title, checked once
@@ -258,14 +266,16 @@ def run_batch(step_id: str, persona: dict[str, Any], persona_id: str, group: Res
         title_inputs = {**base, step.group_input: ticker}
         run_request = {"step": step_id, "persona_id": persona_id, "inputs": title_inputs, "options": resolved}
         futures[ticker] = pool.submit(_run_title, step, persona, ticker, group.names.get(ticker), title_inputs,
-                                      resolved, run_request, row_fn, deadline)
+                                      resolved, run_request, row_fn, deadline, batch_id)
     done, _ = wait(futures.values(), timeout=max(0.0, deadline - time.monotonic()))
     pool.shutdown(wait=False, cancel_futures=True)  # a title still running is reported, not awaited
 
-    items, rows = [], []
+    items, rows, children = [], [], []
     for ticker, future in futures.items():
         if future in done:
-            item, row = future.result()
+            item, row, stored = future.result()
+            if stored is not None:
+                children.append(stored)
         else:
             run_request = {"step": step_id, "persona_id": persona_id,
                            "inputs": {**base, step.group_input: ticker}, "options": resolved}
@@ -277,8 +287,8 @@ def run_batch(step_id: str, persona: dict[str, Any], persona_id: str, group: Res
         rows.append({c["key"]: _cell(values.get(c["key"])) for c in columns})
 
     counts = {s: sum(1 for i in items if i["status"] == s) for s in ("ok", "warning", "error", "timeout")}
-    return {
-        "batch_id": uuid.uuid4().hex, "step": step_id, "persona_id": persona_id,
+    response = {
+        "batch_id": batch_id, "step": step_id, "persona_id": persona_id,
         "duration_ms": round((time.monotonic() - started) * 1000, 1), "options_used": resolved,
         "group": group.to_dict(),
         "budget": {"limit_s": BUDGET_S, "estimated_s": round(estimated, 1), "workers": min(WORKERS, n),
@@ -287,3 +297,5 @@ def run_batch(step_id: str, persona: dict[str, Any], persona_id: str, group: Res
         "items": items,
         "table": {"columns": columns, "rows": rows, "default_sort": {"key": sort_key, "direction": "desc"}},
     }
+    stored_runs.save_batch(step, persona_id, response, started_at, base, children)
+    return response

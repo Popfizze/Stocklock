@@ -61,6 +61,14 @@ data "aws_iam_policy_document" "api" {
     resources = [aws_s3_bucket.data.arn]
   }
 
+  # Run registry (app/registry): the API stores every Labo run under lab/ and reads the score pipeline's
+  # runs and files under score/ (GetObject and ListBucket above).
+  statement {
+    sid       = "WriteLabRuns"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.data.arn}/lab/*"]
+  }
+
   # Labo button: start and follow the score pipeline (score_pipeline.tf).
   statement {
     sid       = "ScorePipelineStart"
