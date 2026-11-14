@@ -44,6 +44,24 @@ data "aws_iam_policy_document" "api" {
   }
 
   statement {
+    sid       = "ApplyGuardrail"
+    actions   = ["bedrock:ApplyGuardrail"]
+    resources = [aws_bedrock_guardrail.stocklock.guardrail_arn]
+  }
+
+  statement {
+    sid       = "ReadStepData"
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.data.arn}/*"]
+  }
+
+  statement {
+    sid       = "ListStepData"
+    actions   = ["s3:ListBucket"]
+    resources = [aws_s3_bucket.data.arn]
+  }
+
+  statement {
     sid     = "AgentCoreInvoke"
     actions = ["bedrock-agentcore:InvokeAgentRuntime"]
     resources = [
@@ -86,6 +104,9 @@ resource "aws_lambda_function" "api" {
       SEC_USER_AGENT        = var.sec_user_agent
       CORS_ORIGINS          = join(",", local.cors_origins)
       CACHE_DIR             = "/tmp/cache"
+      DATA_BUCKET           = aws_s3_bucket.data.bucket
+      GUARDRAIL_ID          = aws_bedrock_guardrail.stocklock.guardrail_id
+      GUARDRAIL_VERSION     = aws_bedrock_guardrail_version.stocklock.version
     }
   }
 

@@ -46,6 +46,12 @@ data "aws_iam_policy_document" "agent" {
   }
 
   statement {
+    sid       = "ApplyGuardrail"
+    actions   = ["bedrock:ApplyGuardrail"]
+    resources = [aws_bedrock_guardrail.stocklock.guardrail_arn]
+  }
+
+  statement {
     sid       = "ReadCodePackage"
     actions   = ["s3:GetObject", "s3:GetObjectVersion"]
     resources = ["${data.aws_s3_bucket.artifacts.arn}/agent/*"]
@@ -126,6 +132,11 @@ resource "aws_bedrockagentcore_agent_runtime" "narrator" {
         }
       }
     }
+  }
+
+  environment_variables = {
+    GUARDRAIL_ID      = aws_bedrock_guardrail.stocklock.guardrail_id
+    GUARDRAIL_VERSION = aws_bedrock_guardrail_version.stocklock.version
   }
 
   network_configuration {

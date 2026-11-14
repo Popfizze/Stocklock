@@ -8,6 +8,7 @@
 .env.*
 tests/
 agentcore/
+collectors/
 pytest.ini
 Dockerfile
 .dockerignore

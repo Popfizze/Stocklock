@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "backend/**"
+      - "!backend/collectors/**"
       - "alphaforge_starter/**"
       - ".github/workflows/deploy-backend.yml"
   workflow_dispatch:

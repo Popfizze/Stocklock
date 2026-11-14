@@ -26,3 +26,20 @@ output "agent_runtime_arn" {
 output "agent_mode" {
   value = var.agent_mode
 }
+
+output "data_bucket" {
+  value = aws_s3_bucket.data.bucket
+}
+
+output "guardrail_id" {
+  value = aws_bedrock_guardrail.stocklock.guardrail_id
+}
+
+output "guardrail_version" {
+  value = aws_bedrock_guardrail_version.stocklock.version
+}
+
+output "collectors" {
+  description = "Collector Lambda per step (null until backend/collectors/<step>/handler.py exists)."
+  value       = { for step, m in module.step_pipeline : step => m.function_name }
+}

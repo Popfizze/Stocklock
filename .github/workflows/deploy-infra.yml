@@ -1,4 +1,5 @@
-# Packages the AgentCore narration agents (arm64 wheels) to S3, then applies infra/ with Terraform.
+# Packages the AgentCore narration agents (arm64 wheels) to S3 and the step collectors (zip Lambdas),
+# then applies infra/ with Terraform.
 name: deploy-infra
 
 on:
@@ -8,6 +9,7 @@ on:
       - "infra/**"
       - "!infra/bootstrap/**"
       - "backend/app/agents/**"
+      - "backend/collectors/**"
       - ".github/workflows/deploy-infra.yml"
   workflow_dispatch:
 
@@ -62,35 +64,16 @@ jobs:
           ls -lh "$RUNNER_TEMP/agent.zip"
           aws s3 cp "$RUNNER_TEMP/agent.zip" "s3://$ARTIFACTS_BUCKET/$key"
 
-      # The Lambda function is created from the image tagged "latest": push one on the very first deploy.
+      - name: Package the step collectors
+        run: bash infra/scripts/build-collectors.sh
+
+      # The API Lambda is created from the image tagged "latest", which only deploy-backend builds.
       - name: Check for an API image
-        id: image
         run: |
-          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag=latest >/dev/null 2>&1; then
-            echo "missing=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "missing=true" >> "$GITHUB_OUTPUT"
+          if ! aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag=latest >/dev/null 2>&1; then
+            echo "::error::No $ECR_REPOSITORY:latest image in ECR yet: run the deploy-backend workflow first (gh workflow run deploy-backend.yml)."
+            exit 1
           fi
-
-      - if: steps.image.outputs.missing == 'true'
-        id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - if: steps.image.outputs.missing == 'true'
-        uses: docker/setup-buildx-action@v4
-
-      - if: steps.image.outputs.missing == 'true'
-        uses: docker/build-push-action@v7
-        with:
-          context: backend
-          build-contexts: data=alphaforge_starter
-          platforms: linux/amd64
-          provenance: false
-          sbom: false
-          push: true
-          tags: |
-            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}
-            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:latest
 
       - uses: hashicorp/setup-terraform@v4
         with:
