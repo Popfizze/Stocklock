@@ -1,0 +1,14 @@
+{
+  "name": "stocklock",
+  "version": 2,
+  "managedBy": "CDK",
+  "runtimes": [
+    {
+      "name": "narrator",
+      "build": "CodeZip",
+      "entrypoint": "runtime_main.py",
+      "codeLocation": "app/agents",
+      "runtimeVersion": "PYTHON_3_14"
+    }
+  ]
+}

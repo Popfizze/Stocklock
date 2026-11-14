@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "stocklock-narrator"
+version = "0.1.0"
+description = "StockLock narration agents for the AgentCore Runtime"
+requires-python = ">=3.11"
+dependencies = [
+    "bedrock-agentcore==1.26.0",
+    "strands-agents==1.65.0",
+    "boto3==1.44.3",
+    "pydantic==2.14.3",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

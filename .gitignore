@@ -98,3 +98,10 @@ config.json
 
 # Keep the committed env templates (the `.env.*` rule above would hide them)
 !.env.example
+
+# StockLock backend (FastAPI)
+backend/.venv/
+backend/.cache/
+backend/.env
+# AgentCore CLI local state (traces, logs, build cache)
+backend/agentcore/.cli/

@@ -1,0 +1,56 @@
+[
+  {
+    "id": "amira",
+    "name": "Amira",
+    "age": 26,
+    "risk_tolerance": "élevé",
+    "horizon": "15 ans et plus",
+    "preferences": ["IA", "crypto", "diversification"],
+    "summary": "26 ans, tolérance au risque élevée, horizon de 15 ans et plus. Intéressée par l'IA et la crypto, elle doit malgré tout rester diversifiée.",
+    "constraints": {
+      "risk_level": 4,
+      "horizon_years": [15, 40],
+      "max_volatility": 0.80,
+      "max_single_position": 0.25,
+      "allow_crypto": true,
+      "excluded_sectors": [],
+      "excluded_tickers": []
+    }
+  },
+  {
+    "id": "mateo",
+    "name": "Mateo",
+    "age": 41,
+    "risk_tolerance": "modéré",
+    "horizon": "8 à 12 ans",
+    "preferences": ["ESG", "exclusion des entreprises à controverses"],
+    "summary": "41 ans, tolérance au risque modérée, horizon de 8 à 12 ans. Investit selon des critères ESG et exclut les entreprises à controverses.",
+    "constraints": {
+      "risk_level": 3,
+      "horizon_years": [8, 12],
+      "max_volatility": 0.35,
+      "max_single_position": 0.15,
+      "allow_crypto": false,
+      "excluded_sectors": ["Energy"],
+      "excluded_tickers": []
+    }
+  },
+  {
+    "id": "robert",
+    "name": "Robert",
+    "age": 59,
+    "risk_tolerance": "faible à modéré",
+    "horizon": "3 à 5 ans",
+    "preferences": ["préservation du capital", "revenu de retraite"],
+    "summary": "59 ans, tolérance au risque faible à modérée, horizon de 3 à 5 ans avant la retraite. Il est tenté par un titre très médiatisé.",
+    "constraints": {
+      "risk_level": 2,
+      "horizon_years": [3, 5],
+      "max_volatility": 0.25,
+      "max_single_position": 0.10,
+      "allow_crypto": false,
+      "excluded_sectors": [],
+      "excluded_tickers": []
+    }
+  }
+]
