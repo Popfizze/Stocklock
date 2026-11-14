@@ -183,3 +183,16 @@ export const STOCK_PROJECTION: AccountProjection = {
   },
   profile_flags: ['Volatilité historique de 18 % supérieure au maximum du profil (10 %).'],
 }
+
+/** STOCK_PROJECTION for another ticker of the starter kit. */
+export function stockProjection(ticker: string, name: string): AccountProjection {
+  const asset = STOCK_PROJECTION.asset
+  return {
+    ...STOCK_PROJECTION,
+    asset: asset && { ...asset, ticker, name },
+    recommendations: {
+      ...STOCK_PROJECTION.recommendations,
+      headline: `Pour Amira et ${name} (${ticker}), le compte REER laisse le plus après impôt dans 3 ans.`,
+    },
+  }
+}

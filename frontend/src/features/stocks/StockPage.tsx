@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStock, type StockRange } from '@/api/stocks'
 import { AppLayout } from '@/components/layout'
+// Straight from the component, not the feature's index: that would pull the whole Comptes tab in.
+import { StockAccountOptions } from '@/features/accounts/StockAccountOptions'
 import { DividendList } from './DividendList'
 import { formatPrice, stockErrorMessage } from './format'
 import { KeyFigures } from './KeyFigures'
@@ -10,7 +12,8 @@ import { PriceChart } from './PriceChart'
 
 /**
  * A stock's page (`/titres/:ticker`): last close and day change, the closing
- * price chart over 1S/1M/3M/1A/Max, its key figures and its dividends.
+ * price chart over 1S/1M/3M/1A/Max, its key figures and its dividends, then
+ * which registered account suits it for the active profile (step 3).
  */
 export function StockPage() {
   const { ticker = '' } = useParams()
@@ -64,6 +67,11 @@ export function StockPage() {
             <div className="grid gap-6 md:grid-cols-2">
               <KeyFigures stock={stock} />
               <DividendList dividends={stock.stats.dividends} currency={stock.currency} />
+            </div>
+
+            {/* Step 3: which registered account for this stock, for the active profile. */}
+            <div className="border-t border-border pt-6">
+              <StockAccountOptions ticker={stock.ticker} />
             </div>
           </>
         )}

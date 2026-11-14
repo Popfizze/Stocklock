@@ -5,6 +5,7 @@ import { Route, Routes } from 'react-router-dom'
 import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl } from '@/test/mockFetch'
 import { PERSONAS } from '@/test/personas'
+import { stockProjection } from '@/test/accounts'
 import { BTC_1M, NVDA_1M, NVDA_1Y } from '@/test/stocks'
 import { StockPage } from './StockPage'
 
@@ -39,6 +40,7 @@ describe('StockPage', () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
     ])
     renderStock('NVDA')
 
@@ -73,6 +75,7 @@ describe('StockPage', () => {
     const calls = mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
       { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
       { match: '/api/stocks/NVDA?range=1Y', responses: [json(NVDA_1Y)] },
     ])
     const { container } = renderStock('NVDA')
@@ -102,12 +105,34 @@ describe('StockPage', () => {
     mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
       { match: '/api/stocks/BTC-USD?range=1M', responses: [json(BTC_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('BTC-USD', 'Bitcoin'))] },
     ])
     renderStock('BTC-USD')
 
     expect(await screen.findByText('Aucun dividende')).toBeInTheDocument()
     expect(figure('Rendement du dividende (12 mois)')).toHaveTextContent('—')
     expect(figure('Catégorie')).toHaveTextContent('Cryptoactifs')
+  })
+
+  it('shows which account suits this stock for the active profile', async () => {
+    const calls = mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/accounts/projection', responses: [json(stockProjection('NVDA', 'NVIDIA'))] },
+    ])
+    renderStock('NVDA')
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Quel compte pour NVIDIA (NVDA) ?' }),
+    ).toBeInTheDocument()
+    const request = calls.find((call) => call.url.endsWith('/api/accounts/projection'))
+    expect(JSON.parse(String(request?.init.body))).toEqual({
+      persona_id: 'amira',
+      ticker: 'NVDA',
+      annual_contribution: 7000,
+      years: 15,
+    })
+    expect(screen.getByRole('list', { name: 'Options de compte' })).toHaveTextContent('Le plus avantageux ici')
   })
 
   it('explains an unknown ticker', async () => {

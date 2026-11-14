@@ -45,31 +45,34 @@ export function ProjectionResults({ projection, stale = false, children }: Proje
 
       {children}
 
-      <div className="grid gap-4 xl:grid-cols-5">
-        <Card className="xl:col-span-3">
-          <CardHeader>
-            <CardTitle className="font-semibold">Valeur après impôt, année par année</CardTitle>
-            <CardDescription>
-              {formatMoney(inputs.annual_contribution)} avant impôt mis de côté chaque année.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ProjectionChart
-              series={projection.series}
-              accounts={projection.accounts}
-              horizon={{ label: `Horizon de ${profile.name}`, from, to }}
-            />
-          </CardContent>
-        </Card>
-        <Card className="xl:col-span-2">
-          <CardHeader>
-            <CardTitle className="font-semibold">Dans {inputs.years} ans, après impôt</CardTitle>
-            <CardDescription>Du plus avantageux au moins avantageux.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <AfterTaxBars accounts={projection.accounts} years={inputs.years} />
-          </CardContent>
-        </Card>
+      {/* Side by side only when this block itself is wide: the stock page is narrower than the Comptes tab. */}
+      <div className="@container">
+        <div className="grid gap-4 @5xl:grid-cols-5">
+          <Card className="@5xl:col-span-3">
+            <CardHeader>
+              <CardTitle className="font-semibold">Valeur après impôt, année par année</CardTitle>
+              <CardDescription>
+                {formatMoney(inputs.annual_contribution)} avant impôt mis de côté chaque année.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ProjectionChart
+                series={projection.series}
+                accounts={projection.accounts}
+                horizon={{ label: `Horizon de ${profile.name}`, from, to }}
+              />
+            </CardContent>
+          </Card>
+          <Card className="@5xl:col-span-2">
+            <CardHeader>
+              <CardTitle className="font-semibold">Dans {inputs.years} ans, après impôt</CardTitle>
+              <CardDescription>Du plus avantageux au moins avantageux.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AfterTaxBars accounts={projection.accounts} years={inputs.years} />
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <details className="rounded-lg border border-border p-4">

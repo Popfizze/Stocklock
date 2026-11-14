@@ -1,5 +1,6 @@
 import { useId } from 'react'
 import { Info } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { useAssets, type AssetSummary } from '@/api/accounts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -34,8 +35,12 @@ export function StockAccountsTab({ ticker, onTickerChange }: StockAccountsTabPro
           <CardTitle className="text-lg font-semibold">Essayer avec un titre</CardTitle>
           <CardDescription className="flex gap-2">
             <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            Dans la fiche d'un titre (onglet de recherche, à venir), cette section s'affichera sous les
-            informations du titre. En attendant, choisissez-en un parmi les 31 du jeu de départ.
+            <span>
+              Cette section s'affiche aussi dans la fiche de chaque titre du tableau de bord.{' '}
+              <Link to={`/titres/${encodeURIComponent(ticker)}`} className="text-primary hover:underline">
+                Ouvrir la fiche de {ticker}
+              </Link>
+            </span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
