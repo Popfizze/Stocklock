@@ -100,6 +100,7 @@ export const NVDA_1M: StockDetail = {
   currency: 'USD',
   sector: 'Information Technology',
   in_universe: true,
+  country: 'US',
   starter_kit: true,
   last_close: 166.19,
   change_abs: -7.54,
@@ -133,15 +134,16 @@ export const NVDA_1Y: StockDetail = {
   points: [point('2025-11-12', 140.2), point('2026-06-01', 200.5), point('2026-11-12', 166.19)],
 }
 
-/** An asset without any dividend, outside the SEC/TMX universe (a crypto of the starter kit). */
+/** A cryptocurrency without any dividend, listed by Yahoo's crypto screener: no country. */
 export const BTC_1M: StockDetail = {
   ...NVDA_1M,
   ticker: 'BTC-USD',
-  name: 'Bitcoin',
+  name: 'Bitcoin USD',
   asset_class: 'crypto',
-  market: 'Crypto (24/7)',
-  sector: 'Crypto asset',
-  in_universe: false,
+  market: 'Cryptoactif (24/7)',
+  sector: 'Non applicable (cryptoactif)',
+  in_universe: true,
+  country: null,
   stats: { ...NVDA_1M.stats, dividend_yield_ttm: null, dividends: [] },
 }
 
@@ -151,6 +153,7 @@ export const ONE_V_1M: StockDetail = {
   ticker: 'ONE.V',
   name: '01 Quantum Inc.',
   market: 'TSXV',
+  country: 'CA',
   currency: 'CAD',
   sector: 'Non disponible',
   starter_kit: false,
@@ -172,9 +175,21 @@ export const SEARCH_RY: UniverseSearchResult = {
     { ticker: 'RY.TO', name: 'Royal Bank of Canada', exchange: 'TSX', country: 'CA' },
     { ticker: 'RYN', name: 'RAYONIER INC', exchange: 'NYSE', country: 'US' },
   ],
+  crypto: [],
 }
 
-export const SEARCH_NONE: UniverseSearchResult = { query: 'zzz', total: 0, results: [] }
+/** « bit »: no listed company, two cryptocurrencies. */
+export const SEARCH_BIT: UniverseSearchResult = {
+  query: 'bit',
+  total: 1,
+  results: [{ ticker: 'BITF', name: 'Bitfarms Ltd.', exchange: 'Nasdaq', country: 'US' }],
+  crypto: [
+    { ticker: 'BTC-USD', name: 'Bitcoin USD', exchange: 'Crypto', country: null, asset_class: 'crypto' },
+    { ticker: 'BCH-USD', name: 'Bitcoin Cash USD', exchange: 'Crypto', country: null, asset_class: 'crypto' },
+  ],
+}
+
+export const SEARCH_NONE: UniverseSearchResult = { query: 'zzz', total: 0, results: [], crypto: [] }
 
 // --- GET /api/market/sections[/{id}] ------------------------------------------
 

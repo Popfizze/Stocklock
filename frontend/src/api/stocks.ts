@@ -21,21 +21,42 @@ export interface UniverseMatch {
   country: 'US' | 'CA'
 }
 
+/** A Yahoo Finance cryptocurrency (live crypto screener, refreshed daily); its page is `/titres/BTC-USD`. */
+export interface CryptoMatch {
+  /** `BTC-USD`, `ETH-USD`, … */
+  ticker: string
+  /** « Bitcoin USD ». */
+  name: string
+  exchange: 'Crypto'
+  country: null
+  asset_class: 'crypto'
+}
+
 export interface UniverseSearchResult {
   query: string
-  /** Matches over the whole universe; `results` holds the best ones. */
+  /** Matches over the whole universe (SEC + TMX); `results` holds the best ones. */
   total: number
   results: UniverseMatch[]
+  /** Cryptocurrencies matching the query (symbol or name), best first, at most 8; empty when none. */
+  crypto: CryptoMatch[]
 }
 
 // --- GET /api/market/sections[/{id}?limit=] -----------------------------------
 
 export interface MarketSectionInfo {
-  /** `populaires`, `meilleurs-scores`, `hausses`, `baisses`, `canada-populaires`, … */
+  /**
+   * `populaires`, `meilleurs-scores`, `hausses`, `baisses`, `canada-populaires`, …; the
+   * profile sections: `ia-semis`, `cryptos`, `esg-faible-risque`, `dividendes`, `faible-volatilite`.
+   */
   id: string
   title: string
   description: string
   source: string
+  /**
+   * Only with `?persona=`: why this section comes first for the profile
+   * (« Préférence IA d'Amira »); `null` for the general sections that follow.
+   */
+  persona_reason?: string | null
 }
 
 /** A card of the Tableau de bord's grid. */
@@ -161,8 +182,10 @@ export interface StockQuote {
 }
 
 export interface StockDetail extends StockIdentity, StockQuote {
-  /** Listed in the SEC or TMX directory (a crypto of the starter kit is not). */
+  /** Listed in the SEC or TMX directory, or one of Yahoo's listed cryptocurrencies. */
   in_universe: boolean
+  /** `US`, `CA`, or `null` (a cryptocurrency, or a symbol outside the universe). */
+  country: 'US' | 'CA' | null
   /** One of the datathon's 31 assets: the account (step 3) and bias (step 4) analyses cover it. */
   starter_kit: boolean
   points: PricePoint[]
@@ -262,8 +285,8 @@ export const STOCK_QUERY_KEYS = {
     [...STOCK_QUERY_KEYS.details(), ticker, range] as const,
   search: (query: string, limit: number) => [...STOCK_QUERY_KEYS.all, 'search', query, limit] as const,
   kpis: () => [...STOCK_QUERY_KEYS.all, 'kpis'] as const,
-  sections: () => [...STOCK_QUERY_KEYS.all, 'sections'] as const,
-  section: (id: string, limit: number) => [...STOCK_QUERY_KEYS.sections(), id, limit] as const,
+  sections: (personaId = '') => [...STOCK_QUERY_KEYS.all, 'sections', personaId] as const,
+  section: (id: string, limit: number) => [...STOCK_QUERY_KEYS.all, 'section', id, limit] as const,
   score: (ticker: string) => [...STOCK_QUERY_KEYS.all, 'score', ticker] as const,
 }
 
@@ -294,11 +317,15 @@ export function useMarketKpis() {
   })
 }
 
-/** The Tableau de bord's sections, in display order (each one's cards load separately). */
-export function useMarketSections() {
+/**
+ * The Tableau de bord's sections, in display order (each one's cards load separately).
+ * With a profile, its own sections come first (`persona_reason` set), then the general ones.
+ */
+export function useMarketSections(personaId?: string | null) {
+  const query = personaId ? `?persona=${encodeURIComponent(personaId)}` : ''
   return useQuery<MarketSectionInfo[], ApiError>({
-    queryKey: STOCK_QUERY_KEYS.sections(),
-    queryFn: () => apiClient.request<MarketSectionInfo[]>('/api/market/sections'),
+    queryKey: STOCK_QUERY_KEYS.sections(personaId ?? ''),
+    queryFn: () => apiClient.request<MarketSectionInfo[]>(`/api/market/sections${query}`),
     staleTime: Infinity,
   })
 }
