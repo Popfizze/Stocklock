@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.env
+.env.*
+.aws/
+*.log
+Thumbs.db
+.DS_Store
+
+# Case documents (kept local, not part of the deliverable)
+/Datathon - Case Officiel 2026*.pdf
+/Presentation_AlphaForge_AI_Participants*.pptx
