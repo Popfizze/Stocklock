@@ -90,6 +90,9 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
   const bounds = new THREE.Box3()
   const corner = new THREE.Vector3()
   let started = performance.now()
+  // Where each identified tile currently stands: a tile that changes place glides there.
+  const places = new Map<string, { x: number; z: number }>()
+  let lastFrame = performance.now()
   let builtFor: SceneTile[] | null = null
   let frame = 0
   let visible = true
@@ -174,13 +177,29 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     const time = now / 1000
     const stagger = Math.min(STAGGER_S, MAX_STAGGER_S / Math.max(1, tiles.length))
     let moving = false
+    const glide = reducedMotion ? 1 : 1 - Math.exp(-Math.min(0.1, (now - lastFrame) / 1000) * 9)
+    lastFrame = now
     tiles.forEach((tile, index) => {
       const grown = reducedMotion || motion === 'none' ? 1 : ease(clamp01((elapsed - index * stagger) / GROW_S))
       if (grown < 1) moving = true
       const wave = motion === 'wave' && !reducedMotion ? Math.sin(time * 0.9 + tile.x * 0.55 + tile.z * 0.4) * 0.07 : 0
       const h = tile.h * grown + (tile.h >= 0 ? wave : -wave)
       const size = Math.max(Math.abs(h), 0.03)
-      P.set(tile.x, (tile.y ?? 0) + (h >= 0 ? size / 2 : -size / 2), tile.z)
+      let x = tile.x
+      let z = tile.z
+      if (tile.id !== undefined && (tile.y ?? 0) === 0) {
+        const place = places.get(tile.id)
+        if (place) {
+          place.x += (tile.x - place.x) * glide
+          place.z += (tile.z - place.z) * glide
+          if (Math.abs(tile.x - place.x) + Math.abs(tile.z - place.z) > 0.004) moving = true
+          x = place.x
+          z = place.z
+        } else {
+          places.set(tile.id, { x, z })
+        }
+      }
+      P.set(x, (tile.y ?? 0) + (h >= 0 ? size / 2 : -size / 2), z)
       S.set((tile.w ?? 1) * FILL, size, (tile.d ?? 1) * FILL)
       mesh?.setMatrixAt(index, M.compose(P, Q, S))
     })
@@ -260,11 +279,15 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
   let dragged: string | null = null
   let lastY = 0
   let didDrag = false
+  let downX = 0
+  let downY = 0
   const onDown = (event: PointerEvent) => {
-    const tile = state.props.onAdjust ? pick(event) : null
+    const tile = state.props.onAdjust || state.props.onDrop ? pick(event) : null
     if (!tile?.id) return
     dragged = tile.id
     lastY = event.clientY
+    downX = event.clientX
+    downY = event.clientY
     didDrag = false
     try {
       canvas.setPointerCapture(event.pointerId)
@@ -275,8 +298,17 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
   }
   const onUp = (event: PointerEvent) => {
     if (dragged === null) return
+    const tile = state.props.tiles.find((candidate) => candidate.id === dragged)
     dragged = null
     canvas.classList.remove('cursor-grabbing')
+    if (tile) {
+      const rect = canvas.getBoundingClientRect()
+      const outside =
+        event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom
+      const distance = Math.hypot(event.clientX - downX, event.clientY - downY)
+      if (distance > 4) didDrag = true
+      state.props.onDrop?.(tile, { outside, distance })
+    }
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
   }
   const onMove = (event: PointerEvent) => {

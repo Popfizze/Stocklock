@@ -58,6 +58,11 @@ export interface TileSceneProps {
    * moved since the last call, in scene height units (positive = up).
    */
   onAdjust?: (tile: SceneTile, delta: number) => void
+  /**
+   * Called when a dragged tile is let go: `outside` when the pointer left the scene (the tile
+   * was dragged out), `distance` in pixels from where the drag started.
+   */
+  onDrop?: (tile: SceneTile, drop: { outside: boolean; distance: number }) => void
 }
 
 /** The CSS variable each tone is painted with (resolved at run time, so dark mode follows). */

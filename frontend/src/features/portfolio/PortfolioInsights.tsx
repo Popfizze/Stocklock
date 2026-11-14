@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import type { PortfolioFinding, PortfolioSuggestions } from '@/api/persona'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { FitBadge } from '@/features/stocks/FitBadge'
 import { SEVERITY_DOT, SEVERITY_LABELS } from '@/features/stocks/fitMeta'
@@ -67,7 +68,8 @@ export function PortfolioSuggestionList({ suggestions, onAdd }: SuggestionsProps
                     {item.ticker}
                   </Link>
                   <span className="text-sm text-muted-foreground">{item.name}</span>
-                  {item.score !== null && <ScoreBadge score={item.score} />}
+                  {item.score !== null && <ScoreBadge score={item.score} partiel={item.ranking?.partiel} />}
+                  {item.ranking?.partiel && <Badge variant="warning">Score partiel</Badge>}
                   <FitBadge verdict={item.verdict} />
                 </p>
                 <ul className="list-disc space-y-0.5 pl-5 text-sm">

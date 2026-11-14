@@ -1,4 +1,5 @@
 import type { Diversification, WeightBucket } from '@/api/persona'
+import { TileGauge } from '@/components/tiles/TileGauge'
 import { cn } from '@/lib/utils'
 import { formatShare } from './portfolioStore'
 
@@ -28,6 +29,18 @@ export function DiversificationView({ diversification: d }: DiversificationViewP
       <h2 id="diversification" className="text-3xl leading-tight">
         Diversification
       </h2>
+
+      <div className="flex flex-wrap items-center gap-6">
+        <TileGauge
+          value={volatility === null ? 0 : (volatility / d.max_volatility) * 100}
+          label={`Volatilité du portefeuille : ${formatShare(volatility)} pour un maximum de ${formatShare(d.max_volatility)} — la jauge est pleine au maximum du profil.`}
+          className="w-24"
+        />
+        <p className="max-w-md text-sm text-muted-foreground">
+          La jauge se remplit jusqu'au maximum de volatilité du profil : cent tuiles pleines, le
+          portefeuille est à sa limite.
+        </p>
+      </div>
 
       <dl className="grid grid-cols-2 gap-x-8 gap-y-5 border-y border-border py-5 lg:grid-cols-4">
         <Figure
@@ -104,8 +117,6 @@ interface WeightBarsProps {
 }
 
 function WeightBars({ title, buckets, limit }: WeightBarsProps) {
-  // Bars are drawn against the largest weight, so a diversified portfolio still reads.
-  const scale = Math.max(...buckets.map((bucket) => bucket.weight), limit ?? 0, 0.0001)
   return (
     <div className="space-y-2">
       <h3 className="eyebrow">{title}</h3>
@@ -121,13 +132,19 @@ function WeightBars({ title, buckets, limit }: WeightBarsProps) {
                 </span>
               </div>
               {/* Decorative: the figure on the right says the same thing. */}
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 100 1"
-                preserveAspectRatio="none"
-                className={cn('mt-1 block h-1 w-full bg-muted', over ? 'text-destructive' : 'text-foreground')}
-              >
-                <rect width={(bucket.weight / scale) * 100} height="1" fill="currentColor" />
+              <svg aria-hidden="true" viewBox="0 0 20 1" className="mt-1.5 block w-full">
+                {Array.from({ length: 20 }, (_, tile) => (
+                  <rect
+                    key={tile}
+                    x={tile + 0.08}
+                    y={0.08}
+                    width={0.84}
+                    height={0.84}
+                    className={
+                      tile < Math.round(bucket.weight * 20) ? (over ? 'fill-destructive' : 'fill-tile-1') : 'fill-tile-7'
+                    }
+                  />
+                ))}
               </svg>
             </li>
           )

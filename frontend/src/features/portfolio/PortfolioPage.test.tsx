@@ -5,10 +5,12 @@ import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl, type MockResponse } from '@/test/mockFetch'
 import { PORTFOLIO_ROBERT } from '@/test/persona'
 import { PERSONAS } from '@/test/personas'
+import { PORTFOLIO_ROBERT_CUSTOM } from '@/test/scoring'
 import { SEARCH_RY } from '@/test/stocks'
 import { EXAMPLE_PORTFOLIOS } from '@/lib/example-portfolios'
 import { PortfolioPage } from './PortfolioPage'
 import { readPortfolio, storePortfolio } from './portfolioStore'
+import { readScoreSetup } from './scoreWeights'
 
 const ORIGINAL_FETCH = globalThis.fetch
 
@@ -151,6 +153,70 @@ describe('PortfolioPage', () => {
 
     expect(screen.getByLabelText('Poids de RYN')).toHaveValue(5)
     expect(screen.getByRole('searchbox', { name: 'Ajouter un titre au portefeuille' })).toHaveValue('')
+  })
+
+  it('lets the profile set its own score weights on the mixing desk, always summing to 100', async () => {
+    const calls = renderPortfolio('robert', [json(PORTFOLIO_ROBERT), json(PORTFOLIO_ROBERT_CUSTOM)])
+
+    const desk = within(await screen.findByRole('region', { name: /Votre score, vos pondérations/ }))
+    expect(desk.getByRole('img', { name: /Table de mixage du score, six colonnes.*Rentabilité 25 %.*Croissance 15 %/ })).toBeInTheDocument()
+    expect(desk.getByText('Pondérations StockLock : le score est celui de la table des scores.')).toBeInTheDocument()
+    expect(desk.getByRole('button', { name: /Pondérations StockLock/ })).toBeDisabled()
+
+    await userEvent.click(desk.getByRole('button', { name: 'Plus de poids pour Croissance' }))
+    await userEvent.click(desk.getByRole('button', { name: 'Plus de poids pour Croissance' }))
+
+    // Growth goes from 15 to 25; the five others give way in proportion.
+    const weights = readScoreSetup('robert').weights
+    expect(weights.croissance).toBe(25)
+    expect(Object.values(weights).reduce((total, value) => total + value, 0)).toBeCloseTo(100, 5)
+    expect(weights.rentabilite).toBeLessThan(25)
+    expect(desk.getByText('Croissance :').parentElement).toHaveTextContent('25 %')
+
+    // The analysis is asked again with these weights, and the line says what changed.
+    await vi.waitFor(
+      () => {
+        const bodies = analyzeBodies(calls)
+        expect(bodies[bodies.length - 1].weights.croissance).toBeCloseTo(25, 1)
+      },
+      { timeout: 3000 },
+    )
+    expect(await desk.findByText(/UNP passe de 69 à 75 car vous valorisez davantage « croissance »\./)).toBeInTheDocument()
+
+    // Suggestions follow, with how the weights moved their rank.
+    const suggestions = within(screen.getByRole('region', { name: 'Suggestions' }))
+    expect(await suggestions.findByText('Vos pondérations le font passer du 22e au 9e rang (+13 places).')).toBeInTheDocument()
+
+    // Back to StockLock's weights.
+    await userEvent.click(desk.getByRole('button', { name: /Pondérations StockLock/ }))
+    expect(readScoreSetup('robert').weights.croissance).toBe(15)
+    expect(window.localStorage.getItem('stocklock.scoreWeights.robert')).toBeNull()
+  })
+
+  it('switches an indicator off inside its factor', async () => {
+    const calls = renderPortfolio()
+
+    const desk = within(await screen.findByRole('region', { name: /Votre score, vos pondérations/ }))
+    const momentum = desk.getByRole('button', { name: 'Rendement 12 mois sauf le dernier' })
+    expect(momentum).toHaveAttribute('aria-pressed', 'true')
+    await userEvent.click(momentum)
+
+    expect(momentum).toHaveAttribute('aria-pressed', 'false')
+    expect(readScoreSetup('robert').excluded).toEqual(['momentum_12_1'])
+    await vi.waitFor(
+      () => {
+        const bodies = analyzeBodies(calls)
+        expect(bodies[bodies.length - 1].factors).toEqual({ excluded_indicators: ['momentum_12_1'] })
+      },
+      { timeout: 3000 },
+    )
+  })
+
+  it('offers the suggestions as blocks waiting at the edge of the scene', async () => {
+    renderPortfolio()
+
+    expect(await screen.findByRole('img', { name: /Suggestions en attente : WM\./ })).toBeInTheDocument()
+    expect(screen.getByText(/hors de la scène pour le\s+retirer ; les blocs bas au bord sont des suggestions/)).toBeInTheDocument()
   })
 
   it('opens each profile on its own holdings', async () => {

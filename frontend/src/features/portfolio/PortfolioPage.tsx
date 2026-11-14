@@ -12,6 +12,15 @@ import { cn } from '@/lib/utils'
 import { AddHolding } from './AddHolding'
 import { DiversificationView } from './DiversificationView'
 import { HoldingsTable } from './HoldingsTable'
+import { ScoreMixer } from './ScoreMixer'
+import {
+  explainChange,
+  isDefaultSetup,
+  readScoreSetup,
+  storeScoreSetup,
+  toScoringChoice,
+  type ScoreSetup,
+} from './scoreWeights'
 import { PortfolioBlocks } from './PortfolioBlocks'
 import { PortfolioFindings, PortfolioSuggestionList } from './PortfolioInsights'
 import {
@@ -45,7 +54,18 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
   const [holdings, setHoldings] = useState<PortfolioHolding[]>(() => readPortfolio(personaId))
   // The analysis waits for the typing to pause; the table itself follows every keystroke.
   const settled = useDebouncedValue(holdings, 400)
-  const { data, error, isPending, isFetching, isPlaceholderData } = usePortfolioAnalysis(personaId, settled)
+  // The user's own score: six weights and the indicators switched off, kept per profile.
+  const [setup, setSetup] = useState<ScoreSetup>(() => readScoreSetup(personaId))
+  const settledSetup = useDebouncedValue(setup, 300)
+  const { data, error, isPending, isFetching, isPlaceholderData } = usePortfolioAnalysis(
+    personaId,
+    settled,
+    toScoringChoice(settledSetup),
+  )
+  const handleSetup = (next: ScoreSetup) => {
+    setSetup(next)
+    storeScoreSetup(personaId, next)
+  }
 
   const update = (next: PortfolioHolding[]) => {
     setHoldings(next)
@@ -105,7 +125,11 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
               holdings={holdings}
               analyzed={analyzed}
               maxPosition={data?.diversification.max_position ?? null}
+              suggestions={data?.suggestions.items ?? []}
+              ranked={!isDefaultSetup(setup)}
               onWeightChange={handleWeight}
+              onRemove={(ticker) => update(holdings.filter((holding) => holding.ticker !== ticker))}
+              onAdd={handleAdd}
             />
             {/* The same holdings as a table: the keyboard and screen-reader way to read and edit them. */}
             <details className="rounded-3xl border border-border px-5 py-4">
@@ -151,6 +175,7 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
           aria-busy={isFetching}
           className={cn('space-y-10 transition-opacity', isPlaceholderData && 'opacity-60')}
         >
+          <ScoreMixer setup={setup} onChange={handleSetup} explanation={explainChange(data, settledSetup)} />
           <PortfolioFindings findings={data.findings} />
           <DiversificationView diversification={data.diversification} />
           <PortfolioSuggestionList suggestions={data.suggestions} onAdd={handleAdd} />
