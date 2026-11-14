@@ -157,7 +157,7 @@ export const FIT_NVDA_ROBERT: FitResult = {
   verdict: 'hors_profil',
   summary: 'Hors profil pour Robert : volatilité trop élevée.',
   reasons: [
-    reason('volatility', 'bloquant', 'Volatilité annualisée de 48,6 % supérieure au seuil de 25 % retenu pour le profil Robert (risque faible à modéré).', 0.486, 0.25),
+    reason('volatility', 'bloquant', 'Volatilité sur 1 an de 48,6 % au-dessus du maximum de 25 % du profil de Robert.', 0.486, 0.25),
     reason('esg_controversy', 'info', 'Controverse de niveau 2 sur 5 (modérée).', 2, null),
     reason('position', 'info', 'Position maximale pour Robert : 10 % du portefeuille.', null, 0.1),
   ],
