@@ -1,134 +1,81 @@
 ---
 name: design-system
-description: Design system rules — OKLCh color tokens, Shadcn UI patterns, and Tailwind discipline. Use when writing or reviewing any UI code (components, pages, styling). Auto-activates on frontend files.
+description: Design system rules — monochrome tile language, OKLCh tokens, Jost/Inter type, Shadcn UI patterns, Tailwind discipline and the three.js 3D rules. Use when writing or reviewing any UI code (components, pages, styling). Auto-activates on frontend files.
 user-invocable: true
-argument-hint: "[optional: colors|components|patterns]"
+argument-hint: "[optional: colors|type|components|motion|3d]"
 ---
 
-# Design System
+# Design System — StockLock
 
-Single-theme design system built on **Tailwind CSS v4** + **Shadcn UI (New York)** + **CSS Custom Properties in OKLCh**. Ships light + dark variants by default.
-
-The full token list lives in `frontend/src/styles/tokens.css` (overrides go in `frontend/src/styles/index.css`). This skill is the design contract — copy/paste-friendly rules + the top-10 patterns you'll reach for.
-
----
-
-## Core rules (always apply)
-
-### ✅ DO
-
-1. **Use semantic tokens, never raw Tailwind colors** for surfaces, text, borders:
-   - `bg-background`, `bg-card`, `bg-popover` — layered surfaces
-   - `text-foreground`, `text-muted-foreground` — body & secondary
-   - `border-border`, `border-input`, `ring-ring` — dividers & focus
-   - `bg-primary text-primary-foreground` — CTAs (never `bg-blue-500`)
-   - `bg-destructive text-destructive-foreground` — danger actions
-2. **Compose classes with `cn()`** (clsx + twMerge) from `@/lib/utils`
-3. **Use Shadcn primitives first** — `Button`, `Card`, `Dialog`, `Input`, `Select`, `Table`, etc. from `src/components/ui/`
-4. **Mobile-first responsive** — default styles apply to mobile, `sm:`/`md:`/`lg:` scale up
-5. **Semantic HTML** — `<h1>`-`<h6>` for headings (not `<div className="text-2xl font-bold">`)
-
-### ❌ DON'T
-
-1. **Never hardcode colors**:
-   - ❌ `bg-blue-500`, `text-red-600`, `border-gray-300`
-   - ❌ `#3B82F6`, `rgb(59, 130, 246)`, `hsl(217, 91%, 60%)`
-   - ❌ `dark:bg-slate-800` (overrides tokens in dark mode — anti-pattern)
-   - ❌ `bg-white`, `bg-black`, `text-white`, `text-black` (invariant — breaks dark mode)
-2. **Never use `style={{}}`** inline unless dynamic (e.g., transform from JS value)
-3. **Never use `!important`**
-4. **Never use arbitrary widths** like `w-[180px]` — prefer fractional (`w-1/3`), content-based (`w-fit`), or named sizes
-5. **Never define new tokens in component files** — they go in `src/styles/index.css` so every component picks them up
+A **monochrome of cool greys built from square tiles**: near-black ink on white, hairline borders, large radii, almost no shadow, big light titles, upper-case labels. Colour only carries meaning. Built on **Tailwind CSS v4** + **Shadcn UI** + **CSS custom properties in OKLCh** (`frontend/src/styles/tokens.css`, extras in `frontend/src/styles/index.css`), light + dark.
 
 ---
 
-## Token reference
+## Colour
 
-See `frontend/src/styles/index.css` for the full token list. The template ships the Shadcn baseline:
+| Role | Token / utility | Light value |
+|---|---|---|
+| Page, cards | `bg-background`, `bg-card` | white |
+| Soft surface (tags, hover, skeleton) | `bg-muted`, `bg-secondary`, `bg-accent` | `#F3F4F6` |
+| Ink: text, primary buttons, active states | `text-foreground`, `bg-primary` | `#0B0B0C` |
+| Secondary text, labels | `text-muted-foreground` | `#6B6E77` |
+| Waiting text (unlit, placeholders) | `text-faint` | `#C9CCD2` |
+| Hairlines, field borders | `border-border`, `border-input` | `#D9DBE0` |
+| Tile scale, 1 = ink … 8 = softest | `bg-tile-1` … `bg-tile-8`, `fill-tile-N`, `text-tile-N` | `#0B0B0C #2A2C31 #4A4D55 #6B6E77 #A9ACB5 #D9DBE0 #E7E9ED #F3F4F6` |
 
-### Surfaces & content
-`--background` / `--foreground` · `--card` / `--card-foreground` · `--popover` / `--popover-foreground`
+- **Colour = meaning only**: `text-success` / `text-destructive` for gains and losses and for ok / error states, `text-warning` for attention (all desaturated to sit with the greys); `account-*` for the four accounts of Comptes. Nothing else is coloured — charts use `chart-1…5` (ink and greys).
+- **Never hardcode a colour** (`#fff`, `rgb()`, `bg-blue-500`, `bg-white`, `text-black`, `dark:bg-slate-800`). New tokens go in `tokens.css` / `index.css` with a dark value, never in a component.
+- Dark mode (`.dark` on `<html>`) mirrors the scale: `tile-1` stays the strongest tile against the background.
 
-### Brand & action
-`--primary` / `--primary-foreground` · `--secondary` / `--secondary-foreground` · `--accent` / `--accent-foreground` · `--destructive` / `--destructive-foreground`
+## Type
 
-### Muted (subtle backgrounds, helper text)
-`--muted` / `--muted-foreground`
+- **Display: Jost** (`font-display`, weights 400/500) — every `h1`/`h2` (400) and `h3` (500) gets it automatically, tight tracking; do not fight it with `font-semibold`/`font-bold` on headings. Big figures: class `display` (tabular numbers).
+- **Text: Inter** (`font-sans`, the default).
+- **Label**: class `eyebrow` (alias `label-caps`) — Jost 500, 12 px, upper case, letter-spacing 0.16em, muted. Use it for section labels, table captions, small headers.
+- A title can quieten its second half: `<h1>Tableau <em>de bord</em></h1>` (`em` is upright and muted inside headings). `PageHeader` does it with its `accent` prop.
+- Numbers line up: `tabular-nums` (automatic in `td`, `dd`, `.display`).
+- Fonts are bundled with `@fontsource-variable/jost` and `@fontsource-variable/inter` (imported in `index.css`); no font CDN.
 
-### Borders & focus
-`--border` · `--input` · `--ring`
+## Components
 
-### Charts
-`--chart-1` through `--chart-5`
+- **Buttons** (`Button`): pills, 44 px high (`size="default"`), upper-case Jost label; `variant="default"` solid ink, `variant="outline"` ghost with a hairline border that darkens on hover. Smaller: `sm` (36 px), `xs` (28 px) for dense rows. Icon buttons need an `aria-label`.
+- **Cards** (`Card`): white, 1 px hairline border, large radius — 28 px by default (`rounded-3xl`), `size="sm"` for dense cards (20 px). No shadow, no gradient. Prefer hairline dividers (`divide-y divide-border`, `border-y`) to boxes inside boxes.
+- **Fields** (`Input`, `Select`, `Textarea`): 44 px, pill, hairline border on the page background.
+- **Tags** (`Badge`): small upper-case pills; `success` / `warning` / `destructive` only for states.
+- **Tabs**: underlined, not pills. **Tables**: muted header, hairline rows.
+- Radii come from `--radius` (1rem): `rounded-lg` 16, `rounded-xl` 20, `rounded-2xl` 24, `rounded-3xl` 28.
+- Shadcn primitives first (`src/components/ui/`), then shared components, then a new one. `cn()` for conditional classes. No `style={{}}` unless the value is computed at run time, no `!important`, no arbitrary widths.
 
-### Sidebar
-`--sidebar` / `--sidebar-foreground` · `--sidebar-primary` / `--sidebar-primary-foreground` · `--sidebar-accent` / `--sidebar-accent-foreground` · `--sidebar-border` · `--sidebar-ring`
+## Tile motifs (`src/components/tiles/`)
 
-### Structural
-`--radius` (controls corner radius via `rounded-*` Shadcn utilities)
+- `TileGauge` — a 10 × 10 grid of tiles with N filled, for a score or a percentage (always with the number next to it and an `aria-label`).
+- `TileMosaic` — a decorative band of tiles in the grey scale (seeded, identical on every load, `aria-hidden`).
+- Pictograms are drawn with square tiles (`<rect>` on a grid, `fill-tile-N`), never with icons that fight the language.
 
-### Domain-specific tokens (add as your app grows)
+## Motion
 
-If your product needs status colors, business-function colors, scoring colors, etc., **add them as tokens in `index.css`** with light + dark variants — don't hardcode them in components.
+- One easing: `ease-tile` = `cubic-bezier(0.4, 0, 0.25, 1)`.
+- Entrances: `fade-up` (rise 16 px while fading in), `flip-in` (for big figures), `tile-in` (tiles); a parent with `stagger` plays its children 60 ms apart.
+- **`prefers-reduced-motion` is respected everywhere**: the entrance classes switch off by themselves; any other animation must check it (`motion-reduce:` variants, or `usePrefersReducedMotion()`).
+- Motion never delays reading a number: content is in the DOM at once.
 
----
+## 3D (three.js) rules
 
-## Light / Dark mode
+Every screen has at least one 3D element, and each one **tells a story, illustrates a piece of information, or is the impressive moment** — state its purpose in a one-line comment above the component.
 
-- `.dark` class on `<html>` toggles dark mode
-- Every token has a dark variant under the `.dark` selector in `index.css`
-- Never override a dark token with a raw Tailwind color (`dark:bg-slate-800` is the anti-pattern that breaks the token system)
+- Use the shared engine: `Tile3D` from `src/components/three/` — you describe tiles (`x`, `z`, `h`, `tone`, `label`), it renders them. Do not create a second renderer set-up.
+- `three` is **lazy-loaded** (`React.lazy` inside `Tile3D`): never import `three` from a page or from the main bundle.
+- **Plain equivalent required**: every scene has an `aria-label` that summarises the information, and the same information exists as text or a table on the page. The 3D never is the only place a number lives.
+- **Fallbacks**: no WebGL → the flat SVG mosaic of the same tiles; reduced motion → one static rendered frame.
+- **Performance**: one canvas per view where possible, instanced meshes, device pixel ratio capped at 2, paused off-screen and when the tab is hidden, everything disposed on unmount.
+- Colours come from the tokens (resolved at run time), tones are the tile scale plus `up` / `down` / `alert` for meaning.
+- A scene never blocks or overlaps the data, and never captures the scroll.
 
----
+## Checklist
 
-## Top-10 patterns
-
-```tsx
-// Card with correct tokens
-<div className="bg-card text-card-foreground border border-border rounded-lg p-4 shadow-sm">
-
-// Primary CTA button (via Shadcn)
-<Button>Save</Button>
-
-// Destructive action
-<Button variant="destructive">Delete</Button>
-
-// Muted helper text
-<p className="text-sm text-muted-foreground">Optional — leave blank to skip.</p>
-
-// Form field with label + error
-<Label htmlFor="email">Email</Label>
-<Input id="email" type="email" aria-invalid={!!error} />
-{error && <p className="text-sm text-destructive">{error}</p>}
-
-// Page-level container (consistent horizontal padding)
-<div className="container mx-auto px-4">
-
-// Sidebar nav link (with active state via tokens)
-<Link className={cn(
-  "flex items-center gap-2 rounded-md px-3 py-2 text-sm",
-  "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-  isActive && "bg-sidebar-primary text-sidebar-primary-foreground"
-)}>
-
-// Empty state
-<div className="text-center py-12">
-  <p className="text-muted-foreground">No items yet.</p>
-</div>
-
-// Disabled state (Shadcn pattern)
-<Button disabled={isPending}>{isPending ? "Saving..." : "Save"}</Button>
-
-// Loading skeleton (Shadcn Skeleton)
-<Skeleton className="h-4 w-[250px]" />
-```
-
----
-
-## Invoke modes
-
-- `/design-system colors` → tell me which token to use for a given semantic role
-- `/design-system components` → list available Shadcn primitives in `src/components/ui/`
-- `/design-system patterns` → expand on common layouts (form, dashboard, table)
-
-When invoked from any frontend file, this skill reads `frontend/src/styles/index.css` to verify the token exists before suggesting it.
+- [ ] Tokens only, no hardcoded colour; colour only where it means something
+- [ ] Headings in Jost (automatic), labels with `eyebrow`, numbers tabular
+- [ ] Pills 44 px, cards hairline + large radius, hairline dividers
+- [ ] Entrances respect reduced motion
+- [ ] 3D: purpose comment, lazy, accessible equivalent, fallback, paused off-screen, disposed
+- [ ] Mobile first; semantic HTML; UI text in French, code in English

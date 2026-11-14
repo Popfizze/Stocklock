@@ -4,7 +4,7 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const cardVariants = cva(
-  'border border-border bg-card text-card-foreground gap-5 overflow-hidden rounded-2xl py-6 text-sm has-[>img:first-child]:pt-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl group/card flex flex-col',
+  'border border-border bg-card text-card-foreground gap-5 overflow-hidden rounded-3xl py-7 text-sm has-[>img:first-child]:pt-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl group/card flex flex-col',
   {
     variants: {
       variant: {
@@ -18,7 +18,7 @@ const cardVariants = cva(
       },
       size: {
         default: '',
-        sm: 'gap-4 py-4',
+        sm: 'gap-4 rounded-xl py-4',
       },
     },
     defaultVariants: {
@@ -50,7 +50,7 @@ const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
       ref={ref}
       data-slot="card-header"
       className={cn(
-        'gap-2 rounded-t-xl px-6 group-data-[size=sm]/card:px-4 [.border-b]:pb-6 group-data-[size=sm]/card:[.border-b]:pb-4 group/card-header @container/card-header grid auto-rows-min items-start has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto]',
+        'gap-2 rounded-t-xl px-7 group-data-[size=sm]/card:px-4 [.border-b]:pb-6 group-data-[size=sm]/card:[.border-b]:pb-4 group/card-header @container/card-header grid auto-rows-min items-start has-data-[slot=card-action]:grid-cols-[1fr_auto] has-data-[slot=card-description]:grid-rows-[auto_auto]',
         className,
       )}
       {...props}
@@ -64,7 +64,7 @@ const CardTitle = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivE
     <div
       ref={ref}
       data-slot="card-title"
-      className={cn('text-base font-medium', className)}
+      className={cn('font-display text-xl font-normal tracking-tight', className)}
       {...props}
     />
   ),
@@ -100,7 +100,7 @@ const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
     <div
       ref={ref}
       data-slot="card-content"
-      className={cn('px-6 group-data-[size=sm]/card:px-4', className)}
+      className={cn('px-7 group-data-[size=sm]/card:px-4', className)}
       {...props}
     />
   ),
@@ -113,7 +113,7 @@ const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDiv
       ref={ref}
       data-slot="card-footer"
       className={cn(
-        'rounded-b-xl px-6 group-data-[size=sm]/card:px-4 [.border-t]:pt-6 group-data-[size=sm]/card:[.border-t]:pt-4 flex items-center',
+        'rounded-b-xl px-7 group-data-[size=sm]/card:px-4 [.border-t]:pt-6 group-data-[size=sm]/card:[.border-t]:pt-4 flex items-center',
         className,
       )}
       {...props}
