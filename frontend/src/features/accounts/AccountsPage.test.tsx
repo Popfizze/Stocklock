@@ -35,34 +35,87 @@ describe('AccountsPage', () => {
     vi.restoreAllMocks()
   })
 
-  it('explains each account with the numbers of the versioned rules', async () => {
+  it('starts with the essentials: one tile per account, three golden rules and facts', async () => {
     renderAccounts()
 
-    expect(await screen.findByRole('heading', { name: 'CELI' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Comptes enregistrés au Canada' })).toBeInTheDocument()
-    expect(screen.getByText("Le parcours d'un dollar")).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: "Les 4 comptes en un coup d'œil" })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: "L'essentiel" })).toHaveAttribute('aria-selected', 'true')
 
-    const celi = screen.getByRole('heading', { name: 'CELI' }).closest('[data-slot=card]') as HTMLElement
+    const celi = screen.getByRole('heading', { name: 'CELI' }).closest('li') as HTMLElement
     expect(within(celi).getByText(money(7000))).toBeInTheDocument()
-    expect(within(celi).getByText(`${money(109000)} au maximum`)).toBeInTheDocument()
-    expect(within(celi).getByRole('link', { name: 'ARC' })).toHaveAttribute('href', 'https://www.canada.ca/tfsa')
+    expect(within(celi).getByRole('list', { name: 'Impôt dans le CELI' })).toHaveTextContent('Au retrait :Libre d\'impôt')
+    expect(within(celi).getByRole('link', { name: 'Tout savoir sur le CELI' })).toHaveAttribute(
+      'href',
+      '/comptes?onglet=comptes&compte=CELI',
+    )
+    expect(screen.getByRole('link', { name: 'Tout savoir sur le compte non enregistré' })).toBeInTheDocument()
 
-    const celiapp = screen.getByRole('heading', { name: 'CELIAPP' }).closest('[data-slot=card]') as HTMLElement
-    expect(within(celiapp).getByText(money(40000))).toBeInTheDocument()
-    for (const name of ['REER', 'Non enregistré']) {
-      expect(screen.getByRole('heading', { name })).toBeInTheDocument()
-    }
+    const rules = screen.getByRole('region', { name: "3 règles d'or" })
+    expect(within(rules).getAllByRole('listitem')).toHaveLength(3)
+    const facts = screen.getByRole('region', { name: 'Le saviez-vous ?' })
+    expect(facts).toHaveTextContent(`${money(109000)}de droits CELI cumulés`)
+    expect(facts).toHaveTextContent(`${money(100000)}de mise de fonds par personne`)
   })
 
-  it('compares the rules and highlights the active profile’s path', async () => {
-    renderAccounts()
-    await userEvent.click(await screen.findByRole('tab', { name: 'Comparer' }))
+  it('details one account: use cases, place in the order and its frequently asked questions', async () => {
+    renderAccounts('/comptes?onglet=comptes&compte=REER')
 
-    const row = screen.getByRole('row', { name: /Dividendes américains/ })
-    expect(row).toHaveTextContent('PerdueExemptéePerdueRécupérée')
-    expect(await screen.findAllByText('Votre réponse')).toHaveLength(2)
-    expect(screen.getByText(/Amira : 36,1 % aujourd'hui/)).toBeInTheDocument()
+    const reer = await screen.findByRole('article', { name: 'REER' })
+    expect(screen.getByRole('tab', { name: 'REER' })).toHaveAttribute('aria-selected', 'true')
+    expect(within(reer).getByText("Baisser l'impôt d'une bonne année")).toBeInTheDocument()
+    expect(within(reer).getByText(/1er choix si votre taux d’imposition actuel dépasse/)).toBeInTheDocument()
+
+    const question = within(reer).getByRole('button', { name: "Le remboursement d'impôt du REER, c'est un cadeau ?" })
+    expect(question).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(question)
+    expect(question).toHaveAttribute('aria-expanded', 'true')
+    expect(within(reer).getByText(/Non, c'est un report/)).toBeVisible()
+
+    await userEvent.click(screen.getByRole('tab', { name: 'CELIAPP' }))
+    expect(await screen.findByRole('article', { name: 'CELIAPP' })).toHaveTextContent(money(40000))
+  })
+
+  it('recommends the profile’s order, its situation and the decision path', async () => {
+    renderAccounts('/comptes?onglet=choisir')
+
+    const order = await screen.findByRole('heading', { name: "L'ordre conseillé pour Amira" })
+    const steps = within(order.closest('section') as HTMLElement).getAllByText(/^Étape \d :$/)
+    expect(steps.map((step) => step.parentElement?.textContent)).toEqual([
+      'Étape 1 : CELIAPP',
+      'Étape 2 : REER',
+      'Étape 3 : CELI',
+      'Étape 4 : Non enregistré',
+    ])
+    expect(screen.getByText('Situation de Amira').closest('li')).toHaveTextContent('J’achète ma première maison')
+    expect(screen.getByText("Un fonds d'urgence").closest('li')).toHaveTextContent('CELI')
+    expect(screen.getAllByText('Votre réponse')).toHaveLength(2)
+  })
+
+  it('compares the rules with charts computed at the profile’s rates', async () => {
+    renderAccounts('/comptes?onglet=comparer')
+
+    expect(
+      await screen.findByText(/Pour Amira \(36,1 % aujourd'hui, 25,7 % prévu à la retraite\) : le REER laisse/),
+    ).toBeInTheDocument()
+    expect(screen.getByText(`Au taux de Amira, 1 000 $ d'intérêts coûtent ${money(361)} d'impôt, contre ${money(164)} pour des dividendes canadiens.`)).toBeInTheDocument()
+    expect(screen.getByText(/Amira a cumulé 57.000 \$ de droits CELI depuis 2018/)).toBeInTheDocument()
+    expect(screen.getByText(/Jusqu'à 100.000 \$ par personne pour une première maison/)).toBeInTheDocument()
+
+    expect(screen.getByRole('row', { name: /Dividendes américains/ })).toHaveTextContent('PerdueExemptéePerdueRécupérée')
     expect(screen.getByRole('row', { name: /Obligations et intérêts/ })).toHaveTextContent('Peu adapté')
+  })
+
+  it('answers frequently asked questions in dropdowns', async () => {
+    renderAccounts('/comptes?onglet=faq')
+
+    expect(await screen.findByRole('heading', { name: 'Questions fréquentes' })).toBeInTheDocument()
+    for (const group of ['Les bases', 'CELI', 'REER', 'CELIAPP', 'Placements et impôt']) {
+      expect(screen.getByRole('heading', { name: group, level: 3 })).toBeInTheDocument()
+    }
+    const question = screen.getByRole('button', { name: "Un CELI, c'est un compte d'épargne ?" })
+    await userEvent.click(question)
+    expect(screen.getByText(/Non, c'est une enveloppe/)).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Source : ARC' })).toHaveAttribute('href', 'https://www.canada.ca/tfsa')
   })
 
   it('projects 15 years with the profile’s defaults, then recomputes on input', async () => {

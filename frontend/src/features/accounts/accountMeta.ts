@@ -23,6 +23,11 @@ export const ASSET_CLASS_LABELS: Record<string, string> = {
   crypto: 'Cryptoactifs',
 }
 
+/** « le CELI », « le compte non enregistré » : the account inside a French sentence. */
+export function withArticle(account: AccountId): string {
+  return account === 'Non enregistré' ? 'le compte non enregistré' : `le ${account}`
+}
+
 /** Fixed order and colors: a color follows its account, never its rank. */
 export const ACCOUNTS: Record<AccountId, AccountMeta> = {
   CELI: {

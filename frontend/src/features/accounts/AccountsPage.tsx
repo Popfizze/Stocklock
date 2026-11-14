@@ -1,41 +1,44 @@
 import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { useAccountProjection, useAccountRules } from '@/api/accounts'
+import { ACCOUNT_IDS, type AccountId, useAccountProjection, useAccountRules } from '@/api/accounts'
 import { AppLayout } from '@/components/layout'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useActivePersona } from '@/features/personas/activePersona'
-import { AccountGuideCard } from './AccountGuideCard'
-import { AssetLocationGrid } from './AssetLocationGrid'
-import { accountGuides } from './content'
-import { DecisionGuide } from './DecisionGuide'
-import { DollarJourney } from './DollarJourney'
+import { AccountsTab } from './AccountsTab'
+import { ChooseTab } from './ChooseTab'
+import { CompareTab } from './CompareTab'
+import { EssentialsTab } from './EssentialsTab'
+import { FaqTab } from './FaqTab'
 import { projectionErrorMessage } from './format'
 import { ProjectionSimulator } from './ProjectionSimulator'
-import { RulesComparison } from './RulesComparison'
 import { DEFAULT_DRAFT, toProjectionRequest, type SimulatorDraft } from './simulatorForm'
 import { StockAccountsTab } from './StockAccountsTab'
 
+/** The sub-tabs, in learning order: understand, choose, compare, project, apply, ask. */
 const TABS = [
-  { value: 'comptes', label: 'Les comptes' },
+  { value: 'essentiel', label: "L'essentiel" },
+  { value: 'comptes', label: 'Les 4 comptes' },
+  { value: 'choisir', label: 'Lequel choisir ?' },
   { value: 'comparer', label: 'Comparer' },
-  { value: 'projection', label: 'Projection sur 15 ans' },
+  { value: 'projection', label: 'Projection 15 ans' },
   { value: 'titre', label: 'Par titre' },
+  { value: 'faq', label: 'Questions fréquentes' },
 ] as const
 
 const DEFAULT_TICKER = 'JNJ'
 
 /**
- * « Comptes » : the Canadian registered accounts explained (CELI, REER,
- * CELIAPP, non-registered), compared, and projected after tax over 15 years
- * for the active profile — generically or for one stock. The open tab and the
- * stock are kept in the URL (`?onglet=titre&titre=JNJ`) so a view can be linked.
+ * « Comptes » (step 3): the Canadian registered accounts explained, chosen,
+ * compared and projected after tax for the active profile. The open sub-tab,
+ * the account and the stock live in the URL (`?onglet=comptes&compte=REER`),
+ * so any view can be linked.
  */
 export function AccountsPage() {
   const { persona, personaId } = useActivePersona()
   const { data: rules, error, isPending } = useAccountRules()
-  // The generic projection gives the profile's rates for the decision guide;
-  // it is the simulator's default request, so the two share one computation.
+  // The profile's generic projection (rates, room, ranking) feeds several
+  // sub-tabs; it is the simulator's default request, so it is computed once.
   const { data: generic } = useAccountProjection(
     personaId ? toProjectionRequest(personaId, DEFAULT_DRAFT).request : null,
   )
@@ -43,7 +46,9 @@ export function AccountsPage() {
   const [params, setParams] = useSearchParams()
 
   const tabParam = params.get('onglet')
-  const tab = TABS.some((candidate) => candidate.value === tabParam) ? (tabParam as string) : 'comptes'
+  const tab = TABS.some((candidate) => candidate.value === tabParam) ? (tabParam as string) : 'essentiel'
+  const accountParam = params.get('compte')
+  const account = ACCOUNT_IDS.find((id) => id === accountParam) ?? 'CELI'
   const ticker = params.get('titre') ?? DEFAULT_TICKER
 
   const updateParams = (patch: Record<string, string>) => {
@@ -64,14 +69,12 @@ export function AccountsPage() {
           <p className="text-sm font-medium text-primary">Étape 3 · Optimiser fiscalement</p>
           <h1 className="text-3xl font-bold tracking-tight">Comptes enregistrés au Canada</h1>
           <p className="max-w-3xl text-muted-foreground">
-            CELI, REER, CELIAPP ou compte non enregistré : ce que chaque compte représente, ses règles,
-            et ce qu'il resterait après impôt dans 15 ans
-            {persona ? ` selon le profil de ${persona.name}` : ''}.
+            CELI, REER, CELIAPP ou compte non enregistré : comprendre chaque compte, savoir lequel remplir en premier,
+            et voir ce qu'il resterait après impôt dans 15 ans{persona ? ` pour ${persona.name}` : ''}.
           </p>
           <p className="text-xs text-muted-foreground">
-            Simulation éducative fondée sur les règles fiscales publiques
-            {rules ? ` ${rules.year}` : ''} (fédéral et Québec). Pas un conseil financier personnalisé.
-            Chaque étape du calcul est détaillée dans l'onglet « 3. Fiscalité » du{' '}
+            Simulation éducative fondée sur les règles fiscales publiques{rules ? ` ${rules.year}` : ''} (fédéral et
+            Québec), pas un conseil financier personnalisé. Le calcul pas à pas est dans l'onglet « 3. Fiscalité » du{' '}
             <Link to="/labo" className="text-primary hover:underline">
               Labo
             </Link>
@@ -102,29 +105,38 @@ export function AccountsPage() {
               ))}
             </TabsList>
 
-            <TabsContent value="comptes" className="space-y-6">
-              <DollarJourney />
-              <div className="grid gap-4 xl:grid-cols-2">
-                {accountGuides(rules).map((guide) => (
-                  <AccountGuideCard key={guide.id} guide={guide} sources={rules.sources} />
-                ))}
-              </div>
+            <TabsContent value="essentiel" className="pt-2">
+              <EssentialsTab rules={rules} />
             </TabsContent>
 
-            <TabsContent value="comparer" className="space-y-6">
-              <RulesComparison rules={rules} />
-              <DecisionGuide rules={rules} profile={generic?.profile} />
-              <AssetLocationGrid />
+            <TabsContent value="comptes" className="pt-2">
+              <AccountsTab
+                rules={rules}
+                account={account}
+                onAccountChange={(next: AccountId) => updateParams({ compte: next })}
+              />
             </TabsContent>
 
-            <TabsContent value="projection">
+            <TabsContent value="choisir" className="pt-2">
+              <ChooseTab rules={rules} projection={generic} />
+            </TabsContent>
+
+            <TabsContent value="comparer" className="pt-2">
+              <CompareTab rules={rules} profile={generic?.profile} />
+            </TabsContent>
+
+            <TabsContent value="projection" className="pt-2">
               {personaId && (
                 <ProjectionSimulator personaId={personaId} draft={draft} onDraftChange={setDraft} />
               )}
             </TabsContent>
 
-            <TabsContent value="titre">
+            <TabsContent value="titre" className="pt-2">
               <StockAccountsTab ticker={ticker} onTickerChange={(next) => updateParams({ titre: next })} />
+            </TabsContent>
+
+            <TabsContent value="faq" className="pt-2">
+              <FaqTab rules={rules} />
             </TabsContent>
           </Tabs>
         )}

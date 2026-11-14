@@ -37,6 +37,11 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
   }).format(value)
 }
 
+/** The source's name only: « ARC, plafonds… » → « ARC », « Convention fiscale… (texte…) : art. X » → « Convention fiscale… ». */
+export function shortSourceTitle(title: string): string {
+  return title.split(/[,:(]/)[0].trim()
+}
+
 export function projectionErrorMessage(error: ApiError): string {
   if (error.status === 0) {
     return `Impossible de joindre le serveur (${API_BASE_URL}). Vérifiez que le backend est démarré.`

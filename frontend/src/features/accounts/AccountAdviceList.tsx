@@ -2,7 +2,7 @@ import type { AccountAdvice, Verdict } from '@/api/accounts'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { AccountLabel } from './AccountLabel'
-import { ProsCons } from './AccountGuideCard'
+import { ProsCons } from './ProsCons'
 
 const BADGES: Record<Verdict, 'default' | 'secondary' | 'outline'> = {
   best: 'default',
