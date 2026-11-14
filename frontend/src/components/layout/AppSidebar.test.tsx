@@ -49,6 +49,13 @@ describe('AppSidebar', () => {
     expect(await screen.findByRole('link', { name: 'Labo' })).toHaveAttribute('href', '/labo')
   })
 
+  it('links to the Comptes tab', async () => {
+    mockFetch([json(PERSONAS)])
+    renderSidebar()
+
+    expect(await screen.findByRole('link', { name: 'Comptes' })).toHaveAttribute('href', '/comptes')
+  })
+
   it('"Changer de profil" forgets the profile and opens the picker', async () => {
     mockFetch([json(PERSONAS)])
     renderSidebar()

@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { FlaskConical, Home, User, Users } from 'lucide-react'
+import { FlaskConical, Home, Landmark, User, Users } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -38,6 +38,11 @@ const NAVIGATION_SECTIONS: NavigationSection[] = [
         title: 'Menu principal',
         path: '/',
         icon: Home,
+      },
+      {
+        title: 'Comptes',
+        path: '/comptes',
+        icon: Landmark,
       },
       {
         title: 'Labo',

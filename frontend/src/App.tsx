@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DashboardPage } from './features/dashboard/DashboardPage'
@@ -6,6 +7,12 @@ import { ActivePersonaProvider } from './features/personas/ActivePersonaProvider
 import { ChoosePersonaPage } from './features/personas/ChoosePersonaPage'
 import { RequirePersona } from './features/personas/RequirePersona'
 import { Toaster } from './components/ui/sonner'
+import { AppLayout } from './components/layout'
+
+// Lazy: the Comptes tab brings the charting library, loaded only when opened.
+const AccountsPage = lazy(() =>
+  import('./features/accounts/AccountsPage').then((module) => ({ default: module.AccountsPage })),
+)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +43,24 @@ function App() {
               element={
                 <RequirePersona>
                   <LabPage />
+                </RequirePersona>
+              }
+            />
+            <Route
+              path="/comptes"
+              element={
+                <RequirePersona>
+                  <Suspense
+                    fallback={
+                      <AppLayout>
+                        <p role="status" className="text-muted-foreground">
+                          Chargement de l'onglet Comptes…
+                        </p>
+                      </AppLayout>
+                    }
+                  >
+                    <AccountsPage />
+                  </Suspense>
                 </RequirePersona>
               }
             />

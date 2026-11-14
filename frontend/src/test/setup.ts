@@ -33,6 +33,18 @@ if (typeof window !== 'undefined' && !window.matchMedia) {
   })
 }
 
+// jsdom doesn't implement ResizeObserver, which Recharts' ResponsiveContainer
+// (the Comptes tab's charts) needs. A no-op is enough: charts keep their
+// initial size, and the tests read their table view and legends instead.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
+}
+
 // jsdom doesn't implement the Pointer Events capture API or scrollIntoView,
 // both of which Radix UI's popover-based components (Select, Dropdown,
 // Tooltip, …) use internally — without these, interacting with them via

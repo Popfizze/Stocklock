@@ -11,6 +11,8 @@ Quatre étapes, chacune construite comme un pipeline de données :
 
 Pas de connexion : on choisit un profil de démonstration (Amira, Mateo ou Robert). L'onglet **Labo** exécute chaque pipeline avec les options choisies et montre le résultat de chaque stage.
 
+L'onglet **Comptes** (`/comptes`, étape 3) explique le CELI, le REER, le CELIAPP et le compte non enregistré : règles et plafonds 2026 sourcés, parcours d'un dollar, comparaison côte à côte, quel actif dans quel compte, et une projection après impôt sur 15 ans selon le profil, avec graphiques. Son sous-onglet **Par titre** montre la section que la fiche d'un titre affichera : `<StockAccountOptions ticker="JNJ" />` (`frontend/src/features/accounts`) donne, pour le profil actif, le verdict de chaque compte et la projection pour ce titre (retenue américaine, crédit pour dividendes, intérêts). Routes : `GET /api/accounts/rules`, `GET /api/accounts/assets`, `POST /api/accounts/projection` ; calcul déterministe dans `backend/app/services/account_*.py`. Les revenus des profils (`tax_profile` dans `personas.json`) sont des valeurs de démonstration, et les rendements supposés viennent des normes d'hypothèses de projection 2026 de l'Institut de planification financière et de FP Canada (`backend/app/rules/projection_assumptions_2026.json`).
+
 ## Structure
 
 | Dossier | Contenu |

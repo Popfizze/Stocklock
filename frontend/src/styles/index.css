@@ -24,11 +24,34 @@
   --warning-foreground: oklch(0.141 0.005 285.823);
 }
 
+/* Account identity colors (Comptes tab: chart series and swatches).
+   Categorical slots 1-4 of the dataviz palette, in this fixed order, validated
+   against the card surface in both modes (CVD and normal-vision separation).
+   CELIAPP and Non enregistré sit below 3:1 on the light card, so every chart
+   that uses them also carries direct labels and a table view. */
+:root {
+  --account-celi: oklch(0.575 0.163 255.53);
+  --account-reer: oklch(0.671 0.175 40.64);
+  --account-celiapp: oklch(0.669 0.141 162.11);
+  --account-taxable: oklch(0.764 0.161 75.12);
+}
+
+.dark {
+  --account-celi: oklch(0.622 0.161 255.05);
+  --account-reer: oklch(0.622 0.173 40.11);
+  --account-celiapp: oklch(0.621 0.128 163.11);
+  --account-taxable: oklch(0.67 0.143 73.23);
+}
+
 @theme inline {
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-account-celi: var(--account-celi);
+  --color-account-reer: var(--account-reer);
+  --color-account-celiapp: var(--account-celiapp);
+  --color-account-taxable: var(--account-taxable);
 }
 
 /* Reset and base styles */
