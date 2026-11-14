@@ -101,12 +101,34 @@ def hype_signal(ctx: Context) -> None:
         raise StageSkipped(f"{ticker} hors du kit : pas d'historique de volume.")
     hist = starter.history(ticker)
     px, vol = hist["adj_close"], hist["volume"]
+    if len(px.dropna()) <= 20:
+        ctx.warn("Historique insuffisant pour comparer les 20 dernières séances.")
+        return
     ret20 = px.pct_change(20).dropna()
+    if ret20.empty:
+        ctx.warn("Historique insuffisant pour calculer la variation récente.")
+        return
     last20 = float(ret20.iloc[-1])
     z = float((last20 - ret20.mean()) / ret20.std()) if ret20.std() > 0 else 0.0
     v_recent = float(vol.iloc[-20:].mean())
     v_base = float(vol.iloc[-140:-20].mean()) if len(vol) > 140 else float(vol.mean())
     v_ratio = v_recent / v_base if v_base > 0 else float("nan")
+    year = px.dropna().tail(252)
+    ctx.state["market_history"] = {
+        "start": px.index[-21].date().isoformat(), "end": px.index[-1].date().isoformat(),
+        "return_20d": last20, "volume_ratio": v_ratio if pd.notna(v_ratio) else None,
+        "year_start": year.index[0].date().isoformat(),
+        "year_end": year.index[-1].date().isoformat(),
+        "year_high": float(year.max()), "latest": float(year.iloc[-1]),
+        "from_year_high": float(year.iloc[-1] / year.max() - 1) if year.max() > 0 else None,
+        "currency": ctx.state["asset"].get("currency"),
+    }
+    if ctx.state["market_history"]["from_year_high"] is not None:
+        ctx.report.factor("Écart au plus haut des 252 dernières séances",
+                          ctx.state["market_history"]["from_year_high"], "ratio",
+                          source_id=starter.STARTER_SOURCE_ID)
+    ctx.report.assume("Les variations et volumes historiques contextualisent le message ; ils ne prouvent pas "
+                      "qu'une décision est impulsive ni ne permettent de prédire les cours.")
     ctx.source(starter.STARTER_SOURCE_ID, "AlphaForge starter kit, prices_daily.csv (Yahoo Finance via yfinance)",
                as_of=px.index.max().date().isoformat())
     hype = z >= 2 or v_ratio >= 1.5
@@ -161,6 +183,8 @@ def profile_check(ctx: Context) -> None:
     if hi <= 5 and (vol or 0) > c["max_volatility"]:
         flags.append(f"Horizon court ({ctx.persona['horizon']}) : peu de temps pour récupérer d'une baisse.")
     ctx.report.profile_flags.extend(flags)
+    ctx.report.limit("Aucun historique des décisions ou transactions du profil n'est disponible : "
+                     "on ne peut pas établir une habitude comportementale.")
     ctx.metric("écarts au profil", len(flags))
     ctx.metric("volatilité maximale du profil", c["max_volatility"])
     ctx.metric("position maximale du profil", c["max_single_position"])
@@ -181,6 +205,9 @@ def simulation_2022(ctx: Context) -> None:
     tickers = list(weights)
     prices = pd.concat({t: starter.adj_close_cad(t) for t in tickers}, axis=1, join="inner").dropna()
     start = pd.Timestamp("2022-01-01")
+    if prices.loc[prices.index.year == 2022].empty:
+        ctx.warn("Simulation indisponible : aucun historique de prix commun en 2022 pour ce titre.")
+        return
     value = simulation.portfolio_value(prices, weights, start, INITIAL_CAD)
     cash = starter.adj_close_cad(CASH_PROXY)
     res = simulation.simulate_panic(value, cash, ctx.opt("sell_point"), ctx.opt("reentry"))
@@ -188,6 +215,17 @@ def simulation_2022(ctx: Context) -> None:
     ctx.source("boc_fx", "Banque du Canada, FXUSDCAD (fx_usdcad_daily.csv du kit)")
     label = "60/40 SPY/AGG" if choice == "60_40" else ticker
     ctx.state["simulation"] = res
+    series = pd.DataFrame({"hold": res.hold_path, "panic": res.panic_path})
+    quarterly = series.groupby(series.index.to_period("Q"), sort=True).tail(1)
+    sampled = pd.concat([series.iloc[[0]], quarterly, series.iloc[[-1]]])
+    sampled = sampled.loc[~sampled.index.duplicated(keep="last")].dropna().sort_index()
+    ctx.state["simulation_data"] = {
+        "ticker": label, "start": res.start.date().isoformat(), "end": res.end.date().isoformat(),
+        "sell_date": res.sell_date.date().isoformat() if res.sell_date is not None else None,
+        "initial": res.initial, "hold_final": res.hold_final, "panic_final": res.panic_final,
+        "points": [{"date": d.date().isoformat(), "hold": float(r["hold"]), "panic": float(r["panic"])}
+                   for d, r in sampled.iterrows()],
+    }
     ctx.metric("portefeuille", label)
     ctx.metric("date d'achat", res.start)
     ctx.metric("date de vente", res.sell_date or "aucune vente")

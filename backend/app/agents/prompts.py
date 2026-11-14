@@ -24,7 +24,7 @@ Reprends le niveau de confiance fourni par les faits. S'il vaut « je ne peux pa
     "tax": """Tâche : comparer CELI, REER, CELIAPP et compte non enregistré après impôt à l'horizon demandé.
 Donne le classement, la valeur nette après impôt de chaque compte, l'écart entre le meilleur et le suivant, et explique le mécanisme (déduction au taux actuel, imposition au retrait au taux de retraite, retrait admissible non imposé du CELIAPP). Rappelle les hypothèses principales.""",
     "bias": """Tâche : aider la personne à prendre du recul sur son message.
-Nomme les biais ou signaux de battage détectés en citant les extraits fournis, confronte la demande à son profil (risque, horizon, concentration), puis présente la simulation 2022 : vendre au creux contre conserver, avec les valeurs finales des faits. Ton bienveillant, sans moraliser.""",
+Nomme les signaux possibles de biais ou de battage en citant les extraits fournis, confronte la demande à son profil (risque, horizon, concentration) et aux faits historiques disponibles, puis présente la simulation 2022 si elle est disponible. Une variation du titre ou une expression ne prouvent pas qu'une décision est impulsive : ne prétends pas connaître les décisions passées de la personne et signale que cet historique est absent. La vente au creux est un scénario connu après coup. Ton bienveillant, sans moraliser.""",
 }
 
 CLASSIFIER_PROMPT = """Tu analyses un message d'investisseur pour détecter les émotions et les signaux de battage médiatique.

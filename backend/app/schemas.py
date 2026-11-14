@@ -161,6 +161,18 @@ class BiasRequest(_PersonaRequest, BiasInputs):
     pass
 
 
+class StockBiasRequest(BiasRequest):
+    ticker: str
+
+    @field_validator("message")
+    @classmethod
+    def _message_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("message must not be blank")
+        return value
+
+
 class LabRunRequest(_PersonaRequest):
     step: str
     inputs: dict[str, Any] = Field(default_factory=dict)

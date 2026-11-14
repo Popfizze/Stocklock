@@ -9,6 +9,7 @@ import { formatPrice, stockErrorMessage } from './format'
 import { KeyFigures } from './KeyFigures'
 import { PriceChange } from './PriceChange'
 import { PriceChart } from './PriceChart'
+import { StockBias } from './StockBias'
 
 /**
  * A stock's page (`/titres/:ticker`): last close and day change, the closing
@@ -54,6 +55,7 @@ export function StockPage() {
                 currency={stock.currency}
                 className="block font-medium"
               />
+              <a href="#prendre-du-recul" className="inline-block pt-2 text-sm font-medium text-primary underline underline-offset-4">Prendre du recul sur ma décision ↓</a>
             </div>
 
             <PriceChart
@@ -68,6 +70,8 @@ export function StockPage() {
               <KeyFigures stock={stock} />
               <DividendList dividends={stock.stats.dividends} currency={stock.currency} />
             </div>
+
+            <StockBias ticker={stock.ticker} />
 
             {/* Step 3: which registered account for this stock, for the active profile. */}
             <div className="border-t border-border pt-6">

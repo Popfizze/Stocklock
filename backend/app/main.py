@@ -13,11 +13,12 @@ from pydantic import BaseModel, ValidationError
 
 from app.accounts_api import router as accounts_router
 from app.config import get_settings
+from app.data import starter
 from app.personas import get_persona, list_public
 from app.pipeline.core import OptionError, PipelineInputError
 from app.pipeline.registry import STEPS, catalog, execute
 from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabRunRequest, Persona,
-                         ScoreRequest, TaxRequest)
+                         ScoreRequest, StockBiasRequest, TaxRequest)
 from app.services import stocks
 
 settings = get_settings()
@@ -71,6 +72,32 @@ def tax(request: TaxRequest) -> AnalysisResponse:
 @app.post("/api/bias", response_model=AnalysisResponse)
 def bias(request: BiasRequest) -> AnalysisResponse:
     return _run_business("bias", request)
+
+
+@app.post("/api/bias/stock")
+def stock_bias(request: StockBiasRequest) -> dict[str, Any]:
+    """Bias analysis for a stock page; keep the legacy business and Lab contracts unchanged."""
+    persona = get_persona(request.persona_id)
+    if not starter.in_starter(request.ticker):
+        raise HTTPException(status_code=422, detail="Ce titre ne figure pas dans le jeu de données du datathon.")
+    try:
+        result, response = execute("bias", persona, request.model_dump(exclude={"persona_id"}),
+                                   {"simulation_2022.portfolio": "ticker"})
+    except PipelineInputError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if result.failed:
+        failed = next(s for s in result.stages if s["status"] == "error")
+        raise HTTPException(status_code=503, detail=f"Étape « {failed['name']} » indisponible.")
+    ctx = result.context
+    return {
+        "analysis": response.model_dump(),
+        "signals": ctx.state.get("signals", []),
+        "profile_flags": ctx.report.profile_flags,
+        "history": ctx.state.get("market_history"),
+        "hype": ctx.state.get("hype"),
+        "simulation": ctx.state.get("simulation_data"),
+        "warnings": [w for stage in result.stages for w in stage["warnings"]],
+    }
 
 
 # --- Lab ----------------------------------------------------------------------------------------
