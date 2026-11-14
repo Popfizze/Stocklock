@@ -45,6 +45,8 @@ class Settings:
     http_timeout_s: float = 8.0
     gdelt_timeout_s: float = 15.0
     agent_timeout_s: float = 90.0
+    data_bucket: str = ""
+    score_table_key: str = "gold/score_par_titre/latest.json"
 
 
 @lru_cache(maxsize=1)
@@ -76,4 +78,6 @@ def get_settings() -> Settings:
         http_timeout_s=float(_env("HTTP_TIMEOUT_S", "8")),
         gdelt_timeout_s=float(_env("GDELT_TIMEOUT_S", "15")),
         agent_timeout_s=float(_env("AGENT_TIMEOUT_S", "90")),
+        data_bucket=_env("DATA_BUCKET", ""),
+        score_table_key=_env("SCORE_TABLE_KEY", "gold/score_par_titre/latest.json"),
     )

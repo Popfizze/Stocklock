@@ -1,19 +1,20 @@
-"""Quotes of the starter-kit universe for the « Tableau de bord »: quote list and per-ticker detail.
+"""A stock's page, on live data: identity, last price and day change, closes over a range, key figures.
 
-Prices are the starter kit's daily closes (split-adjusted, with the CNQ.TO correction of
-`app.data.starter`). The day change compares the last close with the previous close of the
-same ticker, so crypto (24/7) and TSX/US holidays never mix calendars. Everything is built
-from the in-memory tables and cached: the CSVs are read once per process.
+Any title of the universe (SEC + TMX) can be opened; a symbol outside it that Yahoo Finance knows (the
+starter kit's cryptos, for instance) is served too, flagged `in_universe: false`. The whole daily
+history comes from Yahoo Finance in one request (cached 15 min), so switching the chart's range does
+not hit the network again. The day change compares the last close with the previous one of the same
+symbol, so crypto (24/7) and exchange holidays never mix calendars.
 """
 
 from __future__ import annotations
 
-from functools import lru_cache
 from typing import Any, Literal
 
 import pandas as pd
 
-from app.data import starter
+from app.data import starter, universe, yf_market
+from app.data.cache import ExternalUnavailable
 
 Range = Literal["1W", "1M", "3M", "1Y", "MAX"]
 
@@ -25,40 +26,41 @@ RANGE_OFFSETS: dict[str, pd.DateOffset | None] = {
     "MAX": None,
 }
 
-SPARKLINE_POINTS = 30
 MAX_DIVIDENDS = 12
-IDENTITY_FIELDS = ("ticker", "name", "asset_class", "market", "currency", "sector")
+ASSET_CLASSES = {"EQUITY": "equity", "ETF": "etf", "CRYPTOCURRENCY": "crypto", "MUTUALFUND": "fund",
+                 "INDEX": "index", "CURRENCY": "currency", "FUTURE": "future"}
+# Shown in place of a sector: an ETF or a crypto has none, Yahoo may not know a small company's.
+NO_SECTOR = {"ETF": "Non applicable (FNB)", "CRYPTOCURRENCY": "Non applicable (cryptoactif)",
+             "MUTUALFUND": "Non applicable (fonds)"}
+SOURCE = {"id": "yahoo_finance", "title": "Yahoo Finance (cours quotidiens, différés)",
+          "url": "https://finance.yahoo.com/"}
 
 
 def _price(value: float) -> float:
     return round(float(value), 4)
 
 
-@lru_cache(maxsize=1)
-def _identities() -> dict[str, dict[str, str]]:
-    u = starter.universe()
-    return {str(row["ticker"]): {f: str(row[f]) for f in IDENTITY_FIELDS} for _, row in u.iterrows()}
+def _frame(history: dict[str, Any]) -> pd.DataFrame:
+    """Daily open/high/low/close/volume indexed by date, oldest first, one row per day."""
+    df = pd.DataFrame(history["rows"], columns=["date", "open", "high", "low", "close", "volume"])
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.drop_duplicates("date", keep="last").set_index("date").sort_index()
+    for col in ("open", "high", "low"):
+        df[col] = df[col].fillna(df["close"])
+    df["volume"] = df["volume"].fillna(0)
+    return df
 
 
-@lru_cache(maxsize=64)
-def _ohlcv(ticker: str) -> pd.DataFrame:
-    """Daily open/high/low/close/volume of one ticker, indexed by date, oldest first."""
-    p = starter.prices()
-    rows = p.loc[p["ticker"] == ticker, ["date", "open", "high", "low", "close", "volume"]]
-    return rows.set_index("date").sort_index()
-
-
-@lru_cache(maxsize=64)
-def _dividends(ticker: str) -> pd.Series:
+def _dividends(history: dict[str, Any]) -> pd.Series:
     """Dividend per share by ex-date, most recent first."""
-    a = starter.corporate_actions()
-    rows = a.loc[(a["ticker"] == ticker) & (a["action"] == "dividend")]
-    return rows.set_index("ex_date")["value"].sort_index(ascending=False)
+    if not history.get("dividends"):
+        return pd.Series(dtype=float, index=pd.DatetimeIndex([]))
+    s = pd.Series({pd.Timestamp(d): float(v) for d, v in history["dividends"]})
+    return s.sort_index(ascending=False)
 
 
-def _quote(ticker: str) -> dict[str, Any]:
-    """Last close, day change against the same ticker's previous close, and its date."""
-    closes = _ohlcv(ticker)["close"]
+def _quote(df: pd.DataFrame) -> dict[str, Any]:
+    closes = df["close"]
     last = float(closes.iloc[-1])
     prev = float(closes.iloc[-2]) if len(closes) > 1 else last
     change = last - prev
@@ -70,28 +72,11 @@ def _quote(ticker: str) -> dict[str, Any]:
     }
 
 
-def known(ticker: str) -> bool:
-    return ticker in _identities()
-
-
-@lru_cache(maxsize=1)
-def list_stocks() -> list[dict[str, Any]]:
-    """The 31 assets in universe order, each with its quote and its last 30 closes."""
-    out = []
-    for ticker, identity in _identities().items():
-        closes = _ohlcv(ticker)["close"]
-        out.append({**identity, **_quote(ticker),
-                    "sparkline": [_price(c) for c in closes.iloc[-SPARKLINE_POINTS:]]})
-    return out
-
-
-def _stats(ticker: str, last_close: float) -> dict[str, Any]:
-    df = _ohlcv(ticker)
+def _stats(df: pd.DataFrame, divs: pd.Series, last_close: float) -> dict[str, Any]:
     end = df.index[-1]
     last = df.iloc[-1]
     three_months = df.loc[df.index > end - pd.DateOffset(months=3), "volume"]
     year = df.loc[df.index > end - pd.Timedelta(weeks=52)]
-    divs = _dividends(ticker)
     ttm = float(divs.loc[(divs.index > end - pd.DateOffset(years=1)) & (divs.index <= end)].sum())
     return {
         "open": _price(last["open"]),
@@ -107,17 +92,46 @@ def _stats(ticker: str, last_close: float) -> dict[str, Any]:
     }
 
 
+def _market_label(instrument: str, exchange: str | None) -> str:
+    return "Cryptoactif (24/7)" if instrument == "CRYPTOCURRENCY" else (exchange or "")
+
+
+def _listing(symbol: str) -> universe.Listing | None:
+    try:
+        return universe.get(symbol)
+    except ExternalUnavailable:
+        return None  # the universe is down: the page still works from Yahoo's own identity
+
+
 def stock_detail(ticker: str, range_: Range = "1M") -> dict[str, Any]:
-    """Identity, quote, closes over `range_` and key figures of one asset (KeyError if unknown)."""
-    identity = _identities()[ticker]
-    quote = _quote(ticker)
-    closes = _ohlcv(ticker)["close"]
+    """Identity, quote, closes over `range_` and key figures of one title.
+
+    Raises yf_market.NotFound when Yahoo Finance has no price for the symbol, ExternalUnavailable when
+    it cannot be reached.
+    """
+    symbol = ticker.strip().upper()
+    listing = _listing(symbol)
+    history = yf_market.history(symbol)
+    meta = history["meta"]
+    df = _frame(history)
+    quote = _quote(df)
+    closes = df["close"]
     offset = RANGE_OFFSETS[range_]
     if offset is not None:
         closes = closes.loc[closes.index >= closes.index[-1] - offset]
+    instrument = str(meta.get("instrument_type") or "").upper()
+    sector = (yf_market.profile(symbol).get("sector") if instrument == "EQUITY" else None)         or NO_SECTOR.get(instrument, "Non disponible")
     return {
-        **identity,
+        "ticker": symbol,
+        "name": meta.get("name") or (listing.name if listing else symbol),
+        "asset_class": ASSET_CLASSES.get(instrument, instrument.lower() or "unknown"),
+        "market": listing.exchange if listing else _market_label(instrument, meta.get("exchange")),
+        "currency": meta.get("currency") or ("CAD" if symbol.endswith((".TO", ".V")) else "USD"),
+        "sector": sector,
+        "in_universe": listing is not None,
+        "starter_kit": starter.in_starter(symbol),
         **quote,
         "points": [{"date": d.date().isoformat(), "close": _price(c)} for d, c in closes.items()],
-        "stats": _stats(ticker, quote["last_close"]),
+        "stats": _stats(df, _dividends(history), quote["last_close"]),
+        "source": SOURCE,
     }

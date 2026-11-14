@@ -6,15 +6,19 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-from app.data import gdelt, http, yf_fundamentals, yf_live
+from app.data import gdelt, http, universe, yf_fundamentals, yf_live, yf_market
 from app.data.cache import ExternalUnavailable
+from app.services import score_table
 
 
 @pytest.fixture(autouse=True)
 def offline(monkeypatch, tmp_path):
     """Every external call fails like an unreachable source unless a test patches it."""
     monkeypatch.setenv("CACHE_DIR", str(tmp_path / "cache"))
+    monkeypatch.setenv("DATA_BUCKET", "")  # no score table unless a test provides one
     get_settings.cache_clear()
+    universe.reset()
+    score_table.reset()
 
     def no_network(source, url, **kwargs):
         raise ExternalUnavailable(source, "réseau désactivé pendant les tests")
@@ -29,6 +33,8 @@ def offline(monkeypatch, tmp_path):
     monkeypatch.setattr(yf_live, "info", no_yf)
     monkeypatch.setattr(yf_live, "daily_prices", no_yf)
     monkeypatch.setattr(yf_live, "recent_news", no_yf)
+    monkeypatch.setattr(yf_market, "_get", no_yf)
+    monkeypatch.setattr(yf_market, "_run_screen", no_yf)
     monkeypatch.setattr(gdelt, "_cooldown_until", 0.0)
     monkeypatch.setattr(gdelt, "MIN_INTERVAL_S", 0.0)
 
@@ -38,6 +44,8 @@ def offline(monkeypatch, tmp_path):
     monkeypatch.setattr("app.services.narration._call", no_bedrock)
     yield
     get_settings.cache_clear()
+    universe.reset()
+    score_table.reset()
 
 
 @pytest.fixture
