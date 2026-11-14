@@ -11,7 +11,7 @@ variable "agent_code_key" {
 variable "agent_mode" {
   description = "How the API runs the narration agents: in-process ('local') or on the AgentCore runtime ('agentcore')."
   type        = string
-  default     = "local"
+  default     = "agentcore"
 
   validation {
     condition     = contains(["local", "agentcore"], var.agent_mode)
