@@ -1,0 +1,125 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { Route, Routes } from 'react-router-dom'
+import { renderWithProviders } from '@/test/render'
+import { json, mockFetchByUrl } from '@/test/mockFetch'
+import { PERSONAS } from '@/test/personas'
+import { BTC_1M, NVDA_1M, NVDA_1Y } from '@/test/stocks'
+import { StockPage } from './StockPage'
+
+const ORIGINAL_FETCH = globalThis.fetch
+const NBSP = ' '
+
+function renderStock(ticker: string) {
+  return renderWithProviders(
+    <Routes>
+      <Route path="/titres/:ticker" element={<StockPage />} />
+    </Routes>,
+    { personaId: 'amira', route: `/titres/${ticker}` },
+  )
+}
+
+/** The color the chart paints its line with (ChartStyle's `--color-close`). */
+function chartColor(container: HTMLElement) {
+  const style = container.querySelector('[data-slot="chart"] style')?.textContent ?? ''
+  return /--color-close: ([^;]+);/.exec(style)?.[1]
+}
+
+/** The value next to a « Chiffres clés » label. */
+const figure = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling
+
+afterEach(() => {
+  globalThis.fetch = ORIGINAL_FETCH
+  vi.restoreAllMocks()
+})
+
+describe('StockPage', () => {
+  it('shows the close, the day change, the key figures and the dividends', async () => {
+    mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+    ])
+    renderStock('NVDA')
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'NVIDIA' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: '← Tableau de bord' })).toHaveAttribute('href', '/')
+    expect(screen.getByText('NVDA · NASDAQ')).toBeInTheDocument()
+    // fr-CA: no-break spaces, decimal comma (text matchers see them as plain spaces).
+    expect(screen.getByText('166,19 $ US').textContent).toBe(`166,19${NBSP}$${NBSP}US`)
+    expect(screen.getByText('-7,54 $ US (-4,34 %)')).toHaveClass('text-destructive')
+
+    expect(figure('Ouverture')).toHaveTextContent('151,01 $ US')
+    expect(figure('Haut du jour')).toHaveTextContent('167,14 $ US')
+    expect(figure('Bas du jour')).toHaveTextContent('148,80 $ US')
+    expect(figure('Volume')?.textContent).toBe(`742${NBSP}789${NBSP}000`)
+    expect(figure('Volume moyen (3 mois)')?.textContent).toBe(`140${NBSP}898${NBSP}889`)
+    expect(figure('Haut 52 semaines')).toHaveTextContent('243,37 $ US')
+    expect(figure('Bas 52 semaines')).toHaveTextContent('148,80 $ US')
+    expect(figure('Rendement du dividende (12 mois)')?.textContent).toBe(`0,31${NBSP}%`)
+    expect(figure('Devise')).toHaveTextContent('USD')
+    expect(figure('Catégorie')).toHaveTextContent('Actions')
+    expect(figure('Secteur')).toHaveTextContent('Information Technology')
+
+    const card = screen.getByText('Dividendes').closest<HTMLElement>('[data-slot="card"]')
+    const dividends = within(card as HTMLElement).getAllByRole('listitem')
+    expect(dividends.map((item) => item.textContent)).toEqual([
+      `10 septembre 2026${'0,25'}${NBSP}$${NBSP}US`,
+      `5 mars 2024${'0,004'}${NBSP}$${NBSP}US`,
+    ])
+  })
+
+  it('switches the chart period and colors it by the trend over that period', async () => {
+    const calls = mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
+      { match: '/api/stocks/NVDA?range=1Y', responses: [json(NVDA_1Y)] },
+    ])
+    const { container } = renderStock('NVDA')
+    await screen.findByRole('heading', { level: 1, name: 'NVIDIA' })
+
+    const periods = screen.getByRole('group', { name: 'Période du graphique' })
+    expect(within(periods).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      '1S',
+      '1M',
+      '3M',
+      '1A',
+      'Max',
+    ])
+    expect(within(periods).getByRole('button', { name: '1M' })).toHaveAttribute('aria-pressed', 'true')
+    expect(chartColor(container)).toBe('var(--destructive)')
+
+    await userEvent.click(within(periods).getByRole('button', { name: '1A' }))
+
+    expect(await screen.findByLabelText('Cours de clôture sur 1 an')).toBeInTheDocument()
+    expect(within(periods).getByRole('button', { name: '1A' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(periods).getByRole('button', { name: '1M' })).toHaveAttribute('aria-pressed', 'false')
+    expect(calls.some((call) => call.url.endsWith('/api/stocks/NVDA?range=1Y'))).toBe(true)
+    await vi.waitFor(() => expect(chartColor(container)).toBe('var(--success)'))
+  })
+
+  it('says « Aucun dividende » for an asset that pays none', async () => {
+    mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/stocks/BTC-USD?range=1M', responses: [json(BTC_1M)] },
+    ])
+    renderStock('BTC-USD')
+
+    expect(await screen.findByText('Aucun dividende')).toBeInTheDocument()
+    expect(figure('Rendement du dividende (12 mois)')).toHaveTextContent('—')
+    expect(figure('Catégorie')).toHaveTextContent('Cryptoactifs')
+  })
+
+  it('explains an unknown ticker', async () => {
+    mockFetchByUrl([
+      { match: '/api/personas', responses: [json(PERSONAS)] },
+      { match: '/api/stocks/', responses: [json({ detail: "titre inconnu 'NOPE'" }, 404)] },
+    ])
+    renderStock('NOPE')
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Ce titre ne fait pas partie des données du datathon.',
+    )
+    expect(screen.getByRole('link', { name: '← Tableau de bord' })).toBeInTheDocument()
+  })
+})

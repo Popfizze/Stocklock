@@ -13,6 +13,10 @@ import { AppLayout } from './components/layout'
 const AccountsPage = lazy(() =>
   import('./features/accounts/AccountsPage').then((module) => ({ default: module.AccountsPage })),
 )
+// Lazy for the same reason: a stock's page draws its price chart with it.
+const StockPage = lazy(() =>
+  import('./features/stocks/StockPage').then((module) => ({ default: module.StockPage })),
+)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +64,24 @@ function App() {
                     }
                   >
                     <AccountsPage />
+                  </Suspense>
+                </RequirePersona>
+              }
+            />
+            <Route
+              path="/titres/:ticker"
+              element={
+                <RequirePersona>
+                  <Suspense
+                    fallback={
+                      <AppLayout>
+                        <p role="status" className="text-muted-foreground">
+                          Chargement du titre…
+                        </p>
+                      </AppLayout>
+                    }
+                  >
+                    <StockPage />
                   </Suspense>
                 </RequirePersona>
               }

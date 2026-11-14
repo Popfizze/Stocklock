@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ValidationError
 
@@ -18,6 +18,7 @@ from app.pipeline.core import OptionError, PipelineInputError
 from app.pipeline.registry import STEPS, catalog, execute
 from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabRunRequest, Persona,
                          ScoreRequest, TaxRequest)
+from app.services import stocks
 
 settings = get_settings()
 app = FastAPI(title="StockLock API", version="0.1.0",
@@ -91,3 +92,18 @@ def lab_run(request: LabRunRequest) -> dict[str, Any]:
     except (OptionError, PipelineInputError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return result.to_dict(response.model_dump(mode="json"))
+
+
+# --- Tableau de bord ----------------------------------------------------------------------------
+
+@app.get("/api/stocks")
+def stock_list() -> list[dict[str, Any]]:
+    return stocks.list_stocks()
+
+
+@app.get("/api/stocks/{ticker}")
+def stock_detail(ticker: str, range_: stocks.Range = Query("1M", alias="range")) -> dict[str, Any]:
+    symbol = ticker.strip().upper()
+    if not stocks.known(symbol):
+        raise HTTPException(status_code=404, detail=f"titre inconnu {ticker!r}")
+    return stocks.stock_detail(symbol, range_)

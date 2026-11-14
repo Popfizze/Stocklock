@@ -35,7 +35,7 @@ const NAVIGATION_SECTIONS: NavigationSection[] = [
     title: 'Principal',
     items: [
       {
-        title: 'Menu principal',
+        title: 'Tableau de bord',
         path: '/',
         icon: Home,
       },

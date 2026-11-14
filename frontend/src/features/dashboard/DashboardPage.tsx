@@ -1,31 +1,52 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { useState } from 'react'
+import { useStocks } from '@/api/stocks'
 import { AppLayout } from '@/components/layout'
-import { useActivePersona } from '@/features/personas/activePersona'
+import { Input } from '@/components/ui/input'
+import { formatLongDate, stockErrorMessage } from '@/features/stocks/format'
+import { StockList } from '@/features/stocks/StockList'
 
+/**
+ * « Tableau de bord » : the starter kit's 31 assets at their last close, by
+ * section, with a search on name or symbol. A row opens the stock's page.
+ */
 export function DashboardPage() {
-  const { persona } = useActivePersona()
+  const { data: stocks, error, isPending } = useStocks()
+  const [query, setQuery] = useState('')
+
+  // Every series ends on the same day; the latest one names the closes shown.
+  const asOf = stocks?.reduce((latest, stock) => (stock.as_of > latest ? stock.as_of : latest), '')
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <div>
+      <div className="mx-auto max-w-4xl space-y-6">
+        <div className="space-y-1">
           <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
-          <p className="text-muted-foreground">Bienvenue dans votre application</p>
+          {asOf && (
+            <p className="text-muted-foreground">
+              Cours de clôture au {formatLongDate(asOf)} (données du datathon)
+            </p>
+          )}
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Bienvenue dans votre tableau de bord</CardTitle>
-            <CardDescription>
-              Ceci est votre page d'accueil vide. Commencez à construire votre application ici.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-muted-foreground">
-              Profil actif : <strong>{persona?.name}</strong>
-            </p>
-          </CardContent>
-        </Card>
+        <Input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Rechercher par nom ou symbole"
+          aria-label="Rechercher un titre par nom ou symbole"
+        />
+
+        {isPending ? (
+          <p role="status" className="text-muted-foreground">
+            Chargement des cours…
+          </p>
+        ) : error ? (
+          <p role="alert" className="text-destructive">
+            {stockErrorMessage(error)}
+          </p>
+        ) : (
+          <StockList stocks={stocks} query={query} />
+        )}
       </div>
     </AppLayout>
   )
