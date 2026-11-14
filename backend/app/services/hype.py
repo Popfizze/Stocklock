@@ -35,7 +35,9 @@ NEWS_RECENT_DAYS = 7
 NEWS_WINDOW_DAYS = 90
 NEWS_MIN_DAYS = 30
 WEEK_SESSIONS = 5
-GDELT_TIMEOUT_S = 5.0
+# GDELT often takes ~10 s just to refuse (HTTP 429): a stock page waits at most this long, then falls back
+# on Yahoo; the refusal pauses GDELT for 5 minutes (app.data.gdelt), so later pages do not wait at all.
+GDELT_TIMEOUT_S = 3.5
 YAHOO_COUNT = 50
 YAHOO_RECENT_DAYS = 2
 YAHOO_MIN_SPAN = 4
