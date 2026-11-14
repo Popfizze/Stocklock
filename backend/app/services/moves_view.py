@@ -16,9 +16,9 @@ PERIOD_MONTHS = {"3m": 3, "6m": 6, "1y": 12}
 
 
 def window_for(period: str) -> tuple[date, date]:
-    """[start, end] of a period: the last months up to the kit's last price, or the year 2022."""
-    if period == "2022":
-        return date(2022, 1, 1), date(2022, 12, 31)
+    """[start, end] of a period: the last months up to the kit's last price, or a whole year ("2024")."""
+    if period.isdigit():
+        return date(int(period), 1, 1), min(date(int(period), 12, 31), starter.last_price_date().date())
     end = starter.last_price_date()
     return (end - pd.DateOffset(months=PERIOD_MONTHS[period])).date(), end.date()
 
@@ -31,7 +31,7 @@ def _event(e: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": e.get("id"), "date": e["date"].isoformat(), "event_date": ev.when(e).isoformat(),
         "kind": e["kind"], "label": e["label"], "summary": e.get("summary") or e["label"],
-        "summary_by": e.get("summary_by", "source"), "category": e.get("category"),
+        "summary_by": e.get("summary_by", "source"), "category": ev.default_category(e),
         "primary": ev.is_primary(e), "url": e.get("read_url") or e.get("url"),
         "source_id": e.get("page_source_id") or e.get("source_id"),
     }
@@ -49,6 +49,13 @@ def _series(rets: pd.DataFrame | None, before: pd.Series | None) -> list[dict[st
     points += [{"date": d.date().isoformat(), "asset": _num(r["asset"]), "benchmark": _num(r["bench"])}
                for d, r in growth.iterrows()]
     return points
+
+
+def _key_event(e: dict[str, Any]) -> dict[str, Any]:
+    r = e["reaction"]
+    return {**_event(e), "on_move": e["on_move"],
+            "reaction": {"start": r["start"].isoformat(), "end": r["end"].isoformat(), "asset": _num(r["asset"]),
+                         "benchmark": _num(r["benchmark"]), "abnormal": _num(r["abnormal"])}}
 
 
 def _move(m: dict[str, Any]) -> dict[str, Any]:
@@ -78,6 +85,7 @@ def build(result: RunResult, response: AnalysisResponse, period: str) -> dict[st
         "sigma": _num(st.get("sigma")), "confidence": st.get("confidence"),
         "series": _series(st.get("rets"), st.get("ar_est")),
         "moves": [_move(m) for m in st.get("moves") or []],
+        "key_events": [_key_event(e) for e in st.get("key_events") or []],
         "policy_events": [{"date": e["date"].isoformat(), "kind": e["kind"], "label": e["label"], "url": e["url"]}
                           for e in st.get("policy_events") or []],
         "profile_flags": ctx.report.profile_flags,

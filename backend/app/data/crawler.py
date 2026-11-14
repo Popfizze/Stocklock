@@ -33,6 +33,9 @@ _DATE_META = ("article:published_time", "og:published_time", "datepublished", "p
               "date", "dc.date", "dc.date.issued", "sailthru.date", "parsely-pub-date")
 _ISO_DAY = re.compile(r"(\d{4}-\d{2}-\d{2})")
 _SPACES = re.compile(r"[ \t\r\f\v ]+")
+# Titles of the pages a site serves instead of the article when it refuses automated reading.
+BLOCK_PAGE = re.compile(r"request access|access denied|just a moment|attention required|are you a robot|captcha|"
+                        r"forbidden|unusual traffic|verify you are human", re.IGNORECASE)
 
 
 @dataclass
@@ -114,7 +117,7 @@ def _day(value: str | None) -> str | None:
 
 def parse(body: str, kind: str, url: str, final_url: str) -> Page:
     """What the pipeline keeps from a page: title, description, publication date, first paragraphs."""
-    if kind == "text/plain":
+    if kind == "text/plain" and "<html" not in body[:1000].lower():
         lines = [_clean(line) for line in body.splitlines()]
         text = "\n".join(line for line in lines if line)
         return Page(url, final_url, "", "", None, text[:TEXT_MAX_CHARS])
@@ -202,6 +205,8 @@ def fetch_page(url: str) -> Page:
         page = parse(body, kind, url, final)
         if not (page.text or page.description or page.title):
             raise ExternalUnavailable(SOURCE, "page sans texte lisible")
+        if BLOCK_PAGE.search(page.title):
+            raise ExternalUnavailable(SOURCE, "page de blocage anti-robot")
         return asdict(page)
 
     value, hit = cache.cached("crawler", url, CACHE_TTL_S, _fetch)

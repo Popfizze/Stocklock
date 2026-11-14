@@ -175,9 +175,9 @@ class StockBiasRequest(BiasRequest):
 
 
 class StockMovesRequest(_PersonaRequest):
-    """Step 2 on a stock page: the period ends on the kit's last price date ("2022": the whole year)."""
+    """Step 2 on a stock page: the last months up to the kit's last price date, or a whole year."""
     ticker: str
-    period: Literal["3m", "6m", "1y", "2022"] = "1y"
+    period: Literal["3m", "6m", "1y", "2025", "2024", "2023", "2022"] = "1y"
 
     @field_validator("ticker")
     @classmethod

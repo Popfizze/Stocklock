@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useActivePersona } from '@/features/personas/activePersona'
 import { cn } from '@/lib/utils'
 import { BiasNarrative } from './BiasNarrative'
+import { KeyEvents } from './KeyEvents'
 import { MoveList } from './MoveList'
 import { MovesChart } from './MovesChart'
 import { MovesSources } from './MovesSources'
@@ -65,10 +66,12 @@ function MovesResult({ result, persona }: { result: StockMovesResult; persona: P
       <section className="space-y-3">
         <h3 className="font-semibold">Mouvements marquants</h3>
         <p className="text-sm text-muted-foreground">
-          Séances où le titre s’écarte de plus de 2 σ de ce que prévoit {benchmark}, chacune avec ses faits datés et
-          son explication : fait daté, hypothèse ou aucun événement. Une coïncidence dans le temps n’est pas une preuve.
+          Séances où le titre s’écarte de plus de 2 σ de ce que prévoit {benchmark}, chacune avec ses faits datés
+          (entreprise, direction, décisions politiques et de taux) et son explication : fait daté, hypothèse ou aucun
+          événement. Une coïncidence dans le temps n’est pas une preuve.
         </p>
         <MoveList moves={result.moves} benchmark={benchmark} />
+        <KeyEvents events={result.key_events} benchmark={benchmark} />
       </section>
 
       <MovesSources result={result} />
@@ -87,8 +90,8 @@ function MovesSection({ ticker, persona }: { ticker: string; persona: Persona })
       <div className="space-y-1">
         <h2 id="moves-heading" className="text-2xl font-semibold tracking-tight">Pourquoi le titre a bougé ?</h2>
         <p className="text-sm text-muted-foreground">
-          {ticker} comparé à son indice sur {periodName}, et les événements datés (décisions de taux, dépôts SEC,
-          articles) qui précèdent ses plus grands écarts.
+          {ticker} comparé à son indice sur {periodName}, et les événements datés (décisions politiques et de taux,
+          dépôts SEC, changements de direction, articles) qui précèdent ses plus grands écarts.
         </p>
       </div>
 
@@ -119,7 +122,7 @@ function MovesSection({ ticker, persona }: { ticker: string; persona: Persona })
           <p className="mt-1 text-muted-foreground">Elle peut prendre une demi-minute :</p>
           <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
             <li>Comparaison du titre à son indice et repérage des séances marquantes</li>
-            <li>Recherche des décisions de taux, des dépôts SEC et des pics de couverture médiatique</li>
+            <li>Recherche des décisions de taux, des décrets de la présidence américaine, des dépôts SEC et des pics de couverture médiatique</li>
             <li>Lecture des articles et communiqués, résumés et datés par Claude Haiku</li>
             <li>Jugement de chaque lien et rédaction de l’explication</li>
           </ul>

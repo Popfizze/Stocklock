@@ -38,6 +38,11 @@ it('runs only when asked, then shows the figures, the narration and each move’
   const items = within(screen.getByRole('heading', { name: 'Mouvements marquants' }).parentElement as HTMLElement)
     .getAllByRole('listitem')
   expect(within(items[0]).getByText('Fait daté')).toBeInTheDocument()
+  // the tariff decree of the day before is shown as political context, not folded away
+  expect(items[0]).toHaveTextContent('Contexte politique et de direction :')
+  expect(within(items[0]).getByRole('link', { name: /Reciprocal Tariff/ }))
+    .toHaveAttribute('href', 'https://www.federalregister.gov/documents/2026/08/25/tariff')
+  expect(within(items[0]).getAllByText('Politique').length).toBeGreaterThan(0)
   expect(within(items[0]).getByRole('link', { name: 'NVIDIA publie des revenus trimestriels record.' }))
     .toHaveAttribute('href', NVDA_MOVES.moves[0].event?.url)
   expect(items[0]).toHaveTextContent('Lien plausible selon Claude Haiku')
@@ -45,6 +50,16 @@ it('runs only when asked, then shows the figures, the narration and each move’
   expect(within(items[1]).getByText('Hypothèse')).toBeInTheDocument()
   expect(items[1]).toHaveTextContent('(publié le 11 novembre 2026)')  // dated the day before by Haiku
   expect(within(items[2]).getByText('Aucun événement')).toBeInTheDocument()
+
+  const keyBlock = screen.getByRole('heading', { name: 'Événements politiques et économiques de la période' })
+    .closest('section') as HTMLElement
+  const keyItems = within(keyBlock).getAllByRole('listitem')
+  expect(keyItems[0]).toHaveTextContent('Direction')
+  expect(keyItems[0]).toHaveTextContent('Le PDG quitte ses fonctions.')
+  expect(keyItems[0]).toHaveTextContent('Réaction le 27 avril 2026 : titre +3,10 %, QQQ +0,40 %')
+  expect(keyItems[1]).toHaveTextContent('Présidence américaine')
+  expect(keyItems[1]).toHaveTextContent('Réaction du 25 août 2026 au 26 août 2026 : titre -9,00 %')
+  expect(within(keyItems[1]).getByText('Mouvement marquant')).toBeInTheDocument()
 
   await userEvent.click(screen.getByText('Sources, hypothèses et limites'))
   expect(screen.getByText(/Réserve fédérale \(Fed\) : hausse du taux/)).toBeInTheDocument()
@@ -54,13 +69,14 @@ it('runs only when asked, then shows the figures, the narration and each move’
 it('runs again for another period once started', async () => {
   const calls = mockFetchByUrl([
     { match: '/api/personas', responses: [json(PERSONAS)] },
-    { match: '/api/explain-move/stock', responses: [json(NVDA_MOVES), json({ ...NVDA_MOVES, period: '2022', moves: [] })] },
+    { match: '/api/explain-move/stock', responses: [json(NVDA_MOVES), json({ ...NVDA_MOVES, period: '2022', moves: [], key_events: [] })] },
   ])
   renderWithProviders(<StockMoves ticker="NVDA" />, { personaId: 'amira' })
   await userEvent.click(await screen.findByRole('button', { name: 'Expliquer les mouvements' }))
   await screen.findByText('Écart avec l’indice')
   await userEvent.click(screen.getByRole('button', { name: '2022' }))
   expect(await screen.findByText(/le titre a suivi son marché/)).toBeInTheDocument()
+  expect(screen.getByText(/Aucun événement politique, de taux ou de direction/)).toBeInTheDocument()
   expect(movesCalls(calls).map((call) => JSON.parse(String(call.init.body)).period)).toEqual(['1y', '2022'])
   expect(screen.getByRole('button', { name: '2022' })).toHaveAttribute('aria-pressed', 'true')
 })

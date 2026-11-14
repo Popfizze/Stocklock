@@ -1,6 +1,6 @@
 /** Labels and formatting of the « Pourquoi le titre a bougé ? » section (step 2). */
 
-import type { MoveExplanation, MovesPeriod } from '@/api/moves'
+import type { EventCategory, MoveExplanation, MovesPeriod } from '@/api/moves'
 import { formatSignedPercent } from './format'
 
 /** +12,34 % from a ratio (0.1234). */
@@ -10,8 +10,20 @@ export const PERIODS: Array<{ value: MovesPeriod; label: string; name: string }>
   { value: '3m', label: '3M', name: 'les 3 derniers mois' },
   { value: '6m', label: '6M', name: 'les 6 derniers mois' },
   { value: '1y', label: '1A', name: 'la dernière année' },
+  { value: '2025', label: '2025', name: 'l’année 2025' },
+  { value: '2024', label: '2024', name: 'l’année 2024' },
+  { value: '2023', label: '2023', name: 'l’année 2023' },
   { value: '2022', label: '2022', name: 'l’année 2022' },
 ]
+
+export const CATEGORIES: Record<EventCategory, string> = {
+  entreprise: 'Entreprise',
+  direction: 'Direction',
+  économique: 'Économie',
+  politique: 'Politique',
+  marché: 'Marché',
+  autre: 'Autre',
+}
 
 export const EXPLANATIONS: Record<
   MoveExplanation,
@@ -42,6 +54,8 @@ export const EVENT_KINDS: Record<string, string> = {
   split: 'Fractionnement',
   'décision BdC': 'Décision de taux',
   'décision Fed': 'Décision de taux',
+  'décision politique US': 'Présidence américaine',
+  'pic politique GDELT': 'Tarifs et sanctions (pic de couverture GDELT)',
 }
 
 export const METHODS: Record<string, string> = {

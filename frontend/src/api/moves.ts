@@ -7,8 +7,11 @@ import { apiClient, type ApiError } from './client'
  * each marked move (Fed and Bank of Canada decisions, SEC filings, articles).
  */
 
-/** The last 3, 6 or 12 months up to the kit's last price, or the year 2022. */
-export type MovesPeriod = '3m' | '6m' | '1y' | '2022'
+/** The last 3, 6 or 12 months up to the kit's last price, or a whole year. */
+export type MovesPeriod = '3m' | '6m' | '1y' | '2025' | '2024' | '2023' | '2022'
+
+/** What an event is about: `direction` is a change of officers (8-K item 5.02). */
+export type EventCategory = 'entreprise' | 'direction' | 'économique' | 'politique' | 'marché' | 'autre'
 
 /**
  * How a move is explained: a dated issuer or central-bank event judged a
@@ -23,13 +26,16 @@ export interface MoveEvent {
   date: string
   /** Date of the fact it reports (Claude Haiku may move it up to a week earlier). */
   event_date: string
-  /** `8-K`, `10-Q`, `dividend`, `pic GDELT`, `article`, `décision BdC`, `décision Fed`, … */
+  /**
+   * `8-K`, `10-Q`, `dividend`, `pic GDELT`, `article`, `décision BdC`, `décision Fed`,
+   * `décision politique US` (Federal Register), `pic politique GDELT` (tariffs and sanctions coverage), …
+   */
   kind: string
   label: string
   summary: string
   /** `haiku` when Claude Haiku wrote the summary, `source` when it is the page's own text. */
   summary_by: string
-  category: string | null
+  category: EventCategory
   /** Issuer or central-bank source rather than press coverage. */
   primary: boolean
   url: string | null
@@ -56,6 +62,14 @@ export interface MarkedMove {
   event: MoveEvent | null
   /** Every dated event of the move's day and the 3 days before. */
   events: MoveEvent[]
+}
+
+/** A political, rate or leadership event of the period, with the title's reaction over two sessions. */
+export interface KeyEvent extends MoveEvent {
+  /** The two sessions start on the event's day, or the next session when it is not a trading day. */
+  reaction: { start: string; end: string; asset: number | null; benchmark: number | null; abnormal: number | null }
+  /** A marked move falls in those two sessions. */
+  on_move: boolean
 }
 
 export interface AnalysisSource {
@@ -91,6 +105,8 @@ export interface StockMovesResult {
   series: { date: string; asset: number | null; benchmark: number | null }[]
   /** Largest first. */
   moves: MarkedMove[]
+  /** At most 8, in date order. */
+  key_events: KeyEvent[]
   policy_events: { date: string; kind: string; label: string; url: string }[]
   profile_flags: string[]
   warnings: string[]

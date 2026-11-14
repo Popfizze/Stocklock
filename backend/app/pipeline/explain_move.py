@@ -512,6 +512,9 @@ STEP = StepSpec(
                   (OptionSpec("source", "Source",
                               (Choice("gdelt", "GDELT"), Choice("yfinance_news", "Actualités yfinance"),
                                Choice("none", "Aucune")), "gdelt"),), layer="bronze"),
+        StageSpec("political_events", "Événements politiques", "Décisions de la présidence américaine (Federal "
+                  "Register) et pics de couverture des tarifs et sanctions (GDELT) ; événements clés de la période.",
+                  ev.political_events, ev.POLITICAL_OPTIONS, layer="bronze"),
         StageSpec("crawl", "Crawler web", "Lit les articles et communiqués proches des mouvements (robots.txt "
                   "respecté).", ev.crawl, ev.CRAWL_OPTIONS, layer="bronze"),
         StageSpec("digest", "Résumé des événements", "Claude Haiku résume et date chaque événement à partir de la "
@@ -520,7 +523,10 @@ STEP = StepSpec(
                   "Rapproche chaque mouvement des événements proches dans le temps et fixe la confiance.",
                   attribution, layer="gold"),
         StageSpec("plausibility", "Lien plausible", "Claude Haiku juge si l'événement explique le mouvement, avec "
-                  "un extrait cité ; fait daté, hypothèse ou aucun événement.", ev.plausibility, (ev.HAIKU_MODEL,), layer="gold"),
+                  "un extrait cité ; fait daté, hypothèse ou aucun événement.", ev.plausibility, (ev.HAIKU_MODEL,),
+                  layer="gold"),
+        StageSpec("key_events", "Événements clés", "Événements politiques, de taux et de direction de la période, "
+                  "avec la réaction du titre et de l'indice sur deux séances.", ev.key_events, layer="gold"),
         StageSpec("narration", "Narration", "Explication rédigée par un agent à partir des faits.",
                   common.narration_stage, (common.NARRATION_MODEL,), layer="sortie"),
         StageSpec("governance", "Gouvernance",

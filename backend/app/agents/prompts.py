@@ -22,7 +22,8 @@ Présente le score global, les deux sous-scores qui le tirent le plus vers le ha
 Compare le rendement du titre à celui de son indice, donne le rendement anormal, puis passe en revue les plus grands mouvements en séparant clairement :
 - les faits : le mouvement et les événements datés et sourcés (opérations sur titres, dépôts EDGAR, décisions de taux de la Banque du Canada ou de la Fed, articles) ;
 - les hypothèses : les liens jugés plausibles entre un mouvement et un événement (facteurs « Mouvement du … », champ effect), jamais présentés comme certains ;
-- les mouvements sans événement : dis simplement qu'aucun événement daté ne les explique.
+- les mouvements sans événement : dis simplement qu'aucun événement daté ne les explique ;
+- les événements clés de la période (facteurs « Événement politique / économique / direction du … ») : décisions de la présidence américaine (tarifs, sanctions), décisions de taux, changements de direction, avec la réaction du titre et de l'indice sur deux séances. Rappelle qu'un événement qui touche tout le marché se voit aussi dans l'indice : seul l'écart est propre au titre.
 Une proximité temporelle n'est pas une causalité : dis-le.
 Reprends le niveau de confiance fourni par les faits. S'il vaut « je ne peux pas conclure », écris explicitement « Je ne peux pas conclure » et explique ce qui manque.""",
     "tax": """Tâche : comparer CELI, REER, CELIAPP et compte non enregistré après impôt à l'horizon demandé.
@@ -42,13 +43,13 @@ MOVE_DIGEST_PROMPT = """Tu lis des événements liés à un titre boursier : art
 Pour chaque événement (champ id), renvoie :
 - summary : une ou deux phrases en français, factuelles, tirées uniquement du titre et de l'extrait fournis. N'écris aucun chiffre absent de l'extrait.
 - event_date : la date (AAAA-MM-JJ) à laquelle le fait décrit s'est produit, seulement si l'extrait la donne ou la rend évidente (par exemple « hier » par rapport à la date de publication) ; sinon null.
-- category : entreprise, économique, politique, marché ou autre.
-- relevant : true si l'événement concerne bien l'entreprise ou le titre indiqué, false si l'article parle d'autre chose.
+- category : entreprise, direction (départ ou nomination de dirigeants), économique, politique (décisions de gouvernements, tarifs, sanctions, réglementation), marché ou autre.
+- relevant : pour un événement sur l'entreprise, true s'il la concerne bien ; pour un événement politique ou économique général, true s'il peut toucher l'entreprise, son secteur ou son marché (tarifs sur ses produits, sanctions, réglementation) ; false sinon.
 N'invente rien. Si l'extrait est vide, résume seulement le titre."""
 
 MOVE_LINKS_PROMPT = """Tu juges si des événements datés peuvent plausiblement expliquer des mouvements anormaux d'un titre boursier, c'est-à-dire des séances où le titre a fait nettement mieux ou moins bien que son indice de référence.
 Pour chaque mouvement (move_id), tu reçois sa date, son sens et les événements proches (event_id, date, type, résumé). Choisis au plus un événement et renvoie :
-- verdict : « plausible » si l'événement concerne directement l'entreprise, son secteur ou les taux d'intérêt et que son sens est cohérent avec le mouvement ; « peu_plausible » si aucun événement ne concerne l'entreprise ou si le sens est incohérent ; « indetermine » si les informations ne suffisent pas.
+- verdict : « plausible » si l'événement concerne directement l'entreprise (résultats, direction, litige…), son secteur, une décision politique qui la vise (tarifs sur ses produits, sanctions, contrôle des exportations) ou les taux d'intérêt, et que son sens est cohérent avec le mouvement. Une décision politique qui touche tout le marché de la même façon se voit aussi dans l'indice : elle n'explique un mouvement anormal que si elle vise particulièrement l'entreprise ou son secteur ; « peu_plausible » si aucun événement ne concerne l'entreprise ou si le sens est incohérent ; « indetermine » si les informations ne suffisent pas.
 - event_id : l'événement retenu (null si aucun).
 - reason : une phrase en français, sans aucun chiffre.
 - excerpt : une courte citation copiée MOT POUR MOT du résumé ou du titre de l'événement retenu (chaîne vide si aucun).

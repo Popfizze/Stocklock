@@ -136,7 +136,16 @@ def parse_timeline(payload: dict) -> list[dict]:
 
 def timeline(ticker: str, name: str, start: date, end: date) -> Timeline:
     """Daily coverage intensity (% of all monitored articles) with top articles per day."""
-    query = query_for(ticker, name)
+    return timeline_for_query(query_for(ticker, name), start, end)
+
+
+# World coverage of trade and sanctions policy (not tied to one company): its peaks date the political
+# events the whole market talks about (tariff announcements, trade wars, sanctions, export controls).
+POLITICAL_QUERY = '(tariff OR tariffs OR "trade war" OR sanctions OR "export controls") sourcelang:english'
+
+
+def timeline_for_query(query: str, start: date, end: date) -> Timeline:
+    """Daily coverage intensity of any GDELT query, with top articles per day."""
     params = {
         "query": query,
         "mode": "timelinevolinfo",

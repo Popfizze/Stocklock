@@ -1,12 +1,16 @@
 """Step 2, the dated events and how they are read (diagram « 2. Comprendre : pipeline des fluctuations »).
 
 - policy_events: Bank of Canada and Fed rate decisions, dated on their announcement day;
-- crawl: the articles and 8-K press releases near each marked move are read by the crawler
-  (robots.txt honoured), only near a move so that few pages are fetched;
+- political_events: U.S. presidential documents on trade, tariffs, sanctions, industry or energy
+  (Federal Register) and the peaks of world coverage of tariffs and sanctions (GDELT); the political,
+  rate and leadership (8-K 5.02) events the title reacted to most become the period's key events;
+- crawl: the articles, 8-K press releases and presidential documents near each marked move (and the
+  key events) are read by the crawler (robots.txt honoured), so that few pages are fetched;
 - digest: Claude Haiku summarizes and dates each article or 8-K from the page read; a summary with a
   number absent from the page, or a date outside the week before publication, is rejected;
 - plausibility: Claude Haiku says whether the nearby events plausibly explain each move, quoting the
-  event word for word; each move ends up explained by a dated fact, a hypothesis, or no event.
+  event word for word; each move ends up explained by a dated fact, a hypothesis, or no event;
+- key_events: the key events with the title's and the index's reaction over two sessions.
 """
 
 from __future__ import annotations
@@ -17,7 +21,10 @@ from datetime import date, timedelta
 from typing import Any
 from urllib.parse import urlsplit
 
-from app.data import crawler
+import numpy as np
+import pandas as pd
+
+from app.data import crawler, federal_register, gdelt
 from app.data.cache import ExternalUnavailable
 from app.pipeline.core import Choice, Context, OptionSpec, StageSkipped
 from app.services import governance, narration
@@ -27,9 +34,16 @@ EVENT_LOOKBACK_DAYS = 3     # an event is tied to a move on the same day or in t
 READ_AFTER_DAYS = 2         # an article can come out a day or two after the event it reports
 DIGEST_MAX_SHIFT_DAYS = 7   # Haiku may date the reported fact at most a week before publication
 JUDGED_MOVES_MAX = 8
-CRAWLABLE = frozenset({"8-K", "pic GDELT", "article"})
-NEWS_KINDS = frozenset({"pic GDELT", "article"})
-CATEGORIES = ("entreprise", "économique", "politique", "marché", "autre")
+KEY_EVENTS_MAX = 8          # political, rate and leadership events kept for the period
+KEY_EVENTS_PER_DAY = 2
+POLITICAL_PEAKS_MAX = 8
+US_POLICY = "décision politique US"
+POLITICAL_PEAK = "pic politique GDELT"
+CRAWLABLE = frozenset({"8-K", "pic GDELT", "article", US_POLICY, POLITICAL_PEAK})
+NEWS_KINDS = frozenset({"pic GDELT", "article", POLITICAL_PEAK})
+RATE_KINDS = frozenset({"décision BdC", "décision Fed"})
+KIND_RANK = {"8-K": 0, US_POLICY: 1, "décision BdC": 1, "décision Fed": 1, "10-Q": 2, "10-K": 2}
+CATEGORIES = ("entreprise", "direction", "économique", "politique", "marché", "autre")
 GENERIC_TITLES = frozenset({"document", "untitled", "untitled document"})
 VERDICTS = {"plausible": "plausible", "peu_plausible": "peu plausible", "indetermine": "indéterminé"}
 EXPLANATIONS = {"fait": "fait daté", "hypothese": "hypothèse", "aucun_evenement": "aucun événement"}
@@ -38,6 +52,12 @@ HAIKU_MODEL = OptionSpec(
     "model", "Modèle", (Choice("none", "Aucun (règles)"), Choice("haiku", "Claude Haiku 4.5")), "haiku",
     "Agent Bedrock rapide ; ses réponses sont vérifiées avant d'être gardées.", lab_default="none")
 POLICY_OPTIONS = (OptionSpec("enabled", "Activé", (Choice("on", "Oui"), Choice("off", "Non")), "on"),)
+POLITICAL_OPTIONS = (OptionSpec(
+    "source", "Source",
+    (Choice("both", "Federal Register et GDELT"), Choice("federal_register", "Federal Register (présidence US)"),
+     Choice("gdelt", "GDELT (couverture des tarifs et sanctions)"), Choice("none", "Aucune")), "both",
+    "Décrets et proclamations de la présidence américaine sur le commerce, les tarifs, les sanctions, l'industrie "
+    "ou l'énergie, et pics de couverture mondiale des tarifs et des sanctions."),)
 CRAWL_OPTIONS = (
     OptionSpec("enabled", "Activé", (Choice("on", "Oui"), Choice("off", "Non")), "on",
                "Lit les articles et communiqués (pièce 99 des 8-K) proches des mouvements ; respecte robots.txt."),
@@ -52,7 +72,24 @@ def when(event: dict[str, Any]) -> date:
 
 def all_events(ctx: Context) -> list[dict[str, Any]]:
     return [*ctx.state.get("policy_events", []), *ctx.state.get("company_events", []),
-            *ctx.state.get("world_events", [])]
+            *ctx.state.get("world_events", []), *ctx.state.get("political_events", [])]
+
+
+def is_leadership(event: dict[str, Any]) -> bool:
+    """An 8-K filed for the departure or appointment of officers or directors (item 5.02)."""
+    return event["kind"] == "8-K" and "(5.02)" in event["label"]
+
+
+def default_category(e: dict[str, Any]) -> str:
+    if e.get("category"):
+        return e["category"]
+    if e["kind"] in RATE_KINDS:
+        return "économique"
+    if e["kind"] in {US_POLICY, POLITICAL_PEAK}:
+        return "politique"
+    if is_leadership(e):
+        return "direction"
+    return "marché" if e["kind"] in NEWS_KINDS else "entreprise"
 
 
 def _ensure_ids(events: list[dict[str, Any]]) -> None:
@@ -127,6 +164,142 @@ def policy_events(ctx: Context) -> None:
                       "kit change (V39079 pour la Banque du Canada, DFF pour la Fed).")
 
 
+# --- political events and the title's reaction -------------------------------------------------------
+
+def reaction(ctx: Context, day: date) -> dict[str, Any] | None:
+    """The title and its index over two sessions: the event's day (or the next session when it falls
+    on a day without trading, or after the close) and the one after; abnormal = sum of daily ARs."""
+    rets, ar = ctx.state.get("rets"), ctx.state.get("ar")
+    if rets is None or ar is None or rets.empty:
+        return None
+    sessions = rets.index[rets.index >= pd.Timestamp(day)][:2]
+    if len(sessions) == 0 or (sessions[0] - pd.Timestamp(day)).days > 4:
+        return None
+    sub = rets.loc[sessions]
+    return {"start": sessions[0].date(), "end": sessions[-1].date(),
+            "asset": float(np.prod(1 + sub["asset"]) - 1), "benchmark": float(np.prod(1 + sub["bench"]) - 1),
+            "abnormal": float(ar.loc[sessions].sum())}
+
+
+def _peaks(points: list[dict], limit: int) -> tuple[list[dict], float | None]:
+    """Days above mean + 2 σ of the intensity, strongest first, at most one per 3 days, `limit` at most."""
+    values = np.array([p["value"] for p in points])
+    if values.size < 5:
+        return [], None
+    threshold = float(values.mean() + 2 * values.std())
+    kept: list[dict] = []
+    for p in sorted((p for p in points if p["value"] > threshold), key=lambda p: -p["value"]):
+        day = date.fromisoformat(p["date"])
+        if all(abs((day - date.fromisoformat(k["date"])).days) > 2 for k in kept):
+            kept.append(p)
+        if len(kept) >= limit:
+            break
+    return kept, threshold
+
+
+def _federal_register(ctx: Context, start: date, end: date) -> list[dict[str, Any]]:
+    question = "Quels documents de la présidence américaine garder ?"
+    rule = f"mots clés du titre : {federal_register.TERMS_LABEL}"
+    try:
+        info = ctx.state.get("asset", {})
+        sector = f"{info.get('sector') or ''} {info.get('asset_class') or ''}"
+        docs, total, hit = federal_register.policy_documents(start, end, sector)
+    except ExternalUnavailable as exc:
+        ctx.warn(f"Federal Register indisponible ({exc.reason}) : aucune décision politique américaine utilisée.")
+        ctx.decide(question, "aucun (Federal Register injoignable)", f"API indisponible ({exc.reason}) : rien "
+                   "n'est inventé.", rule)
+        return []
+    sid = ctx.source("federal_register", "Federal Register, documents présidentiels (décrets, proclamations, "
+                     "mémorandums)", federal_register.SEARCH_URL, end.isoformat())
+    ctx.decide(question, f"{len(docs)} sur {total}", "Documents signés dans la fenêtre qui touchent au commerce, "
+               f"aux tarifs ou aux sanctions, ou au secteur du titre ({info.get('sector') or 'n.d.'}) ; nominations, "
+               "commémorations et renouvellements d'urgences écartés." + (" (cache)" if hit else ""), rule)
+    ctx.dataset_records("federal_register", "Documents présidentiels retenus (Federal Register)", docs, sid,
+                        ("signing_date", "subtype", "executive_order_number", "title", "html_url"))
+    return [{"date": date.fromisoformat(d["signing_date"]), "kind": US_POLICY, "label": federal_register.label(d),
+             "source_id": sid, "url": d.get("html_url"), "text_url": d.get("raw_text_url"), "category": "politique"}
+            for d in docs]
+
+
+def _political_coverage(ctx: Context, start: date, end: date) -> list[dict[str, Any]]:
+    question = "Quels jours la couverture des tarifs et des sanctions culmine-t-elle ?"
+    rule = f"seuil = moyenne + 2 écarts-types, un pic par 3 jours, {POLITICAL_PEAKS_MAX} au plus"
+    try:
+        tl = gdelt.timeline_for_query(gdelt.POLITICAL_QUERY, start, end)
+    except ExternalUnavailable as exc:
+        ctx.warn(f"GDELT indisponible pour les tarifs et sanctions ({exc.reason}) : seules les sources officielles "
+                 "sont utilisées.")
+        ctx.decide(question, "inconnu (GDELT injoignable)", f"GDELT indisponible ({exc.reason}).", rule)
+        return []
+    sid = ctx.source("gdelt_political", f"GDELT DOC 2.0, intensité de couverture, {tl.query}", tl.url,
+                     end.isoformat())
+    peaks, threshold = _peaks(tl.points, POLITICAL_PEAKS_MAX)
+    ctx.decide(question, f"{len(peaks)} pic(s)", f"{len(tl.points)} jours de couverture mondiale" +
+               (f" ; seuil d'intensité {threshold:.4f}." if threshold is not None else " : trop peu pour un seuil."),
+               rule, {"requête": tl.query})
+    return [{"date": date.fromisoformat(p["date"]), "kind": POLITICAL_PEAK,
+             "label": (p["articles"][0]["title"] if p["articles"] else "pic de couverture des tarifs et sanctions"),
+             "source_id": sid, "url": p["articles"][0]["url"] if p["articles"] else None, "intensity": p["value"],
+             "category": "politique"} for p in peaks]
+
+
+def political_events(ctx: Context) -> None:
+    ctx.state["political_events"] = []
+    source = ctx.opt("source")
+    if source == "none":
+        _mark_key_events(ctx)  # rate decisions and leadership changes stay key events
+        raise StageSkipped("Événements politiques désactivés.")
+    start, end = ctx.inputs.start, ctx.inputs.end
+    events = []
+    if source in {"both", "federal_register"}:
+        events += _federal_register(ctx, start, end)
+    if source in {"both", "gdelt"}:
+        events += _political_coverage(ctx, start, end)
+    events.sort(key=lambda e: e["date"])
+    ctx.state["political_events"] = events
+    ctx.metric("décisions politiques US", sum(1 for e in events if e["kind"] == US_POLICY))
+    ctx.metric("pics de couverture tarifs et sanctions", sum(1 for e in events if e["kind"] == POLITICAL_PEAK))
+    _mark_key_events(ctx)
+    ctx.report.limit("Événements politiques : décisions de la présidence américaine (Federal Register) et couverture "
+                     "médiatique mondiale (GDELT) ; les décisions politiques canadiennes ne sont vues qu'à travers la "
+                     "presse.")
+
+
+def _mark_key_events(ctx: Context) -> None:
+    """Flags (`key`) the political, rate and leadership events the title reacted to most over two sessions,
+    plus those whose reaction contains a marked move."""
+    pool = [e for e in all_events(ctx) if e["kind"] in {US_POLICY, POLITICAL_PEAK} | RATE_KINDS or is_leadership(e)]
+    marked = {m["date"] for m in ctx.state.get("moves") or []}
+    for e in pool:
+        e["reaction"] = reaction(ctx, e["date"])
+        r = e["reaction"]
+        e["on_move"] = bool(r) and any(r["start"] <= d <= r["end"] for d in marked)
+    ranked = sorted((e for e in pool if e["reaction"]),
+                    key=lambda e: (-abs(e["reaction"]["asset"]), KIND_RANK.get(e["kind"], 3)))
+    key: list[dict[str, Any]] = []
+    per_day: dict[date, int] = {}
+    for e in ranked:
+        day = e["reaction"]["start"]
+        if len(key) < KEY_EVENTS_MAX and per_day.get(day, 0) < KEY_EVENTS_PER_DAY:
+            key.append(e)
+            per_day[day] = per_day.get(day, 0) + 1
+    for e in key:
+        e["key"] = True
+    columns = ["date", "type", "libellé", "titre (2 séances)", "indice (2 séances)", "écart", "mouvement marquant",
+               "retenu"]
+    rows = [[e["date"], e["kind"], e["label"], e["reaction"]["asset"], e["reaction"]["benchmark"],
+             e["reaction"]["abnormal"], e["on_move"], bool(e.get("key"))] for e in ranked]
+    ctx.preview(columns, rows)
+    ctx.dataset("reactions", "Réaction du titre et de l'indice sur deux séances à chaque événement politique, de "
+                "taux ou de direction", columns, rows)
+    ctx.decide("Quels événements clés retenir pour la période ?", f"{len(key)} sur {len(pool)}",
+               f"Les {KEY_EVENTS_MAX} décisions politiques, pics de couverture, décisions de taux et changements de "
+               "direction (8-K 5.02) où le titre a le plus bougé sur deux séances, "
+               f"{KEY_EVENTS_PER_DAY} au plus par séance.", "classement par |rendement du titre sur deux séances|",
+               {"événements": len(pool), "avec réaction calculable": len(ranked)})
+    ctx.metric("événements clés", len(key))
+
+
 # --- crawl ---------------------------------------------------------------------------------------
 
 def _host(url: str) -> str:
@@ -137,22 +310,25 @@ def crawl(ctx: Context) -> None:
     ctx.state["candidates"] = []
     found = ctx.state.get("moves") or []
     events = all_events(ctx)
-    if not found:
-        raise StageSkipped("Aucun mouvement marquant : aucun événement à lire.")
     candidates = []
     for e in events:
         near = [m for m in found if m["date"] - timedelta(days=EVENT_LOOKBACK_DAYS) <= e["date"]
                 <= m["date"] + timedelta(days=READ_AFTER_DAYS)]
-        if near:
-            e["near_ar"] = max(abs(m["ar"]) for m in near)
+        if near or e.get("key"):
+            # key events come after the events near a move, by the size of the title's reaction
+            e["near_ar"] = max(abs(m["ar"]) for m in near) if near else abs(e["reaction"]["abnormal"]) / 10
             candidates.append(e)
+    if not candidates:
+        raise StageSkipped("Aucun événement proche d'un mouvement marquant ni événement clé : rien à lire.")
     _ensure_ids(candidates)
     ctx.state["candidates"] = candidates
     ctx.decide("Quels événements examiner ?", f"{len(candidates)} sur {len(events)}",
                f"Événements datés de {EVENT_LOOKBACK_DAYS} jours avant à {READ_AFTER_DAYS} jours après un mouvement "
-               "marquant (un article paraît souvent après le fait qu'il rapporte) ; les autres sont écartés.",
+               "marquant (un article paraît souvent après le fait qu'il rapporte), puis les événements clés de la "
+               "période ; les autres sont écartés.",
                f"fenêtre de lecture : −{EVENT_LOOKBACK_DAYS} à +{READ_AFTER_DAYS} jours autour d'un mouvement",
-               {"mouvements": len(found), "événements datés": len(events)})
+               {"mouvements": len(found), "événements datés": len(events),
+                "événements clés": sum(1 for e in candidates if e.get("key"))})
     readable = sorted((e for e in candidates if e.get("url") and e["kind"] in CRAWLABLE),
                       key=lambda e: -e["near_ar"])
     if ctx.opt("enabled") == "off":
@@ -163,12 +339,13 @@ def crawl(ctx: Context) -> None:
     limit = int(ctx.opt("max_pages"))
     chosen = readable[:limit]
     ctx.decide("Quelles pages lire ?", f"{len(chosen)} sur {len(readable)}",
-               "Articles et dépôts 8-K proches des plus grands mouvements d'abord ; dividendes, 10-Q, 10-K et "
-               "décisions de taux gardent leur libellé.", f"option max_pages = {limit}")
+               "Articles, dépôts 8-K et documents présidentiels proches des plus grands mouvements d'abord, puis "
+               "ceux des événements clés ; dividendes, 10-Q, 10-K et décisions de taux gardent leur libellé.",
+               f"option max_pages = {limit}")
     targets: dict[str, str] = {}
     exhibits = 0
     for e in chosen:
-        url = e["url"]
+        url = e.get("text_url") or e["url"]  # Federal Register: the raw text (its HTML pages refuse robots)
         if e["kind"] == "8-K":
             try:
                 exhibit = crawler.sec_press_release(url)
@@ -190,9 +367,10 @@ def crawl(ctx: Context) -> None:
         if isinstance(page, crawler.Page):
             read += 1
             # SEC documents are often titled « Document » or by their file name: the event's label says more
-            title = page.title if " " in page.title and page.title.lower() not in GENERIC_TITLES else e["label"]
-            sid = ctx.source(f"web_{e['id']}", f"{_host(page.final_url)} : {title}"[:200], page.final_url,
-                             page.published)
+            title = page.title if " " in page.title and page.title.lower() not in GENERIC_TITLES \
+                and e["kind"] != US_POLICY else e["label"]
+            shown = e["url"] if e["kind"] == US_POLICY else page.final_url
+            sid = ctx.source(f"web_{e['id']}", f"{_host(shown)} : {title}"[:200], shown, page.published)
             e.update(page_title=title, page_description=page.description, page_text=page.text,
                      published=page.published, page_source_id=sid,
                      read="lue (cache)" if page.from_cache else "lue")
@@ -231,17 +409,11 @@ def _crawl_outputs(ctx: Context, candidates: list[dict[str, Any]]) -> None:
 
 # --- digest ----------------------------------------------------------------------------------------
 
-def _default_category(e: dict[str, Any]) -> str:
-    if e["kind"].startswith("décision"):
-        return "économique"
-    return "marché" if e["kind"] in NEWS_KINDS else "entreprise"
-
-
 def _default_digest(e: dict[str, Any]) -> None:
     e["event_date"] = e["date"]
     e["summary"] = (e.get("page_description") or e.get("page_title") or e["label"]).strip()[:300]
     e["summary_by"] = "source"
-    e["category"] = _default_category(e)
+    e["category"] = default_category(e)
     e.setdefault("relevant", True)
 
 
@@ -362,17 +534,16 @@ def _verbatim(excerpt: str, e: dict[str, Any]) -> bool:
     return _norm(excerpt) in haystack
 
 
-KIND_RANK = {"8-K": 0, "décision BdC": 1, "décision Fed": 1, "10-Q": 2, "10-K": 2}
 
 
 def best_event(move: dict[str, Any]) -> dict[str, Any] | None:
-    """Without a judgement: an issuer or central-bank event first, then the closest in time, then
-    an 8-K (press release) before a rate decision, a periodic report or a dividend."""
+    """Without a judgement: an official source before press coverage; among them an 8-K (material event)
+    first, then a political or rate decision, then a periodic report or a dividend; then the closest."""
     events = move.get("events") or []
     if not events:
         return None
-    return min(events, key=lambda e: (not is_primary(e), (move["date"] - when(e)).days,
-                                      KIND_RANK.get(e["kind"], 3)))
+    return min(events, key=lambda e: (not is_primary(e), KIND_RANK.get(e["kind"], 3),
+                                      (move["date"] - when(e)).days))
 
 
 def _plain(text: str) -> str:
@@ -513,3 +684,39 @@ def _links_outputs(ctx: Context, found: list[dict[str, Any]]) -> None:
     ctx.report.assume("Explication de chaque mouvement : « fait daté » si un événement de l'émetteur ou d'une banque "
                       "centrale le précède et que le lien est jugé plausible, « hypothèse » pour un lien possible "
                       "mais non établi, « aucun événement » sinon ; aucune n'est une preuve de causalité.")
+
+
+# --- key events of the period -------------------------------------------------------------------------
+
+def _pct(ratio: float) -> str:
+    return f"{ratio * 100:+.1f} %".replace(".", ",").replace("-", "−")
+
+
+def key_events(ctx: Context) -> None:
+    every = [e for e in all_events(ctx) if e.get("key")]
+    kept = sorted((e for e in every if e.get("relevant", True)), key=when)
+    ctx.state["key_events"] = kept
+    if not every:
+        raise StageSkipped("Aucun événement politique, de taux ou de direction avec une réaction calculable.")
+    ctx.decide("Quels événements clés montrer ?", f"{len(kept)} sur {len(every)}",
+               "Événements clés de la période" + (f" ; {len(every) - len(kept)} jugé(s) hors sujet par Haiku "
+                                                  "écarté(s)." if len(kept) < len(every) else "."),
+               "événements pertinents seulement", {"sur un mouvement marquant": sum(e["on_move"] for e in kept)})
+    bench = ctx.state.get("bench") or "l'indice"
+    for e in sorted(kept, key=lambda e: -abs(e["reaction"]["asset"]))[:5]:
+        r = e["reaction"]
+        ctx.report.factor(f"Événement {default_category(e)} du {when(e)} : {(e.get('summary') or e['label'])[:140]}",
+                          r["asset"], "ratio",
+                          effect=f"titre {_pct(r['asset'])}, {bench} {_pct(r['benchmark'])} sur deux séances "
+                                 f"({r['start']} → {r['end']}), écart {_pct(r['abnormal'])}",
+                          source_id=e.get("page_source_id") or e.get("source_id"))
+    columns = ["date", "catégorie", "type", "résumé", "titre", "indice", "écart", "mouvement marquant"]
+    rows = [[when(e), default_category(e), e["kind"], e.get("summary") or e["label"], e["reaction"]["asset"],
+             e["reaction"]["benchmark"], e["reaction"]["abnormal"], e["on_move"]] for e in kept]
+    ctx.preview(columns, rows)
+    ctx.dataset("key_events", "Événements clés et réaction du titre sur deux séances", columns, rows)
+    ctx.metric("événements clés montrés", len(kept))
+    ctx.report.assume("Réaction à un événement : rendement du titre et de l'indice sur la séance de l'événement (ou la "
+                      "suivante s'il tombe un jour sans cotation) et la séance d'après ; écart = somme des rendements "
+                      "anormaux quotidiens. Un événement politique ou une décision de taux touche souvent tout le "
+                      "marché : l'écart avec l'indice isole ce qui est propre au titre.")

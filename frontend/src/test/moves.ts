@@ -1,4 +1,4 @@
-import type { MarkedMove, MoveEvent, StockMovesResult } from '@/api/moves'
+import type { KeyEvent, MarkedMove, MoveEvent, StockMovesResult } from '@/api/moves'
 
 /** Test fixtures shaped like `POST /api/explain-move/stock`; the values are placeholders. */
 
@@ -40,6 +40,29 @@ const article = event({
   source_id: 'web_e2', category: 'marché',
 })
 
+const tariff = event({
+  id: 'e3', date: '2026-08-25', event_date: '2026-08-25', kind: 'décision politique US',
+  label: 'Décret 14257 de la présidence américaine : Regulating Imports With a Reciprocal Tariff',
+  summary: 'Décret 14257 de la présidence américaine : Regulating Imports With a Reciprocal Tariff',
+  summary_by: 'source', category: 'politique', url: 'https://www.federalregister.gov/documents/2026/08/25/tariff',
+  source_id: 'federal_register',
+})
+
+const keyTariff: KeyEvent = {
+  ...tariff,
+  reaction: { start: '2026-08-25', end: '2026-08-26', asset: -0.09, benchmark: -0.047, abnormal: -0.057 },
+  on_move: true,
+}
+
+const keyCeo: KeyEvent = {
+  ...event({
+    id: 'e4', date: '2026-04-27', event_date: '2026-04-27', label: '8-K : départ ou nomination de dirigeants (5.02)',
+    summary: 'Le PDG quitte ses fonctions.', category: 'direction', url: null,
+  }),
+  reaction: { start: '2026-04-27', end: '2026-04-27', asset: 0.031, benchmark: 0.004, abnormal: 0.027 },
+  on_move: false,
+}
+
 export const NVDA_MOVES: StockMovesResult = {
   analysis: {
     answer: 'Analyse pour Robert\n\nNVDA a fait **moins bien** que QQQ [starter_prices].\nSimulation éducative, pas un conseil financier personnalisé.',
@@ -67,7 +90,7 @@ export const NVDA_MOVES: StockMovesResult = {
   ],
   moves: [
     move({
-      explanation: 'fait', verdict: 'plausible', judged_by: 'haiku', event: results, events: [results],
+      explanation: 'fait', verdict: 'plausible', judged_by: 'haiku', event: results, events: [tariff, results],
       reason: 'Les résultats publiés la veille concernent directement l’entreprise.',
       excerpt: 'revenus trimestriels record',
     }),
@@ -77,6 +100,7 @@ export const NVDA_MOVES: StockMovesResult = {
     }),
     move({ date: '2026-03-02', asset: 0.06, benchmark: 0.01, abnormal: 0.05, z: 2.3 }),
   ],
+  key_events: [keyCeo, keyTariff],
   policy_events: [
     { date: '2026-09-16', kind: 'décision Fed', label: 'Réserve fédérale (Fed) : hausse du taux de 0,25 point', url: 'https://www.federalreserve.gov/' },
   ],

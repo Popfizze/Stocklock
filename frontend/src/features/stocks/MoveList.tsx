@@ -1,38 +1,20 @@
 import { useState } from 'react'
-import type { MarkedMove, MoveEvent } from '@/api/moves'
+import type { MarkedMove } from '@/api/moves'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { EVENT_KINDS, EXPLANATIONS, signedRatio } from './movesMeta'
+import { EventLine } from './EventLine'
+import { EXPLANATIONS, signedRatio } from './movesMeta'
 import { TREND_TEXT, formatLongDate, trendOf } from './format'
 
 const SHOWN = 5
 
-function EventLine({ event }: { event: MoveEvent }) {
-  const kind = EVENT_KINDS[event.kind] ?? event.kind
-  const redated = event.event_date !== event.date
-  return (
-    <span>
-      <span className="font-medium">{kind}</span>
-      {' · '}
-      {formatLongDate(event.event_date)}
-      {redated && <span className="text-muted-foreground"> (publié le {formatLongDate(event.date)})</span>}
-      {' — '}
-      {event.url ? (
-        <a className="underline underline-offset-2" href={event.url} target="_blank" rel="noreferrer">
-          {event.summary}
-        </a>
-      ) : (
-        event.summary
-      )}
-      {event.summary_by === 'haiku' && <span className="text-muted-foreground"> (résumé par Claude Haiku)</span>}
-    </span>
-  )
-}
-
 function MoveItem({ move, benchmark }: { move: MarkedMove; benchmark: string }) {
   const meta = EXPLANATIONS[move.explanation]
   const others = move.events.filter((event) => event.id !== move.event?.id)
+  // Political and leadership news is always shown; the rest stays folded.
+  const context = others.filter((event) => event.category === 'politique' || event.category === 'direction')
+  const rest = others.filter((event) => !context.includes(event))
   return (
     <li className="space-y-2 rounded-lg border border-border p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -56,11 +38,19 @@ function MoveItem({ move, benchmark }: { move: MarkedMove; benchmark: string }) 
         {move.reason}
         {move.excerpt && <> « {move.excerpt} »</>}
       </p>
-      {others.length > 0 && (
+      {context.length > 0 && (
+        <div className="text-sm">
+          <p className="text-muted-foreground">Contexte politique et de direction :</p>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
+            {context.map((event) => <li key={`${event.id}-${event.date}`}><EventLine event={event} /></li>)}
+          </ul>
+        </div>
+      )}
+      {rest.length > 0 && (
         <details className="text-sm">
-          <summary className="cursor-pointer text-muted-foreground">Autres événements proches ({others.length})</summary>
+          <summary className="cursor-pointer text-muted-foreground">Autres événements proches ({rest.length})</summary>
           <ul className="mt-2 list-disc space-y-1 pl-5">
-            {others.map((event) => <li key={`${event.id}-${event.date}`}><EventLine event={event} /></li>)}
+            {rest.map((event) => <li key={`${event.id}-${event.date}`}><EventLine event={event} /></li>)}
           </ul>
         </details>
       )}

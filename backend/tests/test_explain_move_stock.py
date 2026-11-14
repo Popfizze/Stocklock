@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from app.data import crawler, edgar, gdelt, http
+from app.data import crawler, edgar, federal_register, gdelt, http
 from app.data.cache import ExternalUnavailable
 from app.pipeline import explain_move_events as ev
 from app.services import policy_events
@@ -220,9 +220,100 @@ def test_lab_exposes_the_new_stages_with_decisions(client, news_world):
     assert r.status_code == 200, r.text
     stages = {s["id"]: s for s in r.json()["stages"]}
     assert list(stages) == ["prices", "benchmark", "moves", "macro", "policy_events", "company_events",
-                            "world_events", "crawl", "digest", "attribution", "plausibility", "narration",
-                            "governance"]
+                            "world_events", "political_events", "crawl", "digest", "attribution", "plausibility",
+                            "key_events", "narration", "governance"]
     assert stages["crawl"]["metrics"]["pages lues"] == 1
     assert any(d["question"].startswith("Redater l'événement") for d in stages["digest"]["decisions"])
     assert any(d["question"].startswith("Lien du mouvement") for d in stages["plausibility"]["decisions"])
     assert stages["policy_events"]["metrics"] == {"décisions Banque du Canada": 7, "décisions Fed": 7}
+
+
+# --- political events, leadership changes and the title's reaction -----------------------------------
+
+FR_DOCS = [
+    {"title": "Regulating Imports With a Reciprocal Tariff To Rectify Trade Practices", "signing_date": "2022-07-13",
+     "subtype": "Executive Order", "executive_order_number": "14999",
+     "html_url": "https://www.federalregister.gov/documents/2022/07/18/x/reciprocal-tariff"},
+    {"title": "World Trade Week, 2022", "signing_date": "2022-05-20", "subtype": "Proclamation",
+     "html_url": "https://www.federalregister.gov/documents/w"},
+    {"title": "Preparing Americans for High-Paying Skilled Trade Jobs", "signing_date": "2022-04-23",
+     "subtype": "Executive Order", "html_url": "https://www.federalregister.gov/documents/s"},
+    {"title": "Adjusting Imports of Steel Into the United States", "signing_date": "2022-11-03",
+     "subtype": "Proclamation", "html_url": "https://www.federalregister.gov/documents/steel"},
+]
+
+
+@pytest.fixture
+def federal(monkeypatch):
+    def get_json(source, url, **kwargs):
+        if url == federal_register.API_URL:
+            return {"count": len(FR_DOCS), "results": FR_DOCS, "next_page_url": None}
+        raise ExternalUnavailable(source, "réseau désactivé pendant les tests")
+
+    monkeypatch.setattr(http, "get_json", get_json)
+
+
+def test_presidential_documents_are_kept_for_trade_or_for_the_titles_sector(federal):
+    bank, _, _ = federal_register.policy_documents(date(2022, 1, 1), date(2022, 12, 31), "Financials equity")
+    steel, total, _ = federal_register.policy_documents(date(2022, 1, 1), date(2022, 12, 31), "Materials equity")
+    assert total == 4
+    assert [d["signing_date"] for d in bank] == ["2022-07-13"]                  # tariffs reach every title
+    assert [d["signing_date"] for d in steel] == ["2022-07-13", "2022-11-03"]  # steel only for its sector
+    assert federal_register.label(bank[0]).startswith("Décret 14999 de la présidence américaine : Regulating")
+
+
+def test_routine_and_off_sector_documents_are_left_out():
+    concerns = federal_register.concerns
+    assert concerns("World Trade Week, 2025", "Information Technology equity") is False
+    assert concerns("Continuation of the National Emergency With Respect to Export Control Regulations",
+                    "Information Technology equity") is False
+    assert concerns("Unleashing American Energy", "Information Technology equity") is False
+    assert concerns("Unleashing American Energy", "Energy equity") is True
+    assert concerns("Adjusting Imports of Semiconductors", "Technology equity") is True
+    assert concerns("Guaranteeing Fair Banking for All Americans", "Financial Services equity") is True
+    assert concerns("Providing an Order of Succession Within the Department of Agriculture", "Energy") is False
+
+
+def test_leadership_8k_and_political_events_have_their_category():
+    assert ev.default_category({"kind": "8-K", "label": "8-K : départ ou nomination de dirigeants (5.02)"})         == "direction"
+    assert ev.default_category({"kind": "8-K", "label": "8-K : résultats financiers (2.02)"}) == "entreprise"
+    assert ev.default_category({"kind": ev.US_POLICY, "label": "Décret"}) == "politique"
+    assert ev.default_category({"kind": "décision Fed", "label": "Fed"}) == "économique"
+
+
+def test_political_decisions_are_tied_to_moves_and_listed_with_the_reaction(client, federal):
+    body = _stock(client, "RY.TO").json()
+    july = next(m for m in body["moves"] if m["date"] == "2022-07-14")
+    political = next(e for e in july["events"] if e["kind"] == ev.US_POLICY)
+    assert political["category"] == "politique" and political["primary"] is True
+    assert political["url"].endswith("reciprocal-tariff")
+    key = {e["date"]: e for e in body["key_events"] if e["kind"] == ev.US_POLICY}
+    tariff = key["2022-07-13"]
+    assert tariff["on_move"] is True                                   # the 07-14 drop is in its two sessions
+    assert tariff["reaction"]["start"] == "2022-07-13" and tariff["reaction"]["end"] == "2022-07-14"
+    assert tariff["reaction"]["abnormal"] < 0
+    assert tariff["url"].endswith("reciprocal-tariff")
+    assert "2022-11-03" not in key                                     # steel: not a bank's sector
+    assert len(body["key_events"]) <= ev.KEY_EVENTS_MAX
+    per_day = [e["reaction"]["start"] for e in body["key_events"]]
+    assert all(per_day.count(day) <= ev.KEY_EVENTS_PER_DAY for day in per_day)
+    factors = [f["name"] for f in body["analysis"]["factors"]]
+    assert any(name.startswith("Événement politique du 2022-07-13") for name in factors)
+    assert body["analysis"]["governance"]["passed"] is True
+    assert any(s["id"] == "federal_register" for s in body["analysis"]["sources"])
+
+
+def test_whole_years_are_available_up_to_the_kits_last_price(client):
+    assert _stock(client, "AAPL", "2024").json()["window"] == {"start": "2024-01-01", "end": "2024-12-31"}
+    assert _stock(client, "AAPL", "2025").json()["window"] == {"start": "2025-01-01", "end": "2025-12-31"}
+
+
+def test_a_page_that_blocks_robots_is_not_read(monkeypatch):
+    def fake_text(source, url, **kwargs):
+        if url.endswith("/robots.txt"):
+            raise ExternalUnavailable(source, "HTTP 404")
+        return "<html><head><title>Federal Register :: Request Access</title></head><body><p>" +             "Please complete the request below. " * 4 + "</p></body></html>", "text/html", url
+
+    monkeypatch.setattr(http, "get_text", fake_text)
+    with pytest.raises(ExternalUnavailable, match="anti-robot"):
+        crawler.fetch_page("https://www.federalregister.gov/documents/2025/04/07/x")
