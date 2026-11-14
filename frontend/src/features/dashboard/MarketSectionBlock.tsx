@@ -39,6 +39,11 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
   return (
     <section ref={ref} aria-labelledby={headingId} className="scroll-mt-6 space-y-4">
       <div className="space-y-1">
+        {section.persona_reason && (
+          <p className="eyebrow">
+            Pour vous · {section.persona_reason}
+          </p>
+        )}
         <h2 id={headingId} className="text-xl font-semibold tracking-tight">
           {section.title}
         </h2>

@@ -41,8 +41,14 @@ export function StockCard({ stock, fit }: StockCardProps) {
         )}
       </span>
       {/* The pastille keeps its line while the verdicts load, so the cards do not jump. */}
-      <span className="flex h-4 items-center">
+      <span className="flex h-4 items-center gap-2">
         {fit && <FitBadge verdict={fit.verdict} summary={fit.summary} />}
+        {/* Hype is only flagged when it is high: a quiet word, the detail is on the title's page. */}
+        {fit?.hype?.level === 'eleve' && (
+          <span title={fit.hype.reasons.join(' ')} className="ml-auto text-xs text-warning">
+            Battage élevé
+          </span>
+        )}
       </span>
     </Link>
   )

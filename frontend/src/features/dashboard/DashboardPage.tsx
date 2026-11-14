@@ -4,6 +4,7 @@ import { useMarketSections } from '@/api/stocks'
 import { AppLayout, PageHeader } from '@/components/layout'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useActivePersona } from '@/features/personas/activePersona'
 import { marketErrorMessage } from '@/features/stocks/format'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { KpiStrip } from './KpiStrip'
@@ -17,7 +18,9 @@ import { UniverseSearchResults } from './UniverseSearchResults'
  * result opens the title's page.
  */
 export function DashboardPage() {
-  const { data: sections, error, isPending } = useMarketSections()
+  const { persona, personaId } = useActivePersona()
+  // The profile's own sections come first, then the general ones.
+  const { data: sections, error, isPending } = useMarketSections(personaId)
   const [query, setQuery] = useState('')
   const debouncedQuery = useDebouncedValue(query, 250)
   const searching = query.trim().length > 0
@@ -27,7 +30,12 @@ export function DashboardPage() {
       <div className="space-y-8">
         <PageHeader
           title="Tableau de bord"
-          description="Le marché en direct : cours différés, sections mises à jour pendant la séance."
+          eyebrow={persona ? `Bonjour ${persona.name}` : undefined}
+          description={
+            persona
+              ? `Le marché en direct, lu pour votre profil : tolérance au risque ${persona.risk_tolerance.toLowerCase()}, horizon ${persona.horizon.toLowerCase()}. Vos sections viennent en premier et chaque titre porte son verdict.`
+              : 'Le marché en direct : cours différés, sections mises à jour pendant la séance.'
+          }
         />
 
         <div className="relative max-w-xl">
@@ -58,7 +66,7 @@ export function DashboardPage() {
           </p>
         ) : (
           <>
-            <KpiStrip />
+            <KpiStrip section={sections[0]} />
             <div className="space-y-12">
               {sections.map((section) => (
                 <MarketSectionBlock key={section.id} section={section} />

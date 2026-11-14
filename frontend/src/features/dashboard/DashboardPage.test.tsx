@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl, mockFetchUnreachable, type MockResponse } from '@/test/mockFetch'
-import { FIT_NVDA_ROBERT, FIT_RY_ROBERT } from '@/test/persona'
+import { FIT_NVDA_ROBERT, FIT_PLTR_ROBERT, FIT_RY_ROBERT, SECTIONS_AMIRA, SECTION_CRYPTOS } from '@/test/persona'
 import { PERSONAS } from '@/test/personas'
 import {
   KPIS,
@@ -29,13 +29,14 @@ interface Overrides {
   hausses?: MockResponse[]
   populaires?: MockResponse[]
   search?: MockResponse[]
+  catalog?: MockResponse[]
 }
 
 function mockApi(overrides: Overrides = {}) {
   return mockFetchByUrl([
     { match: '/api/personas', responses: [json(PERSONAS)] },
     { match: '/api/market/kpis', responses: [json(KPIS)] },
-    { match: /\/api\/fit$/, responses: [json({ persona_id: 'amira', items: [FIT_NVDA_ROBERT, FIT_RY_ROBERT], missing: [] })] },
+    { match: /\/api\/fit$/, responses: [json({ persona_id: 'amira', items: [FIT_NVDA_ROBERT, FIT_RY_ROBERT, { ...FIT_PLTR_ROBERT, ticker: 'NU' }], missing: [] })] },
     { match: '/api/fit/', responses: [json(FIT_NVDA_ROBERT)] },
     { match: '/api/universe/search', responses: overrides.search ?? [json(SEARCH_RY)] },
     { match: '/api/market/sections/populaires', responses: overrides.populaires ?? [json(SECTION_POPULAIRES)] },
@@ -45,7 +46,9 @@ function mockApi(overrides: Overrides = {}) {
       responses: overrides.hausses ?? [json({ ...SECTION_POPULAIRES, ...SECTION_CATALOG[2], items: [] })],
     },
     { match: '/api/market/sections/canada-populaires', responses: [json(SECTION_CANADA)] },
-    { match: /\/api\/market\/sections$/, responses: [json(SECTION_CATALOG)] },
+    { match: /\/api\/market\/sections(\?persona=\w+)?$/, responses: overrides.catalog ?? [json(SECTION_CATALOG)] },
+    { match: '/api/market/sections/ia-semis', responses: [json({ ...SECTION_POPULAIRES, ...SECTIONS_AMIRA[0] })] },
+    { match: '/api/market/sections/cryptos', responses: [json(SECTION_CRYPTOS)] },
     { match: '/api/stocks/NVDA?range=1M', responses: [json(NVDA_1M)] },
     { match: '/api/scores/', responses: [json(SCORE_ABSENT)] },
     { match: '/api/accounts/projection', responses: [json({ detail: 'x' }, 500)] },
@@ -92,9 +95,9 @@ describe('DashboardPage', () => {
     expect(within(await canada.findByRole('link', { name: /RY\.TO/ })).getByText('288,37 $')).toBeInTheDocument()
 
     // A KPI strip stands where the row of section links used to be.
-    const kpis = within(await screen.findByRole('region', { name: 'Indicateurs du marché' }))
+    const kpis = within(await screen.findByRole('region', { name: 'Indicateurs' }))
     expect(kpis.getByText('S&P 500')).toBeInTheDocument()
-    expect(kpis.getByText('Titres suivis')).toBeInTheDocument()
+    expect(await kpis.findByText('Titres compatibles')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Sections du tableau de bord' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Meilleurs scores' })).not.toBeInTheDocument()
   })
@@ -109,6 +112,11 @@ describe('DashboardPage', () => {
       'title',
       'Hors profil pour Robert : volatilité trop élevée.',
     )
+    // High hype is flagged on the card; a quiet title is not.
+    expect(within(nvda).queryByText('Battage élevé')).not.toBeInTheDocument()
+    const nu = populaires.getByRole('link', { name: /NU/ })
+    expect(within(nu).getByText('Battage élevé')).toHaveAttribute('title', expect.stringContaining('Volume de la dernière séance'))
+    expect(within(nu).getByText('Hors profil')).toBeInTheDocument()
     // A title the batch does not cover keeps its card, without a pastille.
     expect(within(populaires.getByRole('link', { name: /INTC/ })).queryByText(/Compatible|Hors profil|À surveiller/)).not.toBeInTheDocument()
     const canada = within(await section('Populaires au Canada'))
@@ -116,6 +124,30 @@ describe('DashboardPage', () => {
 
     const batch = calls.find((call) => call.url.endsWith('/api/fit') && String(call.init.body).includes('NVDA'))
     expect(JSON.parse(String(batch?.init.body))).toEqual({ persona_id: 'amira', tickers: ['NVDA', 'NU', 'INTC'] })
+  })
+
+  it('greets the profile and puts its own sections first, with why', async () => {
+    const calls = mockApi({ catalog: [json(SECTIONS_AMIRA)] })
+    renderDashboard()
+
+    expect(await screen.findByText('Bonjour Amira')).toBeInTheDocument()
+    expect(screen.getByText(/tolérance au risque élevée, horizon long terme/)).toBeInTheDocument()
+    expect(calls.some((call) => call.url.endsWith('/api/market/sections?persona=amira'))).toBe(true)
+
+    await section('IA et semi-conducteurs')
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
+    expect(headings).toEqual(['IA et semi-conducteurs', 'Cryptomonnaies', 'Les plus populaires', 'Plus fortes hausses'])
+    expect(within(await section('IA et semi-conducteurs')).getByText(/Pour vous · Préférence « IA » du profil d’Amira\./)).toBeInTheDocument()
+    const cryptos = within(await section('Cryptomonnaies'))
+    expect(cryptos.getByText(/Pour vous · Le profil d’Amira accepte les cryptoactifs\./)).toBeInTheDocument()
+    expect(await cryptos.findByRole('link', { name: /BTC-USD/ })).toHaveAttribute('href', '/titres/BTC-USD')
+    // A general section carries no « Pour vous ».
+    expect(within(await section('Les plus populaires')).queryByText(/Pour vous/)).not.toBeInTheDocument()
+
+    // The profile tiles count the compatible titles of its first section.
+    const kpis = within(screen.getByRole('region', { name: 'Indicateurs' }))
+    expect(await kpis.findByText('dans « IA et semi-conducteurs »')).toBeInTheDocument()
+    expect(kpis.getByText('Votre volatilité max.')).toBeInTheDocument()
   })
 
   it('explains why « Meilleurs scores » is empty until the pipeline has run', async () => {
