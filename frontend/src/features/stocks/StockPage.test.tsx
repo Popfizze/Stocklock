@@ -200,6 +200,13 @@ describe('StockPage', () => {
     expect(score.getByText('Comparé à').nextElementSibling).toHaveTextContent('Technologie, 48 titres')
     expect(score.getByText('Calculé le').nextElementSibling).toHaveTextContent('15 novembre 2026')
 
+    // The 3D scene of the sub-scores says what it shows (drawn flat here, without WebGL).
+    const scene = score.getByRole('img', { name: /Les sous-scores en piliers/ })
+    expect(scene).toHaveAccessibleName(
+      /Rentabilité 92, Solidité financière 58, Croissance 54, Valorisation 36, Momentum et risque 72, Événements 65\. Le plan marque le score de 65,4\./,
+    )
+    expect(scene.querySelectorAll('rect')).toHaveLength(6)
+
     // Each sub-score: weight, score, contribution.
     expect(score.getAllByRole('button')).toHaveLength(6)
     const profitability = score.getByRole('button', { name: /Rentabilité/ })
@@ -262,7 +269,7 @@ describe('StockPage', () => {
       expected_return: 0.05,
     })
     const brief = within(screen.getByRole('navigation', { name: 'En bref' }))
-    expect(brief.getByRole('link', { name: /Après impôt, le plus élevé \(épargne\)/ })).toHaveTextContent('CELIAPP')
+    expect(brief.getByRole('link', { name: /Après impôt, le plus élevé/ })).toHaveTextContent('CELIAPP · épargne')
     // The other blocks cover any title.
     expect(screen.getByRole('region', { name: 'Prendre du recul' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Expliquer les mouvements' })).toBeInTheDocument()

@@ -62,9 +62,9 @@ export function DecisionSummary({ ticker, starterKit, fit }: DecisionSummaryProp
         <SummaryRow href="#comprendre" label="Fluctuations" isPending={false} value="À expliquer" />
         <SummaryRow
           href="#compte"
-          label={starterKit ? 'Après impôt, le plus élevé' : 'Après impôt, le plus élevé (épargne)'}
+          label="Après impôt, le plus élevé"
           isPending={account.isPending}
-          value={best ? ACCOUNTS[best].short : UNAVAILABLE}
+          value={best ? `${ACCOUNTS[best].short}${starterKit ? '' : ' · épargne'}` : UNAVAILABLE}
         />
         <SummaryRow
           href="#esg"
@@ -100,8 +100,8 @@ function SummaryRow({ href, label, value, isPending, attention = false }: Summar
         href={href}
         className="group flex items-center justify-between gap-3 rounded-sm py-2.5 transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <span className="text-muted-foreground group-hover:text-foreground">{label}</span>
-        <span className="flex min-w-0 items-center gap-1.5 font-medium tabular-nums">
+        <span className="min-w-0 text-muted-foreground group-hover:text-foreground">{label}</span>
+        <span className="flex shrink-0 items-center gap-1.5 font-medium tabular-nums">
           {isPending ? (
             <Skeleton className="h-4 w-16" />
           ) : (
@@ -112,7 +112,7 @@ function SummaryRow({ href, label, value, isPending, attention = false }: Summar
                   <span className="sr-only">À vérifier : </span>
                 </>
               )}
-              <span className="truncate">{value}</span>
+              <span>{value}</span>
             </>
           )}
           <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />

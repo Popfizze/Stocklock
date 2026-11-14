@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useStockScore, type ScoreRow } from '@/api/stocks'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatLongDate, formatScore } from './format'
 import { ScoreGauge } from './ScoreGauge'
+import { ScorePillars } from './ScorePillars'
 import { BlockError, StockSection } from './StockSection'
 import { SubScoreList } from './SubScoreList'
 
@@ -63,51 +65,55 @@ interface ScoreDetailsProps {
 }
 
 function ScoreDetails({ row, generatedAt }: ScoreDetailsProps) {
+  // The sub-scores whose indicators are open: from the list itself, or from a pillar of the 3D scene.
+  const [open, setOpen] = useState<string[]>([])
+  const openOne = (id: string) => setOpen((current) => (current.includes(id) ? current : [...current, id]))
+
   return (
-    <div className="space-y-5">
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-end gap-x-10 gap-y-5">
-          <ScoreGauge score={row.score} subScores={row.sub_scores} />
-          <div className="space-y-4">
-            <p className="flex items-baseline gap-2">
-              <span className="display flip-in inline-block text-7xl sm:text-8xl">{formatScore(row.score)}</span>
-              <span className="font-display text-xl text-muted-foreground">/ 100</span>
-              {row.partiel && (
-                <Badge variant="warning" className="ml-2 self-center">
-                  Partiel
-                </Badge>
+    <div className="space-y-6">
+      <div className="grid gap-x-10 gap-y-6 md:grid-cols-2 md:items-end">
+        <div className="space-y-5">
+          <p className="flex items-baseline gap-2">
+            <span className="display flip-in inline-block text-7xl sm:text-8xl">{formatScore(row.score)}</span>
+            <span className="font-display text-xl text-muted-foreground">/ 100</span>
+            {row.partiel && (
+              <Badge variant="warning" className="ml-2 self-center">
+                Partiel
+              </Badge>
+            )}
+          </p>
+          <div className="flex items-end gap-6">
+            <ScoreGauge score={row.score} subScores={row.sub_scores} className="size-28" />
+            <dl className="space-y-2 text-sm">
+              <div>
+                <dt className="text-xs text-muted-foreground">Données au</dt>
+                <dd className="font-medium">{formatLongDate(row.date)}</dd>
+              </div>
+              {row.comparison_set && (
+                <div>
+                  <dt className="text-xs text-muted-foreground">Comparé à</dt>
+                  <dd className="font-medium">{row.comparison_set}</dd>
+                </div>
               )}
-            </p>
-            <dl className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
-            <div>
-              <dt className="text-xs text-muted-foreground">Données au</dt>
-              <dd className="font-medium">{formatLongDate(row.date)}</dd>
-            </div>
-            {row.comparison_set && (
-              <div>
-                <dt className="text-xs text-muted-foreground">Comparé à</dt>
-                <dd className="font-medium">{row.comparison_set}</dd>
-              </div>
-            )}
-            {generatedAt && (
-              <div>
-                <dt className="text-xs text-muted-foreground">Calculé le</dt>
-                <dd className="font-medium">{formatLongDate(generatedAt)}</dd>
-              </div>
-            )}
+              {generatedAt && (
+                <div>
+                  <dt className="text-xs text-muted-foreground">Calculé le</dt>
+                  <dd className="font-medium">{formatLongDate(generatedAt)}</dd>
+                </div>
+              )}
             </dl>
           </div>
+          <p className="text-sm text-muted-foreground">
+            {row.partiel
+              ? 'Score partiel : au moins un sous-score manque, son poids est redistribué sur les autres. '
+              : ''}
+            Une tuile par point : sa teinte est celle du sous-score qui l’apporte.
+          </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          {row.partiel
-            ? 'Score partiel : au moins un sous-score manque, son poids est redistribué sur les autres. '
-            : ''}
-          Une tuile par point : sa teinte est celle du sous-score qui l’apporte. Ouvrez un sous-score
-          pour voir ses indicateurs bruts et leur rang.
-        </p>
+        <ScorePillars row={row} onSelect={openOne} />
       </div>
 
-      <SubScoreList subScores={row.sub_scores} />
+      <SubScoreList subScores={row.sub_scores} open={open} onOpenChange={setOpen} />
 
       {row.sources.length > 0 && (
         <div className="space-y-1.5 text-sm">

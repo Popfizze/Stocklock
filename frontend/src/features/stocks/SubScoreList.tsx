@@ -17,15 +17,18 @@ const BETTER_LABELS: Record<ScoreIndicator['better'], string> = {
 
 interface SubScoreListProps {
   subScores: SubScore[]
+  /** Ids of the sub-scores whose indicators are shown. */
+  open: string[]
+  onOpenChange: (open: string[]) => void
 }
 
 /**
  * The six sub-scores of a title: for each, its weight, its score 0-100 and
  * what it adds to the final score; opening one shows the raw indicators behind it.
  */
-export function SubScoreList({ subScores }: SubScoreListProps) {
+export function SubScoreList({ subScores, open, onOpenChange }: SubScoreListProps) {
   return (
-    <Accordion type="multiple" className="rounded-none border-x-0 border-y">
+    <Accordion type="multiple" value={open} onValueChange={onOpenChange} className="rounded-none border-x-0 border-y">
       {subScores.map((subScore, index) => (
         <AccordionItem key={subScore.id} value={subScore.id} className="data-open:bg-transparent">
           <AccordionTrigger className="items-center gap-4 px-0 py-3.5 hover:no-underline">
