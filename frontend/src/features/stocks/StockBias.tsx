@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import type { Persona } from '@/api/personas'
 import { useActivePersona } from '@/features/personas/activePersona'
 import { BiasSimulation } from './BiasSimulation'
+import { BiasNarrative } from './BiasNarrative'
 
 const labels: Record<string, string> = {
   fomo: 'Peur de manquer', panique: 'Panique', autorite_sociale: 'Influence sociale',
@@ -40,7 +41,7 @@ function BiasDetails({ result, persona }: { result: BiasResult; persona: Persona
         : <p className="text-sm">Aucun écart détecté par les règles disponibles ; cela ne garantit pas que la décision convient au profil.</p>}
       {persona.preferences.includes('ESG') && <p className="text-xs text-muted-foreground">Les controverses ESG ne sont pas vérifiables avec les données disponibles ; l’absence d’alerte ne signifie pas que le titre respecte ces critères.</p>}
     </section>
-    <section className="space-y-2"><h3 className="font-semibold">Analyse</h3><p className="whitespace-pre-line text-sm">{result.analysis.answer}</p>
+    <section className="space-y-2"><h3 className="font-semibold">Selon ton profil</h3><BiasNarrative answer={result.analysis.answer} />
       {!result.analysis.governance.passed && <p role="alert" className="text-sm text-destructive">Certains contrôles de l’analyse ont échoué. Consultez les limites avant de l’interpréter.</p>}
     </section>
     <BiasSimulation simulation={result.simulation} />
@@ -71,6 +72,15 @@ function BiasForm({ ticker, persona }: { ticker: string; persona: Persona }) {
         className="w-full rounded-lg border border-input bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
       <Button type="submit" disabled={!message.trim() || mutation.isPending} loading={mutation.isPending} loadingText="Analyse en cours…">Analyser ma décision</Button>
     </form>
+    {mutation.isPending && <div role="status" className="rounded-lg bg-muted p-4 text-sm">
+      <p className="font-medium">Analyse en cours…</p>
+      <p className="mt-1 text-muted-foreground">L’analyse comprend les étapes suivantes :</p>
+      <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+        <li>Analyse de votre message et de votre profil</li>
+        <li>Examen des données historiques et recherche de contexte médiatique sur le web, si disponible</li>
+        <li>Simulation historique et préparation de la réponse</li>
+      </ul>
+    </div>}
     {mutation.isError && <p role="alert" className="text-sm text-destructive">Impossible de terminer l’analyse. {mutation.error.status === 0 ? 'Vérifiez la connexion au serveur.' : mutation.error.message}</p>}
     {mutation.data && <BiasDetails result={mutation.data} persona={persona} />}
   </section>

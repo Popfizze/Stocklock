@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useStock, type StockRange } from '@/api/stocks'
 import { AppLayout } from '@/components/layout'
+import { Button } from '@/components/ui/button'
+import { ArrowDown } from 'lucide-react'
 // Straight from the component, not the feature's index: that would pull the whole Comptes tab in.
 import { StockAccountOptions } from '@/features/accounts/StockAccountOptions'
 import { DividendList } from './DividendList'
@@ -55,7 +57,7 @@ export function StockPage() {
                 currency={stock.currency}
                 className="block font-medium"
               />
-              <a href="#prendre-du-recul" className="inline-block pt-2 text-sm font-medium text-primary underline underline-offset-4">Prendre du recul sur ma décision ↓</a>
+              <div className="pt-2"><Button asChild variant="outline" size="sm"><a href="#prendre-du-recul">Prendre du recul <ArrowDown aria-hidden="true" /></a></Button></div>
             </div>
 
             <PriceChart
