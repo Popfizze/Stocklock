@@ -37,7 +37,7 @@ export function StockAccountsTab({ ticker, onTickerChange }: StockAccountsTabPro
             <Info aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
             <span>
               Cette section s'affiche aussi dans la fiche de chaque titre du tableau de bord.{' '}
-              <Link to={`/titres/${encodeURIComponent(ticker)}`} className="text-primary hover:underline">
+              <Link to={`/titres/${encodeURIComponent(ticker)}`} className="link">
                 Ouvrir la fiche de {ticker}
               </Link>
             </span>

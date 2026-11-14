@@ -61,7 +61,7 @@ export function EssentialsTab({ rules }: EssentialsTabProps) {
                     href={sourceUrl(fact.sourceId)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-primary hover:underline"
+                    className="link"
                   >
                     Source
                   </a>

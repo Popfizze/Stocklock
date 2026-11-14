@@ -63,7 +63,7 @@ export function AccountDetail({ guide, rules }: AccountDetailProps) {
           <ul className="grid gap-2 sm:grid-cols-2">
             {guide.useCases.map(({ icon: Icon, label, detail }) => (
               <li key={label} className="flex gap-3 rounded-lg border border-border p-3">
-                <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
+                <Icon aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
                 <span className="text-sm">
                   <span className="block font-medium">{label}</span>
                   <span className="text-muted-foreground">{detail}</span>
@@ -75,7 +75,7 @@ export function AccountDetail({ guide, rules }: AccountDetailProps) {
       </div>
 
       <p className="flex gap-3 rounded-lg border border-primary/40 bg-primary/5 p-4 text-sm">
-        <ListOrdered aria-hidden="true" className="size-5 shrink-0 text-primary" />
+        <ListOrdered aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
         <span>
           <span className="font-semibold">Dans l'ordre : </span>
           {guide.orderTip}
@@ -90,7 +90,7 @@ export function AccountDetail({ guide, rules }: AccountDetailProps) {
       {faq.length > 0 && (
         <section className="space-y-3">
           <h4 className="flex items-center gap-2 font-semibold">
-            <CircleHelp aria-hidden="true" className="size-4 text-primary" />
+            <CircleHelp aria-hidden="true" className="size-4 text-muted-foreground" />
             Bon à savoir
           </h4>
           <Accordion type="multiple">
@@ -110,7 +110,7 @@ export function AccountDetail({ guide, rules }: AccountDetailProps) {
           {cited.map((source, index) => (
             <span key={source.id}>
               {index > 0 && ' · '}
-              <a href={source.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+              <a href={source.url} target="_blank" rel="noopener noreferrer" className="link">
                 {shortSourceTitle(source.title)}
               </a>
             </span>

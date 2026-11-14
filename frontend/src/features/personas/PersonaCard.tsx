@@ -1,3 +1,4 @@
+import { ArrowRight } from 'lucide-react'
 import type { Persona } from '@/api/personas'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 
@@ -11,10 +12,10 @@ export function PersonaCard({ persona, onChoose }: PersonaCardProps) {
   return (
     <Card
       variant="interactive"
-      className="relative h-full focus-within:ring-2 focus-within:ring-ring"
+      className="group relative h-full focus-within:border-foreground focus-within:ring-2 focus-within:ring-ring/40"
     >
       <CardHeader>
-        <CardTitle className="text-xl">
+        <CardTitle className="flex items-center justify-between text-2xl font-semibold tracking-tight">
           <button
             type="button"
             onClick={onChoose}
@@ -23,25 +24,29 @@ export function PersonaCard({ persona, onChoose }: PersonaCardProps) {
           >
             {persona.name}
           </button>
+          <ArrowRight
+            aria-hidden="true"
+            className="size-5 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground"
+          />
         </CardTitle>
         <CardDescription>{persona.age} ans</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <p>{persona.summary}</p>
-        <dl className="space-y-2">
-          <div>
-            <dt className="text-xs text-muted-foreground">Tolérance au risque</dt>
-            <dd>{persona.risk_tolerance}</dd>
+      <CardContent className="flex flex-1 flex-col gap-5">
+        <p className="text-muted-foreground">{persona.summary}</p>
+        <dl className="mt-auto divide-y divide-border border-t border-border">
+          <div className="flex justify-between gap-4 py-2.5">
+            <dt className="text-muted-foreground">Tolérance au risque</dt>
+            <dd className="text-right font-medium">{persona.risk_tolerance}</dd>
           </div>
-          <div>
-            <dt className="text-xs text-muted-foreground">Horizon</dt>
-            <dd>{persona.horizon}</dd>
+          <div className="flex justify-between gap-4 py-2.5">
+            <dt className="text-muted-foreground">Horizon</dt>
+            <dd className="text-right font-medium">{persona.horizon}</dd>
           </div>
           {persona.preferences.length > 0 && (
-            <div>
-              <dt className="text-xs text-muted-foreground">Préférences</dt>
+            <div className="flex justify-between gap-4 pt-2.5">
+              <dt className="text-muted-foreground">Préférences</dt>
               <dd>
-                <ul className="list-disc pl-4">
+                <ul className="space-y-0.5 text-right font-medium">
                   {persona.preferences.map((preference) => (
                     <li key={preference}>{preference}</li>
                   ))}

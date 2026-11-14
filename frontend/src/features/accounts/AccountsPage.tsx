@@ -66,8 +66,8 @@ export function AccountsPage() {
     <AppLayout>
       <div className="space-y-6">
         <header className="space-y-2">
-          <p className="text-sm font-medium text-primary">Étape 3 · Optimiser fiscalement</p>
-          <h1 className="text-3xl font-bold tracking-tight">Comptes enregistrés au Canada</h1>
+          <p className="eyebrow">Étape 3 · Optimiser fiscalement</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Comptes enregistrés au Canada</h1>
           <p className="max-w-3xl text-muted-foreground">
             CELI, REER, CELIAPP ou compte non enregistré : comprendre chaque compte, savoir lequel remplir en premier,
             et voir ce qu'il resterait après impôt dans 15 ans{persona ? ` pour ${persona.name}` : ''}.
@@ -75,7 +75,7 @@ export function AccountsPage() {
           <p className="text-xs text-muted-foreground">
             Simulation éducative fondée sur les règles fiscales publiques{rules ? ` ${rules.year}` : ''} (fédéral et
             Québec), pas un conseil financier personnalisé. Le calcul pas à pas est dans l'onglet « 3. Fiscalité » du{' '}
-            <Link to="/labo" className="text-primary hover:underline">
+            <Link to="/labo" className="link">
               Labo
             </Link>
             .

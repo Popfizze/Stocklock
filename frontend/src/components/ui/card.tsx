@@ -4,17 +4,17 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import { cn } from '@/lib/utils'
 
 const cardVariants = cva(
-  'ring-foreground/10 bg-card text-card-foreground gap-6 overflow-hidden rounded-2xl py-6 text-sm ring-1 has-[>img:first-child]:pt-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl group/card flex flex-col',
+  'border border-border bg-card text-card-foreground gap-5 overflow-hidden rounded-2xl py-6 text-sm has-[>img:first-child]:pt-0 *:[img:first-child]:rounded-t-xl *:[img:last-child]:rounded-b-xl group/card flex flex-col',
   {
     variants: {
       variant: {
         default: '',
         interactive:
-          'cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:ring-primary',
-        elevated: 'shadow-lg',
+          'cursor-pointer transition-colors duration-150 hover:border-foreground/40',
+        elevated: 'shadow-md',
         metric: 'p-5 min-h-[140px] transition-all duration-200',
         'metric-interactive':
-          'p-5 min-h-[140px] cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:ring-primary',
+          'p-5 min-h-[140px] cursor-pointer transition-colors duration-150 hover:border-foreground/40',
       },
       size: {
         default: '',

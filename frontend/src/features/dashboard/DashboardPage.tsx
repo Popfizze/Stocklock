@@ -20,7 +20,7 @@ export function DashboardPage() {
     <AppLayout>
       <div className="mx-auto max-w-4xl space-y-6">
         <div className="space-y-1">
-          <h1 className="text-3xl font-bold tracking-tight">Tableau de bord</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">Tableau de bord</h1>
           {asOf && (
             <p className="text-muted-foreground">
               Cours de clôture au {formatLongDate(asOf)} (données du datathon)

@@ -27,7 +27,7 @@ export function AtAGlance({ rules }: AtAGlanceProps) {
         if (!guide) return null
         const fact = guide.glance
         return (
-          <li key={account} className="flex flex-col rounded-xl border border-border bg-card p-4 shadow-sm">
+          <li key={account} className="flex flex-col rounded-xl border border-border bg-card p-4">
             <div className="flex items-center gap-2">
               <AccountSwatch account={account} className="size-3" />
               <h3 className="text-lg font-semibold">{ACCOUNTS[account].short}</h3>
@@ -59,7 +59,7 @@ export function AtAGlance({ rules }: AtAGlanceProps) {
 
             <Link
               to={{ search: `?onglet=comptes&compte=${encodeURIComponent(account)}` }}
-              className="mt-auto inline-flex items-center gap-1 pt-3 text-sm font-medium text-primary hover:underline"
+              className="mt-auto inline-flex items-center gap-1 pt-3 text-sm font-medium link"
             >
               Tout savoir sur {withArticle(account)}
               <ArrowRight aria-hidden="true" className="size-4" />

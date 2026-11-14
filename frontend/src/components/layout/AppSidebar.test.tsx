@@ -56,11 +56,34 @@ describe('AppSidebar', () => {
     expect(await screen.findByRole('link', { name: 'Comptes' })).toHaveAttribute('href', '/comptes')
   })
 
+  it('marks the current page', async () => {
+    mockFetch([json(PERSONAS)])
+    renderSidebar()
+
+    expect(await screen.findByRole('link', { name: 'Tableau de bord' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(screen.getByRole('link', { name: 'Labo' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('switches straight to another profile from the menu', async () => {
+    mockFetch([json(PERSONAS)])
+    renderSidebar()
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Profil actif : Robert' }))
+    await userEvent.click(await screen.findByRole('menuitemradio', { name: /Amira/ }))
+
+    expect(await screen.findByRole('button', { name: 'Profil actif : Amira' })).toBeInTheDocument()
+    expect(readStoredPersonaId()).toBe('amira')
+  })
+
   it('"Changer de profil" forgets the profile and opens the picker', async () => {
     mockFetch([json(PERSONAS)])
     renderSidebar()
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Changer de profil' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Profil actif : Robert' }))
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Changer de profil' }))
 
     expect(await screen.findByText('Sélecteur')).toBeInTheDocument()
     expect(readStoredPersonaId()).toBeNull()

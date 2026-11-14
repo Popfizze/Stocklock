@@ -25,7 +25,7 @@ export function ProjectionResults({ projection, stale = false, children }: Proje
   return (
     <div className={cn('space-y-4 transition-opacity', stale && 'opacity-60')} aria-busy={stale}>
       <p className="flex gap-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
-        <Lightbulb aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />
+        <Lightbulb aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
         <span className="font-medium">{recommendations.headline}</span>
       </p>
 

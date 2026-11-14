@@ -22,7 +22,7 @@ export function SituationOrders({ rules, profile }: SituationOrdersProps) {
             className={cn('rounded-xl border bg-card p-4', active ? 'border-primary ring-1 ring-primary' : 'border-border')}
           >
             <div className="flex flex-wrap items-center gap-2">
-              <Icon aria-hidden="true" className="size-5 text-primary" />
+              <Icon aria-hidden="true" className="size-5 text-muted-foreground" />
               <h3 className="font-semibold">{title}</h3>
               {active && profile && <Badge>Situation de {profile.name}</Badge>}
             </div>

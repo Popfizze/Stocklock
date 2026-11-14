@@ -9,7 +9,7 @@ export function GoalFinder() {
       {GOALS.map(({ icon: Icon, goal, accounts, why }) => (
         <li key={goal} className="grid gap-2 p-4 sm:grid-cols-3 sm:items-center">
           <span className="flex items-center gap-3 font-medium">
-            <Icon aria-hidden="true" className="size-5 shrink-0 text-primary" />
+            <Icon aria-hidden="true" className="size-5 shrink-0 text-muted-foreground" />
             {goal}
           </span>
           <span className="flex flex-wrap items-center gap-3">

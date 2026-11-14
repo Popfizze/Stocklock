@@ -9,16 +9,16 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Status tokens (Labo stage badges, governance checks). */
+/* Status tokens: `success` is also the gain green (`destructive` the loss red). */
 :root {
-  --success: oklch(0.527 0.154 150.069);
+  --success: oklch(0.5 0.13 155);
   --success-foreground: oklch(0.985 0 0);
   --warning: oklch(0.555 0.163 48.998);
   --warning-foreground: oklch(0.985 0 0);
 }
 
 .dark {
-  --success: oklch(0.792 0.209 151.711);
+  --success: oklch(0.78 0.16 153);
   --success-foreground: oklch(0.141 0.005 285.823);
   --warning: oklch(0.837 0.128 66.29);
   --warning-foreground: oklch(0.141 0.005 285.823);
@@ -72,7 +72,17 @@ body {
     @apply border-border outline-ring/50;
   }
   body {
-    @apply font-sans bg-background text-foreground;
+    @apply font-sans bg-background text-foreground antialiased;
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  /* Figures line up in every table and definition list. */
+  td,
+  dd {
+    font-variant-numeric: tabular-nums;
   }
   html {
     @apply font-sans;
@@ -80,6 +90,14 @@ body {
 }
 
 @layer utilities {
+  /* Small caps-free section label: « Chiffres clés », « Décisions »… */
+  .eyebrow {
+    @apply text-xs font-medium text-muted-foreground;
+  }
+  /* Underlined ink link, for links inside running text. */
+  .link {
+    @apply underline decoration-foreground/30 underline-offset-4 transition-colors hover:decoration-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm;
+  }
   /* Standardized full-width container with responsive padding */
   .container-app {
     @apply w-full px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16;

@@ -66,7 +66,7 @@ export function PersonaOrder({ projection, rules }: PersonaOrderProps) {
       <p className="text-xs text-muted-foreground">
         Classement de la projection : {formatMoney(inputs.annual_contribution)} avant impôt par an pendant {inputs.years}{' '}
         ans, à {formatPercent(inputs.total_return, 0)} par an. Changez ces hypothèses dans{' '}
-        <Link to={{ search: '?onglet=projection' }} className="text-primary hover:underline">
+        <Link to={{ search: '?onglet=projection' }} className="link">
           Projection 15 ans
         </Link>
         .
