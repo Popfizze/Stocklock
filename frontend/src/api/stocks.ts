@@ -230,7 +230,7 @@ export const STOCK_QUERY_KEYS = {
   details: () => [...STOCK_QUERY_KEYS.all, 'detail'] as const,
   detail: (ticker: string, range: StockRange) =>
     [...STOCK_QUERY_KEYS.details(), ticker, range] as const,
-  search: (query: string) => [...STOCK_QUERY_KEYS.all, 'search', query] as const,
+  search: (query: string, limit: number) => [...STOCK_QUERY_KEYS.all, 'search', query, limit] as const,
   sections: () => [...STOCK_QUERY_KEYS.all, 'sections'] as const,
   section: (id: string, limit: number) => [...STOCK_QUERY_KEYS.sections(), id, limit] as const,
   score: (ticker: string) => [...STOCK_QUERY_KEYS.all, 'score', ticker] as const,
@@ -242,7 +242,7 @@ const MINUTE = 60 * 1000
 export function useUniverseSearch(query: string, limit = 12) {
   const q = query.trim()
   return useQuery<UniverseSearchResult, ApiError>({
-    queryKey: [...STOCK_QUERY_KEYS.search(q), limit],
+    queryKey: STOCK_QUERY_KEYS.search(q, limit),
     queryFn: () =>
       apiClient.request<UniverseSearchResult>(
         `/api/universe/search?q=${encodeURIComponent(q)}&limit=${limit}`,
