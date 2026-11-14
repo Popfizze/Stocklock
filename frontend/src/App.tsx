@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DashboardPage } from './features/dashboard/DashboardPage'
 import { LabPage } from './features/lab/LabPage'
 import { PipelinePage } from './features/lab/PipelinePage'
+import { PortfolioPage } from './features/portfolio/PortfolioPage'
 import { ActivePersonaProvider } from './features/personas/ActivePersonaProvider'
 import { ChoosePersonaPage } from './features/personas/ChoosePersonaPage'
 import { RequirePersona } from './features/personas/RequirePersona'
@@ -48,6 +49,14 @@ function App() {
               element={
                 <RequirePersona>
                   <LabPage />
+                </RequirePersona>
+              }
+            />
+            <Route
+              path="/portefeuille"
+              element={
+                <RequirePersona>
+                  <PortfolioPage />
                 </RequirePersona>
               }
             />

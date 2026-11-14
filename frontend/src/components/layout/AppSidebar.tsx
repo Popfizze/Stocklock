@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { FlaskConical, Home, Landmark } from 'lucide-react'
+import { FlaskConical, Home, Landmark, PieChart } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -26,11 +26,12 @@ interface NavigationItem {
 
 const NAVIGATION: NavigationItem[] = [
   { title: 'Tableau de bord', path: '/', icon: Home, matches: '/titres/' },
+  { title: 'Mon portefeuille', path: '/portefeuille', icon: PieChart },
   { title: 'Comptes', path: '/comptes', icon: Landmark },
   { title: 'Labo', path: '/labo', icon: FlaskConical, matches: '/labo/' },
 ]
 
-/** Quiet sidebar: the wordmark, three destinations, the active profile. */
+/** Quiet sidebar: the wordmark, the destinations, the active profile. */
 export function AppSidebar() {
   const location = useLocation()
   const { isMobile, setOpenMobile, state } = useSidebar()

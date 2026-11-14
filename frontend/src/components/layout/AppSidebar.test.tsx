@@ -52,6 +52,13 @@ describe('AppSidebar', () => {
     expect(links[links.length - 1]).toHaveTextContent('Labo')
   })
 
+  it('links to « Mon portefeuille »', async () => {
+    mockFetch([json(PERSONAS)])
+    renderSidebar()
+
+    expect(await screen.findByRole('link', { name: 'Mon portefeuille' })).toHaveAttribute('href', '/portefeuille')
+  })
+
   it('links to the Comptes tab', async () => {
     mockFetch([json(PERSONAS)])
     renderSidebar()
