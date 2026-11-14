@@ -31,6 +31,15 @@ def _env(name: str, default: str) -> str:
     return value or default
 
 
+DEFAULT_KPI_SYMBOLS = "sp500=^GSPC,tsx=^GSPTSE,nasdaq=^IXIC,usdcad=CAD=X"
+
+
+def _parse_pairs(text: str) -> dict[str, str]:
+    """`a=X,b=Y=Z` -> {"a": "X", "b": "Y=Z"} (the value may itself hold an `=`, as `CAD=X`)."""
+    pairs = (item.split("=", 1) for item in text.split(",") if "=" in item)
+    return {key.strip(): value.strip() for key, value in pairs if key.strip() and value.strip()}
+
+
 @dataclass(frozen=True)
 class Settings:
     bedrock_model_id: str
@@ -47,6 +56,8 @@ class Settings:
     agent_timeout_s: float = 90.0
     data_bucket: str = ""
     score_table_key: str = "gold/score_par_titre/latest.json"
+    # Yahoo Finance symbols of the dashboard's market KPIs, by tile id (see app.services.kpis).
+    kpi_symbols: dict[str, str] = field(default_factory=dict)
 
 
 @lru_cache(maxsize=1)
@@ -80,4 +91,5 @@ def get_settings() -> Settings:
         agent_timeout_s=float(_env("AGENT_TIMEOUT_S", "90")),
         data_bucket=_env("DATA_BUCKET", ""),
         score_table_key=_env("SCORE_TABLE_KEY", "gold/score_par_titre/latest.json"),
+        kpi_symbols=_parse_pairs(_env("KPI_SYMBOLS", DEFAULT_KPI_SYMBOLS)),
     )

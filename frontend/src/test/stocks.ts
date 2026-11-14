@@ -1,4 +1,6 @@
 import type {
+  MarketKpi,
+  MarketKpis,
   MarketSection,
   MarketSectionInfo,
   ScoreIndicator,
@@ -487,4 +489,58 @@ export const SCORE_NOT_SCORED: StockScoreResponse = {
   message: "Ce titre n'a pas encore de score : il ne figure pas dans la dernière table calculée.",
   generated_at: '2026-11-15T06:00:00+00:00',
   score: null,
+}
+
+// --- GET /api/market/kpis ------------------------------------------------------
+
+type KpiFields = Partial<MarketKpi> & Pick<MarketKpi, 'id' | 'label' | 'kind'>
+
+const kpi = (fields: KpiFields): MarketKpi => ({
+  status: 'ok',
+  value: null,
+  change_abs: null,
+  change_pct: null,
+  as_of: '2026-11-13',
+  detail: null,
+  message: null,
+  source: 'Yahoo Finance (cotations différées)',
+  ...fields,
+})
+
+/** Today's live shape: indices and USD/CAD, the universe, and no score yet. */
+export const KPIS: MarketKpis = {
+  items: [
+    kpi({ id: 'sp500', label: 'S&P 500', kind: 'index', value: 7561.67, change_abs: -30.73, change_pct: -0.4047 }),
+    kpi({ id: 'tsx', label: 'S&P/TSX composé', kind: 'index', value: 36105.9, change_abs: 31.3, change_pct: 0.0866 }),
+    kpi({ id: 'nasdaq', label: 'Nasdaq composé', kind: 'index', status: 'error', message: 'Aucune cotation reçue pour ^IXIC.' }),
+    kpi({ id: 'usdcad', label: 'USD/CAD', kind: 'fx', value: 1.4269, change_abs: 0.0015, change_pct: 0 }),
+    kpi({
+      id: 'titres-suivis',
+      label: 'Titres suivis',
+      kind: 'count',
+      value: 14409,
+      as_of: null,
+      detail: 'SEC 10\u00a0241 · TMX 4\u00a0168',
+      source: 'Répertoires SEC et TMX',
+    }),
+    kpi({
+      id: 'titres-notes',
+      label: 'Titres notés',
+      kind: 'count',
+      status: 'empty',
+      as_of: null,
+      detail: 'Pipeline pas encore exécuté',
+      message: "La table des scores n'existe pas encore : le pipeline de score n'a pas encore été exécuté.",
+      source: 'Table gold score_par_titre',
+    }),
+  ],
+}
+
+/** « Titres notés » once the score table exists. */
+export const KPIS_SCORED: MarketKpis = {
+  items: KPIS.items.map((item) =>
+    item.id === 'titres-notes'
+      ? { ...item, status: 'ok', value: 412, detail: 'Score médian 61,2', message: null, as_of: '2026-11-15' }
+      : item,
+  ),
 }

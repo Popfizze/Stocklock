@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { marketErrorMessage } from '@/features/stocks/format'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { KpiStrip } from './KpiStrip'
 import { MarketSectionBlock } from './MarketSectionBlock'
 import { UniverseSearchResults } from './UniverseSearchResults'
 
@@ -57,20 +58,7 @@ export function DashboardPage() {
           </p>
         ) : (
           <>
-            <nav aria-label="Sections du tableau de bord">
-              <ul className="flex flex-wrap gap-x-5 gap-y-2 border-b border-border pb-3 text-sm">
-                {sections.map((section) => (
-                  <li key={section.id}>
-                    <a
-                      href={`#section-${section.id}`}
-                      className="rounded-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {section.title}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </nav>
+            <KpiStrip />
             <div className="space-y-12">
               {sections.map((section) => (
                 <MarketSectionBlock key={section.id} section={section} />

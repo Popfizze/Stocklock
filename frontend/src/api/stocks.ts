@@ -71,6 +71,36 @@ export interface MarketSection extends MarketSectionInfo {
 /** Most cards a section serves (`limit` query parameter, default 24). */
 export const SECTION_MAX_LIMIT = 96
 
+// --- GET /api/market/kpis ------------------------------------------------------
+
+/**
+ * A tile of the Tableau de bord's KPI strip. Each one carries its own status:
+ * `error` (its source failed; `message` says why) never fails the others, and
+ * `empty` is « Titres notés » while the score pipeline has not run.
+ */
+export interface MarketKpi {
+  /** `sp500`, `tsx`, `nasdaq`, `usdcad`, `titres-suivis`, `titres-notes`. */
+  id: string
+  label: string
+  /** `index`: a level; `fx`: an exchange rate (4 decimals); `count`: a whole number. */
+  kind: 'index' | 'fx' | 'count'
+  status: 'ok' | 'empty' | 'error'
+  value: number | null
+  change_abs: number | null
+  /** Day change in percent (-0.4 means -0,40 %); `null` for counts. */
+  change_pct: number | null
+  /** Date of the value, `YYYY-MM-DD`. */
+  as_of: string | null
+  /** A short French line under the value: « SEC 10 241 · TMX 4 168 », « Score médian 61,2 ». */
+  detail: string | null
+  message: string | null
+  source: string
+}
+
+export interface MarketKpis {
+  items: MarketKpi[]
+}
+
 // --- GET /api/stocks/{ticker}?range= ------------------------------------------
 
 export type StockRange = '1W' | '1M' | '3M' | '1Y' | 'MAX'
@@ -231,6 +261,7 @@ export const STOCK_QUERY_KEYS = {
   detail: (ticker: string, range: StockRange) =>
     [...STOCK_QUERY_KEYS.details(), ticker, range] as const,
   search: (query: string, limit: number) => [...STOCK_QUERY_KEYS.all, 'search', query, limit] as const,
+  kpis: () => [...STOCK_QUERY_KEYS.all, 'kpis'] as const,
   sections: () => [...STOCK_QUERY_KEYS.all, 'sections'] as const,
   section: (id: string, limit: number) => [...STOCK_QUERY_KEYS.sections(), id, limit] as const,
   score: (ticker: string) => [...STOCK_QUERY_KEYS.all, 'score', ticker] as const,
@@ -250,6 +281,16 @@ export function useUniverseSearch(query: string, limit = 12) {
     enabled: q.length > 0,
     placeholderData: keepPreviousData,
     staleTime: 60 * MINUTE,
+  })
+}
+
+/** The Tableau de bord's KPI strip (indices, USD/CAD, universe size, scored titles). */
+export function useMarketKpis() {
+  return useQuery<MarketKpis, ApiError>({
+    queryKey: STOCK_QUERY_KEYS.kpis(),
+    queryFn: () => apiClient.request<MarketKpis>('/api/market/kpis'),
+    // Live market data: the server caches quotes 5 minutes.
+    staleTime: 5 * MINUTE,
   })
 }
 

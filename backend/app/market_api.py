@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.data import universe, yf_market
 from app.data.cache import ExternalUnavailable
-from app.services import score_table, sections, starter_quotes, stocks
+from app.services import kpis, score_table, sections, starter_quotes, stocks
 
 router = APIRouter(prefix="/api", tags=["marché"])
 
@@ -33,6 +33,12 @@ def universe_search(q: str = Query(..., min_length=1, max_length=60),
         return universe.search(q, limit)
     except ExternalUnavailable as exc:
         raise _unavailable(exc) from exc
+
+
+@router.get("/market/kpis")
+def market_kpis() -> dict[str, Any]:
+    """KPI strip of the dashboard: indices, USD/CAD, universe size, scored titles (each tile has its own status)."""
+    return kpis.build()
 
 
 @router.get("/market/sections")

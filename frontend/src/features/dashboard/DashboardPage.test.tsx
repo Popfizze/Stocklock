@@ -6,6 +6,7 @@ import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl, mockFetchUnreachable, type MockResponse } from '@/test/mockFetch'
 import { PERSONAS } from '@/test/personas'
 import {
+  KPIS,
   NVDA_1M,
   SCORE_ABSENT,
   SEARCH_NONE,
@@ -32,6 +33,7 @@ interface Overrides {
 function mockApi(overrides: Overrides = {}) {
   return mockFetchByUrl([
     { match: '/api/personas', responses: [json(PERSONAS)] },
+    { match: '/api/market/kpis', responses: [json(KPIS)] },
     { match: '/api/universe/search', responses: overrides.search ?? [json(SEARCH_RY)] },
     { match: '/api/market/sections/populaires', responses: overrides.populaires ?? [json(SECTION_POPULAIRES)] },
     { match: '/api/market/sections/meilleurs-scores', responses: overrides.best ?? [json(SECTION_BEST_EMPTY)] },
@@ -86,12 +88,12 @@ describe('DashboardPage', () => {
     const canada = within(await section('Populaires au Canada'))
     expect(within(await canada.findByRole('link', { name: /RY\.TO/ })).getByText('288,37 $')).toBeInTheDocument()
 
-    // The section nav jumps to each one.
-    const nav = within(screen.getByRole('navigation', { name: 'Sections du tableau de bord' }))
-    expect(nav.getByRole('link', { name: 'Meilleurs scores' })).toHaveAttribute(
-      'href',
-      '#section-meilleurs-scores',
-    )
+    // A KPI strip stands where the row of section links used to be.
+    const kpis = within(await screen.findByRole('region', { name: 'Indicateurs du marché' }))
+    expect(kpis.getByText('S&P 500')).toBeInTheDocument()
+    expect(kpis.getByText('Titres suivis')).toBeInTheDocument()
+    expect(screen.queryByRole('navigation', { name: 'Sections du tableau de bord' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Meilleurs scores' })).not.toBeInTheDocument()
   })
 
   it('explains why « Meilleurs scores » is empty until the pipeline has run', async () => {
@@ -194,6 +196,6 @@ describe('DashboardPage', () => {
     mockFetchUnreachable()
     renderDashboard()
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Impossible de joindre le serveur')
+    expect((await screen.findAllByRole('alert'))[0]).toHaveTextContent('Impossible de joindre le serveur')
   })
 })
