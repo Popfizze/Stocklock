@@ -395,6 +395,7 @@ export const PORTFOLIO_ROBERT: PortfolioAnalysis = {
       volatility_1y: 0.512,
       over_max_position: true,
       fit: FIT_PLTR_ROBERT,
+      score: null,
     },
     {
       ticker: 'RY.TO',
@@ -406,6 +407,15 @@ export const PORTFOLIO_ROBERT: PortfolioAnalysis = {
       volatility_1y: 0.168,
       over_max_position: false,
       fit: FIT_RY_ROBERT,
+      score: {
+        default_score: 61.4,
+        custom_score: 61.4,
+        delta: 0,
+        default_rank: 58,
+        custom_rank: 58,
+        rank_change: 0,
+        partiel: false,
+      },
     },
   ],
   missing: [],
@@ -454,6 +464,7 @@ export const PORTFOLIO_ROBERT: PortfolioAnalysis = {
         sector: 'Industrials',
         asset_class: 'equity',
         score: null,
+        ranking: null,
         verdict: 'compatible',
         reasons: [
           'Compatible avec le profil de Robert (volatilité sur 1 an de 17,4 %).',
@@ -461,5 +472,18 @@ export const PORTFOLIO_ROBERT: PortfolioAnalysis = {
         ],
       },
     ],
+  },
+  scoring: {
+    weights: { rentabilite: 25, solidite: 20, croissance: 15, valorisation: 15, momentum_risque: 15, evenements: 10 },
+    default_weights: {
+      rentabilite: 25,
+      solidite: 20,
+      croissance: 15,
+      valorisation: 15,
+      momentum_risque: 15,
+      evenements: 10,
+    },
+    excluded_indicators: [],
+    custom: false,
   },
 }

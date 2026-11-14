@@ -1,15 +1,14 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { apiClient, type ApiError } from './client'
+import { scoringBody, type ScoreComparison, type ScoringApplied, type ScoringChoice } from './scoring'
 
 /*
  * Decision support adapted to the active investor profile (Amira, Mateo, Robert):
- * - fit verdict of a title for a profile: GET /api/fit/{ticker}?persona= (stock page),
- *   POST /api/fit (up to 100 titles, for the dashboard's cards);
+ * - fit verdict: GET /api/fit/{ticker}?persona= (stock page), POST /api/fit (≤ 100 cards);
  * - hype signal « battage »: GET /api/hype/{ticker}, POST /api/hype;
  * - ESG risk and controversies: GET /api/esg/{ticker};
- * - portfolio analysis: POST /api/portfolio/analyze (no login: the client keeps the
- *   holdings in localStorage per profile and sends them; see `@/lib/example-portfolios`).
- *
+ * - portfolio analysis: POST /api/portfolio/analyze (the client keeps the holdings in
+ *   localStorage per profile; see `@/lib/example-portfolios`), with the user's own score.
  * Every ratio is a fraction (0.523 is 52,3 %) unless its comment says otherwise.
  */
 
@@ -195,9 +194,9 @@ export interface PortfolioHolding {
   weight: number
 }
 
-export interface PortfolioAnalyzeRequest {
+/** At most 40 holdings; `weights` / `factors`: the user's own score (see scoring.ts). */
+export interface PortfolioAnalyzeRequest extends ScoringChoice {
   persona_id: string
-  /** At most 40 holdings. */
   holdings: PortfolioHolding[]
 }
 
@@ -243,6 +242,8 @@ export interface AnalyzedHolding {
   volatility_1y: number | null
   over_max_position: boolean
   fit: FitResult
+  /** Default and custom score and rank; `null` when the gold table does not hold the title. */
+  score: ScoreComparison | null
 }
 
 export interface PortfolioFinding { severity: FitSeverity; message: string }
@@ -252,15 +253,17 @@ export interface PortfolioSuggestion {
   name: string
   sector: string | null
   asset_class: string
-  /** StockLock score 0-100 from the gold table; `null` in the fallback (sections). */
+  /** Score 0-100 with the user's weights (the gold table's by default); `null` in the fallback. */
   score: number | null
+  /** Default vs custom score and rank; `null` in the fallback (sections). */
+  ranking: ScoreComparison | null
   verdict: FitVerdict
-  /** French sentences: why it fits the profile and how it improves diversification. */
+  /** French sentences: fit, diversification, and how the user's weights moved its rank. */
   reasons: string[]
 }
 
 export interface PortfolioSuggestions {
-  /** `score_table`: best scores of `score_par_titre`; `sections`: the profile's sections (fallback). */
+  /** `score_table`: best custom scores of `score_par_titre`; `sections`: the profile's sections. */
   source: 'score_table' | 'sections'
   /** French note, e.g. why the score table was not used. */
   message: string | null
@@ -277,6 +280,8 @@ export interface PortfolioAnalysis {
   diversification: Diversification
   findings: PortfolioFinding[]
   suggestions: PortfolioSuggestions
+  /** The score method applied to holdings and suggestions. */
+  scoring: ScoringApplied
 }
 
 // --- Hooks --------------------------------------------------------------------------
@@ -289,8 +294,8 @@ export const PROFILE_QUERY_KEYS = {
   hype: (ticker: string) => [...PROFILE_QUERY_KEYS.all, 'hype', ticker] as const,
   hypeBatch: (tickers: string[]) => [...PROFILE_QUERY_KEYS.all, 'hype-batch', tickers.join(',')] as const,
   esg: (ticker: string) => [...PROFILE_QUERY_KEYS.all, 'esg', ticker] as const,
-  portfolio: (personaId: string, holdings: PortfolioHolding[]) =>
-    [...PROFILE_QUERY_KEYS.all, 'portfolio', personaId, JSON.stringify(holdings)] as const,
+  portfolio: (body: PortfolioAnalyzeRequest) =>
+    [...PROFILE_QUERY_KEYS.all, 'portfolio', body.persona_id, JSON.stringify(body)] as const,
 }
 
 const MINUTE = 60 * 1000
@@ -371,18 +376,18 @@ export function useEsg(ticker: string) {
 }
 
 /**
- * Analysis of the holdings the client keeps for a profile; idle without a profile or
- * holdings, and the previous analysis stays on screen while the next one loads.
+ * Analysis of the holdings the client keeps for a profile, with the user's own score
+ * (`scoring`, debounced by the caller); idle without a profile or holdings, and the
+ * previous analysis stays on screen while the next one loads.
  */
-export function usePortfolioAnalysis(personaId: string | null, holdings: PortfolioHolding[]) {
+export function usePortfolioAnalysis(personaId: string | null, holdings: PortfolioHolding[],
+  scoring?: ScoringChoice) {
   const kept = holdings.filter((h) => h.ticker.trim() && h.weight > 0)
+  const body: PortfolioAnalyzeRequest = { persona_id: personaId ?? '', holdings: kept, ...scoringBody(scoring) }
   return useQuery<PortfolioAnalysis, ApiError>({
-    queryKey: PROFILE_QUERY_KEYS.portfolio(personaId ?? '', kept),
+    queryKey: PROFILE_QUERY_KEYS.portfolio(body),
     queryFn: () =>
-      apiClient.request<PortfolioAnalysis>('/api/portfolio/analyze', {
-        method: 'POST',
-        body: JSON.stringify({ persona_id: personaId ?? '', holdings: kept } satisfies PortfolioAnalyzeRequest),
-      }),
+      apiClient.request<PortfolioAnalysis>('/api/portfolio/analyze', { method: 'POST', body: JSON.stringify(body) }),
     enabled: Boolean(personaId) && kept.length > 0,
     placeholderData: keepPreviousData,
     staleTime: 10 * MINUTE,
