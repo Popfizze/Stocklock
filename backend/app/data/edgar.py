@@ -28,6 +28,42 @@ REVENUE_CONCEPTS = (
 )
 DEBT_CONCEPTS = ("LongTermDebt", "LongTermDebtNoncurrent", "DebtLongtermAndShorttermCombinedAmount")
 
+# Form 8-K items (SEC, « Form 8-K General Instructions »), in French.
+ITEMS_8K = {
+    "1.01": "accord important conclu",
+    "1.02": "fin d'un accord important",
+    "1.03": "faillite ou mise sous séquestre",
+    "1.05": "incident de cybersécurité",
+    "2.01": "acquisition ou cession d'actifs",
+    "2.02": "résultats financiers",
+    "2.03": "nouvelle obligation financière",
+    "2.04": "événement déclencheur d'une obligation",
+    "2.05": "coûts de sortie ou de restructuration",
+    "2.06": "dépréciation importante",
+    "3.01": "avis de radiation de la cote",
+    "3.02": "vente de titres non enregistrée",
+    "3.03": "modification des droits des porteurs",
+    "4.01": "changement d'auditeur",
+    "4.02": "états financiers antérieurs à ne plus utiliser",
+    "5.01": "changement de contrôle",
+    "5.02": "départ ou nomination de dirigeants",
+    "5.03": "modification des statuts",
+    "5.07": "vote des actionnaires",
+    "5.08": "mise en candidature d'administrateurs",
+    "7.01": "communication au marché (Reg FD)",
+    "8.01": "autre événement important",
+    "9.01": "états financiers et pièces jointes",
+}
+
+
+def describe_8k(items: str | None) -> str:
+    """« 8-K : résultats financiers (2.02) » from the filing's items field ("2.02,9.01")."""
+    codes = [c.strip() for c in (items or "").split(",") if c.strip()]
+    shown = [c for c in codes if c != "9.01"] or codes
+    if not shown:
+        return "8-K"
+    return "8-K : " + " ; ".join(f"{ITEMS_8K.get(c, 'item')} ({c})" for c in shown)
+
 
 def _headers() -> dict[str, str]:
     return {"User-Agent": get_settings().sec_user_agent, "Accept-Encoding": "gzip, deflate"}

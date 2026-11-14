@@ -13,13 +13,14 @@ import { KeyFigures } from './KeyFigures'
 import { PriceChange } from './PriceChange'
 import { PriceChart } from './PriceChart'
 import { StockBias } from './StockBias'
+import { StockMoves } from './StockMoves'
 import { StockScore } from './StockScore'
 
 /**
  * A title's page (`/titres/:ticker`, any title of the universe): last price
  * and day change, the price chart over 1S/1M/3M/1A/Max, the StockLock score,
- * key figures, dividends and bias analysis. The account comparison covers the
- * datathon's 31 assets.
+ * key figures, dividends, why it moved (step 2) and the bias analysis (step 4).
+ * The account comparison (step 3) covers the datathon's 31 assets.
  */
 export function StockPage() {
   const { ticker = '' } = useParams()
@@ -66,7 +67,12 @@ export function StockPage() {
                 Cours au {formatLongDate(stock.as_of)}
                 {stock.source ? ` · ${stock.source.title}` : ''}
               </p>
-              <div className="pt-3">
+              <div className="flex flex-wrap gap-2 pt-3">
+                <Button asChild variant="outline" size="sm">
+                  <a href="#comprendre">
+                    Pourquoi le titre a bougé ? <ArrowDown aria-hidden="true" />
+                  </a>
+                </Button>
                 <Button asChild variant="outline" size="sm">
                   <a href="#prendre-du-recul">
                     Prendre du recul <ArrowDown aria-hidden="true" />
@@ -89,6 +95,9 @@ export function StockPage() {
               <KeyFigures stock={stock} />
               <DividendList dividends={stock.stats.dividends} currency={stock.currency} />
             </div>
+
+            {/* Step 2: why the title moved, compared with its index, and the dated events behind it. */}
+            <StockMoves ticker={stock.ticker} />
 
             <StockBias ticker={stock.ticker} />
 

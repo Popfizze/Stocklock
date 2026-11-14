@@ -55,6 +55,20 @@ def narrate(task: str, persona: dict[str, Any], facts: dict[str, Any], model_cho
     return str(_call(payload)["answer"])
 
 
+def digest_events(facts: dict[str, Any], model_choice: str = "haiku") -> list[dict[str, Any]]:
+    """Step 2: one summary, date, category and relevance per event (validated by the pipeline)."""
+    payload = {"task": "move_digest", "persona": {}, "facts": facts,
+               "model_id": model_id_for(model_choice), "region": get_settings().aws_region}
+    return list(_call(payload)["digest"]["events"])
+
+
+def judge_links(facts: dict[str, Any], model_choice: str = "haiku") -> list[dict[str, Any]]:
+    """Step 2: for each move, the event that plausibly explains it, or none (validated by the pipeline)."""
+    payload = {"task": "move_links", "persona": {}, "facts": facts,
+               "model_id": model_id_for(model_choice), "region": get_settings().aws_region}
+    return list(_call(payload)["links"]["links"])
+
+
 def classify(message: str, persona: dict[str, Any], model_choice: str = "haiku") -> dict[str, Any]:
     payload = {"task": "bias_classify", "persona": persona, "facts": {"message": message},
                "model_id": model_id_for(model_choice), "region": get_settings().aws_region}

@@ -19,7 +19,8 @@ from app.pipeline.core import OptionError, PipelineInputError
 from app.pipeline.registry import STEPS, catalog, execute
 from app.score_pipeline_api import router as score_pipeline_router
 from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabRunRequest, Persona,
-                         ScoreRequest, StockBiasRequest, TaxRequest)
+                         ScoreRequest, StockBiasRequest, StockMovesRequest, TaxRequest)
+from app.services import moves_view
 
 settings = get_settings()
 app = FastAPI(title="StockLock API", version="0.1.0",
@@ -64,6 +65,26 @@ def score(request: ScoreRequest) -> AnalysisResponse:
 @app.post("/api/explain-move", response_model=AnalysisResponse)
 def explain_move(request: ExplainMoveRequest) -> AnalysisResponse:
     return _run_business("explain_move", request)
+
+
+@app.post("/api/explain-move/stock")
+def stock_moves(request: StockMovesRequest) -> dict[str, Any]:
+    """Step 2 on a stock page: the period's marked moves and what plausibly explains each one.
+
+    Market model (beta over the year before the window, with its fallback); the business and Lab
+    contracts of /api/explain-move stay unchanged."""
+    persona = get_persona(request.persona_id)
+    start, end = moves_view.window_for(request.period)
+    try:
+        result, response = execute("explain_move", persona,
+                                   {"ticker": request.ticker, "start": start, "end": end},
+                                   {"benchmark.method": "market_model"})
+    except PipelineInputError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if result.failed:
+        failed = next(s for s in result.stages if s["status"] == "error")
+        raise HTTPException(status_code=503, detail=f"Étape « {failed['name']} » indisponible.")
+    return moves_view.build(result, response, request.period)
 
 
 @app.post("/api/tax", response_model=AnalysisResponse)

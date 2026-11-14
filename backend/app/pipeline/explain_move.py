@@ -11,6 +11,7 @@ import pandas as pd
 from app.data import edgar, gdelt, starter, yf_live
 from app.data.cache import ExternalUnavailable
 from app.pipeline import common, datasets
+from app.pipeline import explain_move_events as ev
 from app.pipeline.core import Choice, Context, InputSpec, OptionSpec, StageSkipped, StageSpec, StepSpec
 from app.schemas import ExplainMoveInputs
 from app.services import market, profile
@@ -26,7 +27,7 @@ MACRO_SERIES = (
     ("CPIAUCSL", "IPC États-Unis (indice)"),
     ("UNRATE", "Chômage États-Unis"),
 )
-EVENT_LOOKBACK_DAYS = 3
+EVENT_LOOKBACK_DAYS = ev.EVENT_LOOKBACK_DAYS
 
 
 def _win(ctx: Context) -> tuple[pd.Timestamp, pd.Timestamp]:
@@ -132,6 +133,7 @@ def benchmark(ctx: Context) -> None:
         abnormal = float(r_asset - r_bench)
         ar_est = est["asset"] - est["bench"]
     ctx.state.update(bench=bench, rets=win, ar=ar, ar_est=ar_est, abnormal=abnormal, method=method,
+                     r_asset=r_asset, r_bench=r_bench, expected=expected,
                      r2=r2, corr_window=float(win["asset"].corr(win["bench"])) if len(win) > 2 else None)
     ctx.decide("Le titre a-t-il fait mieux que son indice ?", "oui" if abnormal >= 0 else "non",
                f"Rendement anormal de {abnormal * 100:.2f} % sur la fenêtre.".replace(".", ",", 1),
@@ -316,7 +318,7 @@ def company_events(ctx: Context) -> None:
             ctx.dataset_records("edgar_filings", "Dépôts EDGAR 8-K, 10-Q, 10-K dans la fenêtre", filings,
                                 f"edgar_filings_{ticker}", ("form", "filed", "report_date", "items", "url"))
             for f in filings:
-                label = f["form"] + (f" (items {f['items']})" if f.get("items") else "")
+                label = edgar.describe_8k(f.get("items")) if f["form"] == "8-K" else                     {"10-Q": "10-Q : rapport trimestriel", "10-K": "10-K : rapport annuel"}.get(f["form"], f["form"])
                 events.append({"date": date.fromisoformat(f["filed"]), "kind": f["form"], "label": label,
                                "source_id": f"edgar_filings_{ticker}", "url": f["url"]})
         except ExternalUnavailable as exc:
@@ -424,50 +426,39 @@ def world_events(ctx: Context) -> None:
 
 def attribution(ctx: Context) -> None:
     found = ctx.state.get("moves", [])
-    events = [*ctx.state.get("company_events", []), *ctx.state.get("world_events", [])]
+    every = ev.all_events(ctx)
+    events = [e for e in every if e.get("relevant", True)]
     matched_rows, matched = [], 0
     for m in found:
-        near = [e for e in events if m["date"] - timedelta(days=EVENT_LOOKBACK_DAYS) <= e["date"] <= m["date"]]
-        m["events"] = near
+        near = [e for e in events if m["date"] - timedelta(days=EVENT_LOOKBACK_DAYS) <= ev.when(e) <= m["date"]]
+        m["events"] = sorted(near, key=ev.when)
         if near:
             matched += 1
-        matched_rows.append([m["date"], m["ar"], len(near), "; ".join(f"{e['kind']} {e['date']}" for e in near[:3])])
+        matched_rows.append([m["date"], m["ar"], len(near),
+                             "; ".join(f"{e['kind']} {ev.when(e)}" for e in m["events"][:3])])
     ctx.dataset("attribution", f"Mouvements et événements des {EVENT_LOOKBACK_DAYS} jours précédents",
                 ["date du mouvement", "rendement anormal", "z", "événements proches", "détail"],
                 ([m["date"], m["ar"], m["z"], len(m["events"]),
-                  "; ".join(f"{e['kind']} {e['date']} : {e['label']}" for e in m["events"])] for m in found))
+                  "; ".join(f"{e['kind']} {ev.when(e)} : {e['label']}" for e in m["events"])] for m in found))
     n_days = len(ctx.state["rets"])
     r2 = ctx.state.get("r2")
     fit = r2 if r2 is not None else (ctx.state.get("corr_window") or 0.0) ** 2
     share = matched / len(found) if found else 0.0
-    no_events = not events
+    if len(events) < len(every):
+        ctx.decide("Quels événements rapprocher ?", f"{len(events)} sur {len(every)}",
+                   f"{len(every) - len(events)} événement(s) jugé(s) hors sujet par Haiku écarté(s).",
+                   "événements pertinents seulement")
     ctx.decide("Quels mouvements ont un événement proche ?", f"{matched} sur {len(found)}",
-               f"Un événement est rattaché s'il a lieu le jour du mouvement ou dans les {EVENT_LOOKBACK_DAYS} "
-               "jours précédents (proximité, pas causalité).", f"fenêtre de rattachement : {EVENT_LOOKBACK_DAYS} jours",
-               {"événements datés": len(events)})
-    if n_days < 20:
-        level, why = "je ne peux pas conclure", "moins de 20 séances dans la fenêtre"
-        rule = "séances < 20"
-    elif not found and fit < 0.1:
-        level, why = "je ne peux pas conclure", "ni mouvement anormal marquant ni lien net avec l'indice"
-        rule = "aucun mouvement et ajustement < 0,1"
-    elif found and no_events and fit < 0.25:
-        level, why = "je ne peux pas conclure", "mouvements anormaux sans aucun événement daté disponible"
-        rule = "mouvements sans aucun événement et ajustement < 0,25"
-    elif fit >= 0.5 or (found and share >= 0.6):
-        level, why = "élevée", "l'indice explique une grande part des variations ou la plupart des mouvements ont un événement proche"
-        rule = "ajustement ≥ 0,5 ou part rattachée ≥ 60 %"
-    elif fit >= 0.25 or (found and share >= 0.3):
-        level, why = "moyenne", "lien partiel avec l'indice ou une partie des mouvements a un événement proche"
-        rule = "ajustement ≥ 0,25 ou part rattachée ≥ 30 %"
-    else:
-        level, why = "faible", "peu de lien avec l'indice et peu d'événements proches des mouvements"
-        rule = "aucune des règles précédentes"
+               f"Un événement est rattaché si le fait qu'il rapporte a lieu le jour du mouvement ou dans les "
+               f"{EVENT_LOOKBACK_DAYS} jours précédents (proximité, pas causalité).",
+               f"fenêtre de rattachement : {EVENT_LOOKBACK_DAYS} jours", {"événements datés": len(events)})
+    level, why, rule = ev.confidence_level(n_days, len(found), bool(events), fit, share)
     ctx.decide("Niveau de confiance de l'explication ?", level, why[0].upper() + why[1:] + ".",
                f"{rule} (règles testées dans l'ordre)",
                {"séances": n_days, "ajustement (R² ou corrélation²)": fit, "part rattachée": share,
                 "mouvements": len(found)})
     ctx.state["confidence"] = level
+    ctx.state["confidence_inputs"] = {"n_days": n_days, "has_events": bool(events), "fit": fit}
     ctx.metric("mouvements avec événement proche", matched)
     ctx.metric("mouvements", len(found))
     ctx.metric("ajustement au marché (R² ou corrélation²)", fit)
@@ -475,14 +466,6 @@ def attribution(ctx: Context) -> None:
     ctx.preview(["date du mouvement", "rendement anormal", "événements proches", "détail"], matched_rows)
     ctx.report.factor("Part des mouvements anormaux précédés d'un événement daté", share, "ratio")
     ctx.report.factor("Niveau de confiance de l'explication", level, effect=why)
-    for m in found[:5]:
-        if m["events"]:
-            e = m["events"][0]
-            ctx.report.factor(f"Mouvement du {m['date']}", m["ar"], "ratio",
-                              effect=f"proche de : {e['kind']} du {e['date']} — {e['label'][:120]}",
-                              source_id=e["source_id"])
-        else:
-            ctx.report.factor(f"Mouvement du {m['date']}", m["ar"], "ratio", effect="aucun événement daté proche")
     ctx.report.assume(f"Proximité temporelle : un événement est rattaché à un mouvement s'il a lieu le même jour "
                       f"ou dans les {EVENT_LOOKBACK_DAYS} jours précédents ; ce n'est pas une preuve de causalité.")
 
@@ -520,6 +503,8 @@ STEP = StepSpec(
                   (OptionSpec("lag", "Décalage des séries mensuelles",
                               (Choice("0m", "0 mois"), Choice("1m", "1 mois")), "1m",
                               "Évite d'utiliser une donnée avant sa publication."),)),
+        StageSpec("policy_events", "Décisions de taux", "Annonces de la Banque du Canada et de la Fed (séries du kit).",
+                  ev.policy_events, ev.POLICY_OPTIONS),
         StageSpec("company_events", "Événements d'entreprise",
                   "Opérations sur titres et dépôts EDGAR 8-K, 10-Q, 10-K.", company_events,
                   (OptionSpec("enabled", "Activé", (Choice("on", "Oui"), Choice("off", "Non")), "on"),)),
@@ -527,9 +512,15 @@ STEP = StepSpec(
                   (OptionSpec("source", "Source",
                               (Choice("gdelt", "GDELT"), Choice("yfinance_news", "Actualités yfinance"),
                                Choice("none", "Aucune")), "gdelt"),)),
+        StageSpec("crawl", "Crawler web", "Lit les articles et communiqués proches des mouvements (robots.txt "
+                  "respecté).", ev.crawl, ev.CRAWL_OPTIONS),
+        StageSpec("digest", "Résumé des événements", "Claude Haiku résume et date chaque événement à partir de la "
+                  "page lue.", ev.digest, (ev.HAIKU_MODEL,)),
         StageSpec("attribution", "Attribution",
                   "Rapproche chaque mouvement des événements proches dans le temps et fixe la confiance.",
                   attribution),
+        StageSpec("plausibility", "Lien plausible", "Claude Haiku juge si l'événement explique le mouvement, avec "
+                  "un extrait cité ; fait daté, hypothèse ou aucun événement.", ev.plausibility, (ev.HAIKU_MODEL,)),
         StageSpec("narration", "Narration", "Explication rédigée par un agent à partir des faits.",
                   common.narration_stage, (common.NARRATION_MODEL,)),
         StageSpec("governance", "Gouvernance",

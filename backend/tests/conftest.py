@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import get_settings
-from app.data import gdelt, http, universe, yf_fundamentals, yf_live, yf_market
+from app.data import crawler, gdelt, http, universe, yf_fundamentals, yf_live, yf_market
 from app.data.cache import ExternalUnavailable
 from app.services import score_table
 
@@ -27,6 +27,8 @@ def offline(monkeypatch, tmp_path):
         raise ExternalUnavailable("Yahoo Finance (yfinance)", "réseau désactivé pendant les tests")
 
     monkeypatch.setattr(http, "get_json", no_network)
+    monkeypatch.setattr(http, "get_text", no_network)  # the crawler calls http.get_text / http.get_json
+    crawler.reset()
     for mod in ("app.data.edgar", "app.data.gdelt"):
         monkeypatch.setattr(f"{mod}.get_json", no_network)
     monkeypatch.setattr(yf_fundamentals, "statements", no_yf)

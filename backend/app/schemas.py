@@ -174,6 +174,17 @@ class StockBiasRequest(BiasRequest):
         return value
 
 
+class StockMovesRequest(_PersonaRequest):
+    """Step 2 on a stock page: the period ends on the kit's last price date ("2022": the whole year)."""
+    ticker: str
+    period: Literal["3m", "6m", "1y", "2022"] = "1y"
+
+    @field_validator("ticker")
+    @classmethod
+    def _ticker(cls, value: str) -> str:
+        return clean_ticker(value)
+
+
 class LabRunRequest(_PersonaRequest):
     step: str
     inputs: dict[str, Any] = Field(default_factory=dict)
