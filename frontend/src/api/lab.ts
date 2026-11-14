@@ -33,10 +33,15 @@ export interface LabOption {
   lab_default?: LabScalar
 }
 
+/** Where a stage sits in the Labo's diagram (Entrées → Bronze → Silver → Gold → Sortie). */
+export type LabLayer = 'bronze' | 'silver' | 'gold' | 'sortie'
+
 export interface LabStageDef {
   id: string
   name: string
   description: string
+  /** `bronze`: raw data fetched; `silver`: cleaned, derived; `gold`: the computed result; `sortie`: narration, governance. */
+  layer: LabLayer
   options: LabOption[]
 }
 

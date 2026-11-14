@@ -68,6 +68,9 @@ class StageSpec:
     fn: StageFn
     options: tuple[OptionSpec, ...] = ()
     degradable: bool = True
+    # Where the stage sits in the Labo's diagram: "bronze" (raw data fetched), "silver" (cleaned,
+    # derived), "gold" (the computed result) or "sortie" (narration, governance).
+    layer: str = "silver"
 
 
 @dataclass(frozen=True)

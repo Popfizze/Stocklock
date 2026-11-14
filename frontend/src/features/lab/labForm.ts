@@ -8,10 +8,8 @@ import type {
   LabInput,
   LabInputValue,
   LabOption,
-  LabRunResponse,
   LabScalar,
   LabStageDef,
-  LabStep,
 } from '@/api/lab'
 import { API_BASE_URL } from '@/lib/env'
 
@@ -20,16 +18,6 @@ export type InputDraft = Record<string, string | boolean>
 
 /** Chosen option values, keyed `"<stage_id>.<key>"` as the run request wants them. */
 export type OptionValues = Record<string, LabScalar>
-
-/** One row of the « Exécutions » table. */
-export interface LabRunRecord {
-  runId: string
-  stepLabel: string
-  changedOptions: string[]
-  durationMs: number
-  keyResult: string
-  governancePassed: boolean
-}
 
 export function optionId(stageId: string, key: string): string {
   return `${stageId}.${key}`
@@ -102,21 +90,6 @@ export function changedOptionLabels(stages: LabStageDef[], values: OptionValues)
     }
   }
   return changed
-}
-
-export function toRunRecord(
-  step: LabStep,
-  values: OptionValues,
-  response: LabRunResponse,
-): LabRunRecord {
-  return {
-    runId: response.run_id,
-    stepLabel: step.label,
-    changedOptions: changedOptionLabels(step.stages, values),
-    durationMs: response.duration_ms,
-    keyResult: `${response.key_result.label} : ${formatValue(response.key_result.value)}`,
-    governancePassed: response.result.governance.passed,
-  }
 }
 
 export function formatDuration(ms: number): string {

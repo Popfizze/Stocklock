@@ -8,10 +8,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DatasetTable } from './DatasetTable'
-import { formatDuration, formatValue } from './labForm'
+import { formatValue } from './labForm'
 import { SourceList } from './SourceList'
 import { StageDecisions } from './StageDecisions'
-import { StageStatusBadge } from './StatusBadges'
 
 interface StageResultViewProps {
   result: LabStageResult
@@ -20,7 +19,7 @@ interface StageResultViewProps {
 }
 
 /**
- * What one stage did in the last run: status, duration, metrics, warnings,
+ * What one stage did in the last run: metrics, warnings,
  * sources, then its decisions and every dataset it fetched or produced.
  */
 export function StageResultView({ result, runSources = [] }: StageResultViewProps) {
@@ -29,14 +28,7 @@ export function StageResultView({ result, runSources = [] }: StageResultViewProp
   const datasets = result.datasets ?? []
 
   return (
-    <div className="space-y-4 border-t border-border pt-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <StageStatusBadge status={result.status} />
-        <span className="text-sm text-muted-foreground">
-          Durée : {formatDuration(result.duration_ms)}
-        </span>
-      </div>
-
+    <div className="space-y-4">
       {metrics.length > 0 && (
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-4">
           {metrics.map(([name, value]) => (

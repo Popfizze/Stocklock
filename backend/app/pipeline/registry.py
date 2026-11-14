@@ -37,7 +37,8 @@ def catalog() -> dict[str, Any]:
                 if o.lab_default is not None:
                     opt["lab_default"] = o.lab_default
                 options.append(opt)
-            stages.append({"id": s.id, "name": s.name, "description": s.description, "options": options})
+            stages.append({"id": s.id, "name": s.name, "description": s.description, "layer": s.layer,
+                           "options": options})
         steps.append({"id": step.id, "label": step.label, "inputs": inputs, "stages": stages})
     return {"steps": steps}
 

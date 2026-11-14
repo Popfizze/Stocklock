@@ -16,6 +16,7 @@ export const LAB_CATALOG: LabCatalog = {
       stages: [
         {
           id: 'fetch',
+          layer: 'bronze',
           name: 'Collecte',
           description: 'Récupère les prix.',
           options: [
@@ -32,6 +33,7 @@ export const LAB_CATALOG: LabCatalog = {
         },
         {
           id: 'scoring',
+          layer: 'gold',
           name: 'Notation',
           description: 'Calcule le score.',
           options: [
@@ -55,7 +57,7 @@ export const LAB_CATALOG: LabCatalog = {
       label: '2. Fluctuations',
       inputs: [{ name: 'question', label: 'Question', type: 'textarea', default: 'Pourquoi ?' }],
       stages: [
-        { id: 'news', name: 'Actualités', description: 'Cherche les nouvelles.', options: [] },
+        { id: 'news', name: 'Actualités', description: 'Cherche les nouvelles.', layer: 'bronze', options: [] },
       ],
     },
   ],

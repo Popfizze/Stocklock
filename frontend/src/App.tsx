@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DashboardPage } from './features/dashboard/DashboardPage'
 import { LabPage } from './features/lab/LabPage'
+import { PipelinePage } from './features/lab/PipelinePage'
 import { ActivePersonaProvider } from './features/personas/ActivePersonaProvider'
 import { ChoosePersonaPage } from './features/personas/ChoosePersonaPage'
 import { RequirePersona } from './features/personas/RequirePersona'
@@ -47,6 +48,14 @@ function App() {
               element={
                 <RequirePersona>
                   <LabPage />
+                </RequirePersona>
+              }
+            />
+            <Route
+              path="/labo/:pipelineId"
+              element={
+                <RequirePersona>
+                  <PipelinePage />
                 </RequirePersona>
               }
             />
