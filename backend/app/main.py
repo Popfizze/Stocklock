@@ -114,7 +114,7 @@ def lab_run(request: LabRunRequest) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail=f"étape inconnue {request.step!r} ; étapes : {sorted(STEPS)}")
     persona = get_persona(request.persona_id)
     try:
-        result, response = execute(request.step, persona, request.inputs, request.options)
+        result, response = execute(request.step, persona, request.inputs, request.options, datasets=True)
     except ValidationError as exc:
         raise HTTPException(status_code=422, detail=exc.errors(include_url=False, include_context=False)) from exc
     except (OptionError, PipelineInputError) as exc:

@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import numpy as np
+import pandas as pd
 
 from app.data import starter
-from app.pipeline import common
+from app.pipeline import common, datasets
 from app.pipeline.core import Choice, Context, InputSpec, OptionSpec, StageSpec, StepSpec
 from app.schemas import TaxInputs
 from app.services import tax_calc
@@ -20,6 +21,23 @@ def _money(v: float) -> str:
     return f"{v:,.0f} $".replace(",", " ")
 
 
+BRACKET_SOURCES = {"federal_brackets": "cra_federal_brackets", "quebec_brackets": "qc_brackets",
+                   "quebec_abatement": "cra_federal_brackets"}
+
+
+def _rule_rows(r: dict) -> list[list]:
+    """Every value of the rules file as a dotted key, with the source id of its block."""
+    rows = []
+    for key, block in r.items():
+        if key == "sources":
+            continue
+        source = BRACKET_SOURCES.get(key)
+        if isinstance(block, dict):
+            source = block.get("source_id") or ", ".join(block.get("source_ids", [])) or None
+        rows.extend([k, v, source] for k, v in datasets.flatten(block, key))
+    return rows
+
+
 def rules_stage(ctx: Context) -> None:
     r = tax_calc.rules()
     for s in r["sources"]:
@@ -30,6 +48,22 @@ def rules_stage(ctx: Context) -> None:
     tfsa_room = tax_calc.tfsa_cumulative_room(age, year, r)
     rrsp_room = tax_calc.rrsp_annual_room(inp.income, r)
     fhsa_ok = bool(inp.first_home_buyer) and age < r["fhsa"]["max_age"]
+    first = max(2009, year - age + r["tfsa"]["eligibility_age"])
+    ctx.decide("Droits CELI de départ ?", tfsa_room, f"Somme des plafonds annuels de {first} à {year} : "
+               f"{ctx.persona['name']} a {age} ans, droits accumulés depuis ses 18 ans (au plus tôt 2009), sans "
+               "cotisation antérieure.", "droits = Σ plafonds annuels depuis max(2009, année des 18 ans)",
+               {"âge": age, "première année": first})
+    ctx.decide("Droits REER annuels ?", rrsp_room,
+               "Revenu non fourni : plafond en dollars retenu." if inp.income is None else
+               ("18 % du revenu, sous le plafond." if rrsp_room < r["rrsp"]["dollar_limit"] else
+                "Plafond en dollars atteint (18 % du revenu le dépasse)."),
+               f"min(18 % × revenu, {r['rrsp']['dollar_limit']} $)", {"revenu": inp.income})
+    ctx.decide("CELIAPP admissible ?", "oui" if fhsa_ok else "non",
+               ("Premier acheteur de moins de 71 ans." if fhsa_ok else
+                "Pas indiqué comme premier acheteur : CELIAPP exclu de la comparaison." if not inp.first_home_buyer
+                else f"{age} ans : au-delà de l'âge maximal."),
+               f"premier acheteur et âge < {r['fhsa']['max_age']} ans",
+               {"premier acheteur": bool(inp.first_home_buyer), "âge": age})
     ctx.state.update(tfsa_room=tfsa_room, rrsp_room=rrsp_room, fhsa_ok=fhsa_ok, rules=r)
     ctx.metric("année des règles", year)
     ctx.metric("droits CELI cumulés (âge)", tfsa_room)
@@ -44,6 +78,15 @@ def rules_stage(ctx: Context) -> None:
         ["CELIAPP à vie", r["fhsa"]["lifetime_limit"], "cra_fhsa"],
         ["CELIAPP durée maximale (ans)", r["fhsa"]["max_participation_years"], "cra_fhsa"],
         ["Taux d'inclusion des gains en capital", r["capital_gains"]["inclusion_rate"], "cra_capital_gains"],
+    ])
+    ctx.dataset("rules", f"Règles fiscales {year} ({tax_calc.RULES_PATH.name})", ["clé", "valeur", "source"],
+                _rule_rows(r))
+    ctx.dataset_records("rules_sources", "Sources du fichier de règles", r["sources"],
+                        columns=("id", "title", "url", "as_of"))
+    ctx.dataset("contribution_room", "Droits de cotisation retenus", ["droit", "valeur", "source"], [
+        [f"Droits CELI cumulés à {age} ans", tfsa_room, "cra_tfsa"],
+        ["Droits REER annuels", rrsp_room, "cra_rrsp"],
+        ["CELIAPP admissible", fhsa_ok, "cra_fhsa"],
     ])
     ctx.report.factor("Plafond annuel CELI", float(r["tfsa"]["annual_limits"][str(year)]), "$", source_id="cra_limits", digits=0)
     ctx.report.factor("Plafond annuel REER (dollars)", float(r["rrsp"]["dollar_limit"]), "$", source_id="cra_limits", digits=0)
@@ -68,20 +111,33 @@ def rules_stage(ctx: Context) -> None:
     if inp.years > hi:
         ctx.report.profile_flags.append(
             f"Horizon simulé de {inp.years} ans supérieur à l'horizon du profil ({ctx.persona['horizon']}).")
+    ctx.decide("Horizon compatible avec le profil ?", "oui" if inp.years <= hi else "à surveiller",
+               f"{inp.years} ans simulés ; horizon du profil {ctx.persona['horizon']}.",
+               f"horizon simulé ≤ {hi} ans", {"horizon simulé": inp.years})
 
 
 def marginal_rates(ctx: Context) -> None:
     inp: TaxInputs = ctx.inputs
     now, ret = inp.marginal_rate_now, inp.marginal_rate_retirement
     mode = ctx.opt("mode")
+    question, rule = "D'où viennent les taux marginaux ?", f"option mode = {mode}"
+    if mode != "brackets":
+        ctx.decide(question, "taux saisis", "Option « Taux saisis » : les entrées sont utilisées telles quelles.",
+                   rule, {"taux actuel": now, "taux à la retraite": ret})
     if mode == "brackets":
         if inp.income is None:
             ctx.warn("Mode barèmes demandé sans revenu : taux saisis conservés.")
+            ctx.decide(question, "taux saisis (repli)", "Mode barèmes demandé sans revenu annuel.", rule)
         else:
             r = ctx.state["rules"]
             now, fed, qc = tax_calc.marginal_rate_quebec(inp.income, r)
             ret_income = inp.income * RETIREMENT_INCOME_RATIO
             ret, _, _ = tax_calc.marginal_rate_quebec(ret_income, r)
+            ctx.decide(question, "barèmes fédéral et Québec 2026",
+                       f"Taux de la tranche du revenu ({inp.income:,.0f} $) et d'un revenu de retraite supposé à "
+                       f"{RETIREMENT_INCOME_RATIO:.0%} ({ret_income:,.0f} $).".replace(",", " ").replace("%", " %"),
+                       f"{rule} ; fédéral × (1 − abattement du Québec {r['quebec_abatement']}) + Québec",
+                       {"taux actuel": now, "taux à la retraite": ret})
             ctx.metric("taux fédéral après abattement", fed)
             ctx.metric("taux Québec", qc)
             ctx.metric("revenu de retraite supposé", ret_income)
@@ -93,6 +149,14 @@ def marginal_rates(ctx: Context) -> None:
             for sid in ("cra_federal_brackets", "qc_brackets"):
                 ctx.record.sources.append({"id": sid, "title": next(
                     s["title"] for s in r["sources"] if s["id"] == sid)})
+            for key, sid, title in (("federal_brackets", "cra_federal_brackets", "Barème fédéral"),
+                                    ("quebec_brackets", "qc_brackets", "Barème du Québec")):
+                ctx.dataset(key, f"{title} {r['year']} (tranches)", ["revenu jusqu'à ($)", "taux marginal"],
+                            r[key], sid)
+            ctx.dataset("computed_rates", "Taux marginaux calculés", ["revenu ($)", "fédéral après abattement",
+                                                                      "Québec", "combiné"],
+                        [[inp.income, fed, qc, now],
+                         [ret_income, *tax_calc.marginal_rate_quebec(ret_income, r)[1:], ret]])
     ctx.state.update(rate_now=now, rate_ret=ret)
     ctx.metric("mode", mode)
     ctx.metric("taux marginal actuel", now)
@@ -109,13 +173,33 @@ def _historical_monthly() -> tuple[np.ndarray, float]:
     return np.log1p(monthly.values), cagr
 
 
+def _historical_dataset(ctx: Context) -> None:
+    """Month-end SPY and AGG in CAD and the monthly 60/40 returns behind the historical mode."""
+    if not ctx.collect_datasets:
+        return
+    spy = starter.adj_close_cad("SPY").resample("ME").last()
+    agg = starter.adj_close_cad("AGG").resample("ME").last()
+    table = pd.DataFrame({"SPY fin de mois (CAD)": spy, "AGG fin de mois (CAD)": agg,
+                          "rendement SPY": spy.pct_change(), "rendement AGG": agg.pct_change(),
+                          "rendement 60/40": 0.6 * spy.pct_change() + 0.4 * agg.pct_change()})
+    ctx.dataset_frame("monthly_60_40", "Rendements mensuels du 60/40 SPY/AGG en CAD (kit)", table,
+                      starter.STARTER_SOURCE_ID, index="fin de mois")
+
+
 def expected_return(ctx: Context) -> None:
     mode = ctx.opt("mode")
     base = ctx.inputs.expected_return
+    ctx.decide("Quel rendement annuel projeter ?", {
+        "historical_60_40": "historique 60/40 du kit", "scenarios": "trois scénarios (−2, 0, +2 points)",
+    }.get(mode, "valeur saisie"), {
+        "historical_60_40": "Rendement annualisé d'un 60/40 SPY/AGG en CAD rééquilibré chaque mois (2021-11 à 2026-11).",
+        "scenarios": f"Rendement saisi ({base}) moins et plus 2 points.",
+    }.get(mode, f"Rendement saisi ({base}) appliqué chaque année."), f"option mode = {mode}")
     if mode == "historical_60_40":
         _, cagr = _historical_monthly()
         scenarios = {"central": cagr}
         ctx.source(starter.STARTER_SOURCE_ID, "AlphaForge starter kit, prices_daily.csv (Yahoo Finance via yfinance)")
+        _historical_dataset(ctx)
         ctx.report.assume("Rendement attendu = rendement annualisé historique d'un 60/40 SPY/AGG en CAD, "
                           "rééquilibré chaque mois, sur la période du kit (2021-11 à 2026-11).")
         ctx.warn("Rendement historique sur 5 ans seulement : ce n'est pas une prévision.")
@@ -130,6 +214,8 @@ def expected_return(ctx: Context) -> None:
     for name, r in scenarios.items():
         ctx.metric(f"rendement {name}", r)
     ctx.preview(["scénario", "rendement annuel"], [[k, v] for k, v in scenarios.items()])
+    ctx.dataset("scenarios", "Scénarios de rendement", ["scénario", "rendement annuel"],
+                [[k, v] for k, v in scenarios.items()])
     for name, r in scenarios.items():
         label = "Rendement annuel attendu" + ("" if name == "central" and len(scenarios) == 1 else f" ({name})")
         ctx.report.factor(label, r, "ratio")
@@ -149,16 +235,30 @@ def projection(ctx: Context) -> None:
     method = ctx.opt("method")
     out: dict[str, dict] = {}
     rows = []
+    path_returns, path_values = [], []
+    ctx.decide("Comment projeter les comptes ?", "Monte Carlo" if method == "monte_carlo" else "déterministe",
+               f"{MC_PATHS} trajectoires par scénario : rendements mensuels historiques du 60/40 rééchantillonnés et "
+               f"recentrés sur le rendement attendu (graine {MC_SEED}) ; la médiane départage les comptes."
+               if method == "monte_carlo" else "Rendement constant chaque année, cotisations en début d'année.",
+               f"option method = {method}", {"horizon (ans)": inp.years, "scénarios": len(ctx.state["scenarios"])})
+    ctx.decide("Où vont les sommes au-delà des plafonds ?", "compte non enregistré",
+               "Chaque compte enregistré reçoit au plus ses droits de l'année ; l'excédent est imposé au taux actuel "
+               "puis placé dans un compte non enregistré.", inputs={
+                   "droits CELI an 1": ctx.state["tfsa_room"], "droits REER annuels": ctx.state["rrsp_room"]})
     if method == "monte_carlo":
         monthly, _ = _historical_monthly()
         for name, er in ctx.state["scenarios"].items():
             paths = tax_calc.bootstrap_paths(monthly, er, inp.years, MC_PATHS, MC_SEED)
             per_account: dict[str, list[float]] = {a: [] for a in tax_calc.ACCOUNTS}
-            for path in paths:
+            for i, path in enumerate(paths, 1):
                 res = tax_calc.project(params, path)
                 for a, v in res.items():
                     if v.eligible:
                         per_account[a].append(v.after_tax)
+                if ctx.collect_datasets:
+                    path_returns.append([name, i, *path])
+                    path_values.append([name, i, *((res[a].after_tax if res[a].eligible else None)
+                                                   if a in res else None for a in tax_calc.ACCOUNTS)])
             det = tax_calc.project(params, np.full(inp.years, er))
             pct = {a: np.percentile(v, [10, 50, 90]) if v else None for a, v in per_account.items()}
             out[name] = {"results": det, "percentiles": pct}
@@ -166,6 +266,12 @@ def projection(ctx: Context) -> None:
                 if p is not None:
                     rows.append([name, a, p[0], p[1], p[2]])
         ctx.preview(["scénario", "compte", "P10 après impôt", "médiane", "P90 après impôt"], rows)
+        ctx.dataset("percentiles", "Percentiles des valeurs après impôt",
+                    ["scénario", "compte", "P10 après impôt", "médiane", "P90 après impôt"], rows)
+        ctx.dataset("path_values", f"Valeur après impôt à l'horizon, par trajectoire ({MC_PATHS} par scénario)",
+                    ["scénario", "trajectoire", *tax_calc.ACCOUNTS], path_values)
+        ctx.dataset("path_returns", "Rendements annuels simulés, par trajectoire",
+                    ["scénario", "trajectoire", *(f"année {y}" for y in range(1, inp.years + 1))], path_returns)
         ctx.metric("trajectoires", MC_PATHS)
         ctx.metric("graine", MC_SEED)
         ctx.report.assume(f"Monte Carlo : {MC_PATHS} trajectoires, rendements mensuels historiques du 60/40 du kit "
@@ -181,6 +287,12 @@ def projection(ctx: Context) -> None:
                      "impôt à la sortie", "valeur après impôt"], rows)
         ctx.report.assume("Projection déterministe : rendement constant chaque année, cotisations en début d'année.")
     ctx.state["projection"] = out
+    ctx.dataset("account_results", "Projection déterministe par compte (rendement constant)",
+                ["scénario", "compte", "admissible", "dépôts", "dépôts hors plafond", "valeur brute",
+                 "impôt à la sortie", "valeur après impôt", "notes"],
+                ([name, a, v.eligible, v.deposits, v.side_deposits, v.gross_value, v.tax_at_exit,
+                  v.after_tax if v.eligible else None, "; ".join(v.notes)]
+                 for name, block in out.items() for a, v in block["results"].items()))
     ctx.metric("méthode", method)
     ctx.metric("horizon (ans)", inp.years)
     ctx.report.assume("Montant annuel exprimé avant impôt : CELI et non enregistré reçoivent ce montant moins "
@@ -201,6 +313,15 @@ def compare(ctx: Context) -> None:
               for a, v in results.items() if v.eligible}
     ranked = sorted(values.items(), key=lambda kv: kv[1], reverse=True)
     ctx.state["ranking"] = ranked
+    excluded = {a: "; ".join(v.notes) or "non admissible" for a, v in results.items() if not v.eligible}
+    ctx.decide("Quels comptes comparer ?", ", ".join(values),
+               ("Exclu(s) : " + " ; ".join(f"{a} ({why})" for a, why in excluded.items()) + ".") if excluded else
+               "Tous les comptes sont admissibles.", "un compte non admissible n'est pas classé")
+    ctx.decide("Quel compte est le meilleur ?", ranked[0][0],
+               f"Plus grande valeur nette après impôt à l'horizon, devant {ranked[1][0]} de "
+               f"{_money(ranked[0][1] - ranked[1][1])}.",
+               "classement par valeur nette après impôt du scénario central" + (" (médiane Monte Carlo)" if pct else ""),
+               {a: v for a, v in ranked})
     for a, v in results.items():
         if not v.eligible:
             ctx.report.factor(f"Valeur nette après impôt — {a}", "non admissible", effect="; ".join(v.notes))
@@ -221,6 +342,9 @@ def compare(ctx: Context) -> None:
                     key=lambda kv: kv[1], reverse=True)
         ctx.report.factor(f"Meilleur compte (scénario {name})", rk[0][0], effect=f"{_money(rk[0][1])} après impôt")
     ctx.preview(["rang", "compte", "valeur nette après impôt"], [[i + 1, a, v] for i, (a, v) in enumerate(ranked)])
+    ctx.dataset("ranking", "Classement après impôt (scénario central)" + (", médianes" if pct else ""),
+                ["rang", "compte", "valeur nette après impôt", "écart avec le premier"],
+                [[i + 1, a, v, v - best[1]] for i, (a, v) in enumerate(ranked)])
     ctx.metric("meilleur compte", best[0])
     ctx.metric("écart avec le suivant ($)", round(gap))
     ctx.report.context.update(rate_now=ctx.state["rate_now"], rate_retirement=ctx.state["rate_ret"],

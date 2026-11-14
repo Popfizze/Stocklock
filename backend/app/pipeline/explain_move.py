@@ -10,7 +10,7 @@ import pandas as pd
 
 from app.data import edgar, gdelt, starter, yf_live
 from app.data.cache import ExternalUnavailable
-from app.pipeline import common
+from app.pipeline import common, datasets
 from app.pipeline.core import Choice, Context, InputSpec, OptionSpec, StageSkipped, StageSpec, StepSpec
 from app.schemas import ExplainMoveInputs
 from app.services import market, profile
@@ -34,17 +34,22 @@ def _win(ctx: Context) -> tuple[pd.Timestamp, pd.Timestamp]:
 
 
 def auto_benchmark(info: dict) -> str:
+    return auto_benchmark_with_reason(info)[0]
+
+
+def auto_benchmark_with_reason(info: dict) -> tuple[str, str]:
     ticker = info["ticker"]
     if ticker.endswith(".TO") or info.get("market") == "TSX":
-        choice = "XIU.TO"
+        choice, why = "XIU.TO", "titre coté à la TSX"
     elif info.get("asset_class") == "crypto" or info.get("sector") in {
             "Information Technology", "Communication Services", "Technology"}:
-        choice = "QQQ"
+        choice, why = "QQQ", f"{'cryptoactif' if info.get('asset_class') == 'crypto' else 'secteur ' + info['sector']}"
     else:
-        choice = "SPY"
+        choice, why = "SPY", "titre américain hors technologie"
     if choice == ticker:
         choice = "SPY" if ticker != "SPY" else "QQQ"
-    return choice
+        why += f", mais {ticker} est lui-même l'indice : {choice} à la place"
+    return choice, why
 
 
 # --- stages -----------------------------------------------------------------------------------------
@@ -52,6 +57,8 @@ def auto_benchmark(info: dict) -> str:
 def prices(ctx: Context) -> None:
     info = common.identification_stage(ctx, ctx.inputs.ticker)
     start, end = _win(ctx)
+    ctx.decide("Quelle période de prix charger ?", f"{(start - pd.DateOffset(years=1)).date()} → {end.date()}",
+               "La fenêtre demandée plus les 12 mois qui la précèdent (estimation du bêta et de l'écart-type).")
     df = common.load_history(ctx, ctx.inputs.ticker, start - pd.DateOffset(years=1) - pd.Timedelta(days=10), end)
     in_window = market.window(df["adj_close"], start, end)
     if len(in_window) < 2:
@@ -61,14 +68,26 @@ def prices(ctx: Context) -> None:
     ctx.metric("lignes dans la fenêtre", len(in_window))
     vol = market.annualized_volatility(in_window)
     ctx.metric("volatilité annualisée dans la fenêtre", vol)
-    ctx.report.profile_flags.extend(profile.asset_flags(ctx.persona, info, vol))
+    flags = profile.asset_flags(ctx.persona, info, vol)
+    ctx.report.profile_flags.extend(flags)
+    ctx.decide(f"Titre compatible avec le profil de {ctx.persona['name']} ?", "à surveiller" if flags else "oui",
+               " ".join(flags) if flags else "Aucun écart avec les contraintes du profil.",
+               f"volatilité dans la fenêtre ≤ {ctx.persona['constraints']['max_volatility'] * 100:.0f} %",
+               {"volatilité": vol})
     common.price_preview(ctx, market.window(df, start, end))
 
 
 def benchmark(ctx: Context) -> None:
     info = ctx.state["asset"]
     choice = ctx.opt("benchmark")
-    bench = auto_benchmark(info) if choice == "auto" else choice
+    if choice == "auto":
+        bench, why = auto_benchmark_with_reason(info)
+        ctx.decide("Quel indice de référence ?", bench, why[0].upper() + why[1:] + ".",
+                   "auto : XIU.TO pour la TSX, QQQ pour la technologie et la crypto, SPY sinon",
+                   {"marché": info.get("market"), "secteur": info.get("sector"), "classe": info.get("asset_class")})
+    else:
+        bench = choice
+        ctx.decide("Quel indice de référence ?", bench, "Indice imposé par l'option.", f"option benchmark = {choice}")
     start, end = _win(ctx)
     bdf = common.load_history(ctx, bench, start - pd.DateOffset(years=1) - pd.Timedelta(days=10), end,
                               source=ctx.opt("prices.source"), cnq_fix=ctx.opt("prices.cnq_fix"),
@@ -82,15 +101,26 @@ def benchmark(ctx: Context) -> None:
     r_bench = market.total_return(market.window(bench_px, start, end))
     method = ctx.opt("method")
     alpha, beta, r2 = 0.0, 1.0, None
+    ctx.decide("Quelles séances comparer ?", f"{len(win)} dans la fenêtre, {len(est)} avant",
+               "Séances communes au titre et à l'indice (les calendriers TSX, US et crypto diffèrent) ; "
+               "les 12 mois avant la fenêtre servent à l'estimation.",
+               inputs={"rendements alignés": len(rets)})
+    question, rule = "Comment calculer le rendement attendu ?", f"option method = {method} ; bêta : 60 séances minimum"
     if method == "market_model":
         if len(est) < 60:
             ctx.warn(f"Estimation du bêta sur {len(est)} séances seulement (moins de 60) : repli sur "
                      "la différence simple.")
             method = "simple_diff"
+            ctx.decide(question, "différence simple (repli)", f"Seulement {len(est)} séances avant la fenêtre "
+                       "pour estimer le bêta.", rule)
         else:
             beta = float(est["asset"].cov(est["bench"]) / est["bench"].var())
             alpha = float(est["asset"].mean() - beta * est["bench"].mean())
             r2 = float(est["asset"].corr(est["bench"]) ** 2)
+            ctx.decide(question, "modèle de marché", f"Bêta {beta:.3f} et alpha estimés sur {len(est)} séances "
+                       "avant la fenêtre.", rule, {"bêta": beta, "alpha quotidien": alpha, "R²": r2})
+    else:
+        ctx.decide(question, "différence simple", "Rendement attendu = rendement de l'indice.", rule)
     if method == "market_model":
         ar = win["asset"] - (alpha + beta * win["bench"])
         expected = float(np.prod(1 + alpha + beta * win["bench"]) - 1)
@@ -103,6 +133,11 @@ def benchmark(ctx: Context) -> None:
         ar_est = est["asset"] - est["bench"]
     ctx.state.update(bench=bench, rets=win, ar=ar, ar_est=ar_est, abnormal=abnormal, method=method,
                      r2=r2, corr_window=float(win["asset"].corr(win["bench"])) if len(win) > 2 else None)
+    ctx.decide("Le titre a-t-il fait mieux que son indice ?", "oui" if abnormal >= 0 else "non",
+               f"Rendement anormal de {abnormal * 100:.2f} % sur la fenêtre.".replace(".", ",", 1),
+               "(1 + rendement du titre) / (1 + rendement attendu) − 1" if method == "market_model"
+               else "rendement du titre − rendement de l'indice",
+               {"rendement du titre": r_asset, "rendement attendu": expected})
     ctx.metric("indice", bench)
     ctx.metric("méthode", method)
     ctx.metric("séances alignées dans la fenêtre", len(win))
@@ -118,6 +153,14 @@ def benchmark(ctx: Context) -> None:
     ctx.preview(["date", "rendement titre", "rendement indice", "rendement anormal"],
                 [[d, r["asset"], r["bench"], ar.loc[d]] for d, r in win.tail(20).iterrows()])
     src = ctx.record.sources[0]["id"] if ctx.record.sources else starter.STARTER_SOURCE_ID
+    if ctx.collect_datasets:
+        aligned = pd.concat([
+            pd.DataFrame({"période": "estimation", "rendement titre": est["asset"], "rendement indice": est["bench"],
+                          "rendement anormal": ar_est}),
+            pd.DataFrame({"période": "fenêtre", "rendement titre": win["asset"], "rendement indice": win["bench"],
+                          "rendement anormal": ar})])
+        ctx.dataset_frame("aligned_returns", f"Rendements quotidiens alignés {ctx.inputs.ticker} / {bench}",
+                          aligned, src, index="date")
     ctx.report.factor(f"Rendement de {ctx.inputs.ticker} sur la fenêtre", r_asset, "ratio", source_id=src)
     ctx.report.factor(f"Rendement de l'indice {bench} sur la fenêtre", r_bench, "ratio", source_id=src)
     ctx.report.factor("Rendement attendu selon l'indice", expected, "ratio", source_id=src)
@@ -140,13 +183,23 @@ def moves(ctx: Context) -> None:
     ar, ar_est, win = ctx.state["ar"], ctx.state["ar_est"], ctx.state["rets"]
     base = ar_est if len(ar_est) >= 60 else ar
     sigma = float(base.std(ddof=1)) if len(base) > 2 else float("nan")
+    question = "Sur quelles séances estimer l'écart-type σ ?"
+    rule = "estimation si au moins 60 séances avant la fenêtre, sinon la fenêtre elle-même"
     if not sigma or math.isnan(sigma):
         ctx.state["moves"] = []
         ctx.warn("Écart-type des rendements anormaux non calculable.")
+        ctx.decide(question, "aucune", f"Seulement {len(base)} séance(s) : σ non calculable, aucun mouvement "
+                   "repéré.", rule)
         return
     if base is ar:
         ctx.warn("Moins de 60 séances avant la fenêtre : σ estimé sur la fenêtre elle-même.", limit=False)
+    ctx.decide(question, "la fenêtre elle-même (repli)" if base is ar else f"les {len(base)} séances d'estimation",
+               "Moins de 60 séances avant la fenêtre." if base is ar else "Assez d'historique avant la fenêtre.",
+               rule, {"σ quotidien": sigma})
     flagged = ar.loc[ar.abs() > k * sigma]
+    ctx.decide("Quelles séances sont des mouvements marquants ?", f"{len(flagged)} sur {len(ar)}",
+               f"Rendement anormal en valeur absolue supérieur à {k:.0f}σ = {k * sigma:.4f} ; les "
+               f"{len(ar) - len(flagged)} autres séances sont écartées.", f"option threshold = {ctx.opt('threshold')}")
     found = [{"date": d.date(), "asset": float(win.loc[d, "asset"]), "bench": float(win.loc[d, "bench"]),
               "ar": float(v), "z": float(v / sigma)} for d, v in flagged.items()]
     found.sort(key=lambda m: abs(m["ar"]), reverse=True)
@@ -157,6 +210,9 @@ def moves(ctx: Context) -> None:
     ctx.metric("mouvements significatifs", len(found))
     ctx.preview(["date", "rendement titre", "rendement indice", "rendement anormal", "z"],
                 [[m["date"], m["asset"], m["bench"], m["ar"], m["z"]] for m in found])
+    ctx.dataset("moves", f"Séances au-delà de {k:.0f}σ (σ = {sigma:.4f})",
+                ["date", "rendement titre", "rendement indice", "rendement anormal", "z"],
+                ([m["date"], m["asset"], m["bench"], m["ar"], m["z"]] for m in found))
     ctx.report.factor(f"Mouvements quotidiens anormaux au-delà de {k:.0f}σ", float(len(found)), "séances", digits=0)
     if found:
         top = found[0]
@@ -172,21 +228,44 @@ def macro(ctx: Context) -> None:
     lag = 1 if ctx.opt("lag") == "1m" else 0
     start, end = _win(ctx)
     ctx.source("starter_macro", "AlphaForge starter kit, macro_rates.csv (Banque du Canada Valet, FRED)")
+    ctx.decide("Quand une valeur mensuelle devient-elle utilisable ?",
+               "un mois après son mois de référence" if lag else "dès son mois de référence",
+               "Évite d'utiliser une donnée avant sa publication." if lag else
+               "Décalage désactivé : biais d'anticipation possible.", f"option lag = {ctx.opt('lag')}")
     rows, stale = [], []
     for sid, label in MACRO_SERIES:
         a, b = _macro_value(sid, start, lag), _macro_value(sid, end, lag)
         if a is None or b is None:
             rows.append([label, None, None, None, None, None])
+            ctx.decide(f"Variation de « {label} » ?", "non calculée",
+                       "Aucune valeur disponible au début ou à la fin de la fenêtre : série ignorée.")
             continue
         is_index = sid == "CPIAUCSL"
         change = (b[0] / a[0] - 1) * 100 if is_index else b[0] - a[0]
         rows.append([label, a[0], a[1], b[0], b[1], change])
         if a[2] or b[2]:
             stale.append(label)
+            ctx.decide(f"Valeur manquante pour « {label} » ?", "dernière valeur connue reprise",
+                       f"Pas de valeur pour le mois attendu : valeurs du {a[1]} et du {b[1]} utilisées.",
+                       "valeur périmée = mois de référence antérieur au mois attendu (ou plus de 7 jours pour "
+                       "une série quotidienne)")
         ctx.report.factor(f"Variation {label} sur la fenêtre", change, "%" if is_index else "points de %",
                           effect=f"{a[0]:.2f} → {b[0]:.2f}".replace(".", ","), source_id="starter_macro",
                           digits=2)
     ctx.preview(["série", "valeur début", "référence début", "valeur fin", "référence fin", "variation"], rows)
+    if ctx.collect_datasets:
+        ctx.dataset("macro_changes", "Variations macro sur la fenêtre",
+                    ["series_id", "série", "valeur début", "référence début", "valeur fin", "référence fin",
+                     "variation", "valeur périmée"],
+                    ([sid, *row, label in stale] for (sid, label), row in zip(MACRO_SERIES, rows, strict=True)),
+                    "starter_macro")
+        table = starter.macro(lag)
+        used = table.loc[table["series_id"].isin([sid for sid, _ in MACRO_SERIES])]
+        first = min((r[2] for r in rows if r[2] is not None), default=start.date())
+        used = used.loc[(used["date"] >= pd.Timestamp(first)) & (used["date"] <= end)]
+        ctx.dataset_frame("macro_observations", "Observations macro du kit (macro_rates.csv), de la première "
+                          "valeur utilisée à la fin de la fenêtre", used.sort_values(["series_id", "date"]),
+                          "starter_macro")
     ctx.metric("séries", len(MACRO_SERIES))
     ctx.metric("décalage des séries mensuelles", f"{lag} mois")
     ctx.metric("séries avec valeur périmée", len(stale))
@@ -211,9 +290,12 @@ def company_events(ctx: Context) -> None:
     ticker, info = ctx.inputs.ticker, ctx.state["asset"]
     events: list[dict] = []
     fix = ctx.opt("prices.cnq_fix") == "on"
-    acts = starter.corporate_actions(fix)
-    acts = acts.loc[(acts["ticker"] == ticker) & (acts["ex_date"] >= pd.Timestamp(start))
-                    & (acts["ex_date"] <= pd.Timestamp(end))]
+    all_acts = starter.corporate_actions(fix)
+    own = all_acts.loc[all_acts["ticker"] == ticker]
+    acts = own.loc[(own["ex_date"] >= pd.Timestamp(start)) & (own["ex_date"] <= pd.Timestamp(end))]
+    ctx.decide("Quelles opérations sur titres retenir ?", f"{len(acts)} sur {len(own)}",
+               f"Opérations de {ticker} (dividendes, fractionnements) dont la date ex tombe dans la fenêtre ; "
+               f"{len(own) - len(acts)} hors fenêtre écartées.", f"option prices.cnq_fix = {ctx.opt('prices.cnq_fix')}")
     if not acts.empty:
         ctx.source("starter_actions", "AlphaForge starter kit, corporate_actions.csv (Yahoo Finance)")
     for _, a in acts.iterrows():
@@ -222,32 +304,46 @@ def company_events(ctx: Context) -> None:
                        "url": None})
     cik = info.get("cik")
     filings = []
+    question, rule = "Quels dépôts réglementaires chercher ?", "formulaires 8-K, 10-Q et 10-K déposés dans la fenêtre"
     if cik:
         try:
             filings, hit = edgar.filings_between(cik, start, end)
             ctx.source(f"edgar_filings_{ticker}", f"SEC EDGAR, index des dépôts CIK {cik:010d}",
                        edgar.SUBMISSIONS_URL.format(cik=cik))
             ctx.metric("cache EDGAR", "oui" if hit else "non")
+            ctx.decide(question, f"EDGAR : {len(filings)} dépôt(s)", f"CIK {cik:010d} : index des dépôts SEC "
+                       "filtré par formulaire et par date de dépôt.", rule)
+            ctx.dataset_records("edgar_filings", "Dépôts EDGAR 8-K, 10-Q, 10-K dans la fenêtre", filings,
+                                f"edgar_filings_{ticker}", ("form", "filed", "report_date", "items", "url"))
             for f in filings:
                 label = f["form"] + (f" (items {f['items']})" if f.get("items") else "")
                 events.append({"date": date.fromisoformat(f["filed"]), "kind": f["form"], "label": label,
                                "source_id": f"edgar_filings_{ticker}", "url": f["url"]})
         except ExternalUnavailable as exc:
             ctx.warn(f"Dépôts EDGAR indisponibles ({exc.reason}).")
+            ctx.decide(question, "aucun (EDGAR injoignable)", f"Dépôts EDGAR indisponibles ({exc.reason}) : seules "
+                       "les opérations sur titres sont utilisées.", rule)
     else:
         ctx.warn("Pas de dépôts EDGAR pour ce titre (pas de CIK US : titre .TO, FNB ou crypto ; "
                  "SEDAR+ non intégré).")
+        ctx.decide(question, "aucun", "Pas de CIK SEC (titre .TO, FNB ou crypto) et SEDAR+ non intégré : seules "
+                   "les opérations sur titres sont utilisées.", rule)
     events.sort(key=lambda e: e["date"])
     ctx.state["company_events"] = events
     ctx.metric("opérations sur titres", len(acts))
     ctx.metric("dépôts EDGAR (8-K, 10-Q, 10-K)", len(filings))
     ctx.preview(["date", "type", "détail", "url"], [[e["date"], e["kind"], e["label"], e["url"]] for e in events])
+    ctx.dataset_records("company_events", "Événements d'entreprise datés (opérations et dépôts)", events,
+                        columns=("date", "kind", "label", "source_id", "url"))
+    ctx.dataset_frame("corporate_actions", f"Opérations sur titres {ticker} dans la fenêtre (corporate_actions.csv)",
+                      acts, "starter_actions")
     ctx.report.factor("Événements d'entreprise datés dans la fenêtre", float(len(events)), "événements", digits=0)
 
 
 def world_events(ctx: Context) -> None:
     source = ctx.opt("source")
     ctx.state["world_events"] = []
+    question, rule = "Quelle source d'événements du monde ?", f"option source = {source}"
     if source == "none":
         raise StageSkipped("Événements du monde désactivés.")
     start, end = ctx.inputs.start, ctx.inputs.end
@@ -260,15 +356,30 @@ def world_events(ctx: Context) -> None:
             tl = gdelt.timeline(ticker, info["name"], start, end)
         except ExternalUnavailable as exc:
             ctx.warn(f"GDELT indisponible ({exc.reason}) : aucun événement du monde utilisé, rien n'est inventé.")
+            ctx.decide(question, "aucune (GDELT injoignable)", f"GDELT indisponible ({exc.reason}) : aucun "
+                       "événement du monde, rien n'est inventé ; l'attribution n'utilise que les événements "
+                       "d'entreprise.", rule)
             return
         sid = ctx.source(f"gdelt_timeline_{ticker}", f"GDELT DOC 2.0, intensité de couverture, {tl.query}",
                          tl.url, end.isoformat())
+        ctx.decide(question, "GDELT (intensité de couverture quotidienne)",
+                   f"GDELT a répondu : {len(tl.points)} jours" + (" (cache)." if tl.from_cache else "."), rule,
+                   {"requête": tl.query})
+        datasets.gdelt_timeline(ctx, tl, sid)
         values = np.array([p["value"] for p in tl.points]) if tl.points else np.array([])
         if values.size < 5:
             ctx.warn("GDELT : série de couverture trop courte pour repérer des pics.")
+            ctx.decide("Quels jours sont des pics de couverture ?", "aucun",
+                       f"Seulement {values.size} jour(s) de couverture : pas assez pour repérer des pics.",
+                       "au moins 5 jours")
             return
         threshold = float(values.mean() + 2 * values.std())
-        peaks = sorted([p for p in tl.points if p["value"] > threshold], key=lambda p: -p["value"])[:10]
+        above = [p for p in tl.points if p["value"] > threshold]
+        peaks = sorted(above, key=lambda p: -p["value"])[:10]
+        ctx.decide("Quels jours sont des pics de couverture ?", f"{len(peaks)} retenus",
+                   f"{len(above)} jour(s) sur {len(tl.points)} au-dessus du seuil {threshold:.4f} ; les 10 plus "
+                   "intenses au maximum sont gardés.", "seuil = moyenne + 2 écarts-types de l'intensité",
+                   {"au-dessus du seuil": len(above)})
         evts = []
         for p in peaks:
             title = p["articles"][0]["title"] if p["articles"] else "pic de couverture"
@@ -282,19 +393,29 @@ def world_events(ctx: Context) -> None:
         ctx.metric("cache", "oui" if tl.from_cache else "non")
         ctx.preview(["date", "intensité", "article principal", "url"],
                     [[e["date"], e["intensity"], e["label"], e["url"]] for e in evts])
+        ctx.dataset("gdelt_peaks", f"Pics de couverture retenus (intensité > {threshold:.4f})",
+                    ["date", "intensité", "article principal", "url"],
+                    ([e["date"], e["intensity"], e["label"], e["url"]] for e in ctx.state["world_events"]), sid)
         ctx.report.factor("Pics de couverture médiatique (GDELT)", float(len(evts)), "jours", source_id=sid, digits=0)
         return
     try:
         items, _ = yf_live.recent_news(ticker)
     except ExternalUnavailable as exc:
         ctx.warn(f"Actualités yfinance indisponibles ({exc.reason}).")
+        ctx.decide(question, "aucune (yfinance injoignable)", f"Actualités yfinance indisponibles ({exc.reason}).",
+                   rule)
         return
     sid = ctx.source(f"yfinance_news_{ticker}", f"Yahoo Finance, actualités {ticker}",
                      f"https://finance.yahoo.com/quote/{ticker}/news", date.today().isoformat())
     inside = [i for i in items if start.isoformat() <= i["date"] <= end.isoformat()]
+    ctx.decide(question, "actualités yfinance", "Choix de l'option de l'étape.", rule)
+    ctx.decide("Quels articles garder ?", f"{len(inside)} sur {len(items)}",
+               f"Articles datés du {start} au {end} ; {len(items) - len(inside)} hors fenêtre écartés (Yahoo ne "
+               "garde que les derniers jours).")
     ctx.metric("articles reçus", len(items))
     ctx.metric("articles dans la fenêtre", len(inside))
     ctx.preview(["date", "titre", "éditeur", "url"], [[i["date"], i["title"], i["publisher"], i["url"]] for i in items])
+    datasets.yf_news(ctx, items, sid)
     ctx.warn("yfinance_news ne couvre que les derniers jours : une fenêtre ancienne n'a aucun article.")
     ctx.state["world_events"] = [{"date": date.fromisoformat(i["date"]), "kind": "article", "label": i["title"],
                                   "source_id": sid, "url": i["url"]} for i in inside]
@@ -311,23 +432,41 @@ def attribution(ctx: Context) -> None:
         if near:
             matched += 1
         matched_rows.append([m["date"], m["ar"], len(near), "; ".join(f"{e['kind']} {e['date']}" for e in near[:3])])
+    ctx.dataset("attribution", f"Mouvements et événements des {EVENT_LOOKBACK_DAYS} jours précédents",
+                ["date du mouvement", "rendement anormal", "z", "événements proches", "détail"],
+                ([m["date"], m["ar"], m["z"], len(m["events"]),
+                  "; ".join(f"{e['kind']} {e['date']} : {e['label']}" for e in m["events"])] for m in found))
     n_days = len(ctx.state["rets"])
     r2 = ctx.state.get("r2")
     fit = r2 if r2 is not None else (ctx.state.get("corr_window") or 0.0) ** 2
     share = matched / len(found) if found else 0.0
     no_events = not events
+    ctx.decide("Quels mouvements ont un événement proche ?", f"{matched} sur {len(found)}",
+               f"Un événement est rattaché s'il a lieu le jour du mouvement ou dans les {EVENT_LOOKBACK_DAYS} "
+               "jours précédents (proximité, pas causalité).", f"fenêtre de rattachement : {EVENT_LOOKBACK_DAYS} jours",
+               {"événements datés": len(events)})
     if n_days < 20:
         level, why = "je ne peux pas conclure", "moins de 20 séances dans la fenêtre"
+        rule = "séances < 20"
     elif not found and fit < 0.1:
         level, why = "je ne peux pas conclure", "ni mouvement anormal marquant ni lien net avec l'indice"
+        rule = "aucun mouvement et ajustement < 0,1"
     elif found and no_events and fit < 0.25:
         level, why = "je ne peux pas conclure", "mouvements anormaux sans aucun événement daté disponible"
+        rule = "mouvements sans aucun événement et ajustement < 0,25"
     elif fit >= 0.5 or (found and share >= 0.6):
         level, why = "élevée", "l'indice explique une grande part des variations ou la plupart des mouvements ont un événement proche"
+        rule = "ajustement ≥ 0,5 ou part rattachée ≥ 60 %"
     elif fit >= 0.25 or (found and share >= 0.3):
         level, why = "moyenne", "lien partiel avec l'indice ou une partie des mouvements a un événement proche"
+        rule = "ajustement ≥ 0,25 ou part rattachée ≥ 30 %"
     else:
         level, why = "faible", "peu de lien avec l'indice et peu d'événements proches des mouvements"
+        rule = "aucune des règles précédentes"
+    ctx.decide("Niveau de confiance de l'explication ?", level, why[0].upper() + why[1:] + ".",
+               f"{rule} (règles testées dans l'ordre)",
+               {"séances": n_days, "ajustement (R² ou corrélation²)": fit, "part rattachée": share,
+                "mouvements": len(found)})
     ctx.state["confidence"] = level
     ctx.metric("mouvements avec événement proche", matched)
     ctx.metric("mouvements", len(found))

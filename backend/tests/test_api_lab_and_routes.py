@@ -11,7 +11,8 @@ from .test_scoring import EDGAR_FIXTURE
 
 TAX_INPUTS = {"annual_contribution": 7000, "years": 15, "expected_return": 0.05, "marginal_rate_now": 0.3612,
               "marginal_rate_retirement": 0.3012, "first_home_buyer": False, "income": 85000}
-STAGE_KEYS = {"id", "name", "status", "duration_ms", "options_used", "metrics", "preview", "warnings", "sources"}
+STAGE_KEYS = {"id", "name", "status", "duration_ms", "options_used", "metrics", "preview", "warnings", "sources",
+              "decisions", "datasets"}
 RESULT_KEYS = {"answer", "factors", "sources", "assumptions", "limits", "trace", "governance"}
 
 

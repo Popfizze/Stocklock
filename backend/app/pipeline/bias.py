@@ -9,7 +9,7 @@ import pandas as pd
 
 from app.data import gdelt, starter
 from app.data.cache import ExternalUnavailable
-from app.pipeline import common
+from app.pipeline import common, datasets
 from app.pipeline.core import Choice, Context, InputSpec, OptionSpec, StageSkipped, StageSpec, StepSpec
 from app.schemas import BiasInputs
 from app.services import lexicon, market, narration, profile, simulation
@@ -40,11 +40,27 @@ def message_analysis(ctx: Context) -> None:
     ctx.state["ticker"] = ticker
     ctx.metric("ticker", ticker or "aucun")
     ctx.metric("ticker détecté dans le message", "non" if ctx.inputs.ticker else ("oui" if ticker else "non"))
+    ctx.decide("De quel titre parle le message ?", ticker or "aucun",
+               "Titre fourni en entrée." if ctx.inputs.ticker else
+               ("Symbole ou nom reconnu dans le message." if ticker else
+                "Aucun symbole du kit ni nom connu dans le message : signal de battage et simulation sur le titre "
+                "impossibles."),
+               "entrée « ticker », sinon premier symbole du kit (3 lettres et plus) puis nom connu (Nvidia, Tesla…)")
     if ticker:
-        info, _ = common.resolve_asset(ticker)
+        info, origin = common.resolve_asset(ticker, ctx)
         ctx.state["asset"] = info
         ctx.report.context.update(ticker=ticker, name=info["name"])
+        # listed on the stage only: the business response's sources stay as they were
+        ctx.record.sources.append(
+            {"id": "starter_universe", "title": "AlphaForge starter kit, assets_universe.csv (31 actifs)"}
+            if origin == "starter_universe" else
+            {"id": f"yfinance_info_{ticker}", "title": f"Yahoo Finance, fiche {ticker}",
+             "url": f"https://finance.yahoo.com/quote/{ticker}"})
+        datasets.asset(ctx, info, origin)
     method = ctx.opt("method")
+    ctx.decide("Comment détecter les biais ?", {"lexicon": "lexique", "haiku": "Claude Haiku"}.get(method, "lexique et "
+               "Claude Haiku"), "Les extraits proposés par Haiku ne sont gardés que s'ils figurent mot pour mot dans le "
+               "message et dans une catégorie connue.", f"option method = {method}")
     found: dict[str, dict] = {}
     if method in {"lexicon", "both"}:
         for s in lexicon.detect(msg):
@@ -60,6 +76,10 @@ def message_analysis(ctx: Context) -> None:
                 cat = s.get("category")
                 if cat not in lexicon.CATEGORY_LABELS or not lexicon.excerpt_is_verbatim(s.get("excerpt", ""), msg):
                     rejected += 1
+                    ctx.decide(f"Garder l'extrait Haiku « {s.get('excerpt', '')} » ?", "non",
+                               "Catégorie inconnue." if cat not in lexicon.CATEGORY_LABELS else
+                               "Absent du message mot pour mot : extrait inventé rejeté.",
+                               "extrait verbatim et catégorie connue", {"catégorie": cat})
                     continue
                 kept += 1
                 prev = found.get(cat)
@@ -73,15 +93,24 @@ def message_analysis(ctx: Context) -> None:
                 ctx.warn(f"{rejected} extrait(s) proposé(s) par Haiku absent(s) du message : rejeté(s).", limit=False)
         except Exception as exc:
             ctx.warn(f"Classifieur Haiku indisponible ({type(exc).__name__}) : lexique seul.")
+            ctx.decide("Que faire sans le classifieur Haiku ?", "lexique seul",
+                       f"Classifieur indisponible ({type(exc).__name__})"
+                       + (" : le lexique le remplace." if method == "haiku" else " : les signaux du lexique restent."))
             if method == "haiku":
                 for s in lexicon.detect(msg):
                     found[s["category"]] = s
     signals = sorted(found.values(), key=lambda s: -s["intensity"])
+    ctx.decide("Quels biais retenir ?", ", ".join(lexicon.CATEGORY_LABELS[s["category"]] for s in signals) or "aucun",
+               f"{len(signals)} catégorie(s) détectée(s), un extrait par catégorie (Haiku remplace le lexique quand "
+               "les deux trouvent la même).", "triés par intensité décroissante")
     ctx.state["signals"] = signals
     ctx.metric("biais détectés", len(signals))
     ctx.metric("émotion dominante", emotion or "n.d.")
     ctx.preview(["catégorie", "extrait du message", "intensité", "méthode"],
                 [[lexicon.CATEGORY_LABELS[s["category"]], s["excerpt"], s["intensity"], s["method"]] for s in signals])
+    ctx.dataset_records("signals", "Signaux détectés dans le message",
+                        ({"libellé": lexicon.CATEGORY_LABELS[s["category"]], **s} for s in signals),
+                        columns=("libellé", "category", "excerpt", "intensity", "method"))
     for s in signals:
         ctx.report.factor(f"Biais : {lexicon.CATEGORY_LABELS[s['category']]}", f"« {s['excerpt']} »",
                           effect=f"intensité {s['intensity']:.1f} ({s['method']})".replace(".", ","))
@@ -103,10 +132,13 @@ def hype_signal(ctx: Context) -> None:
     px, vol = hist["adj_close"], hist["volume"]
     if len(px.dropna()) <= 20:
         ctx.warn("Historique insuffisant pour comparer les 20 dernières séances.")
+        ctx.decide("Calculer le signal de battage ?", "non", f"Seulement {len(px.dropna())} prix : il en faut plus "
+                   "de 20.", "plus de 20 séances d'historique")
         return
     ret20 = px.pct_change(20).dropna()
     if ret20.empty:
         ctx.warn("Historique insuffisant pour calculer la variation récente.")
+        ctx.decide("Calculer le signal de battage ?", "non", "Aucune variation sur 20 séances calculable.")
         return
     last20 = float(ret20.iloc[-1])
     z = float((last20 - ret20.mean()) / ret20.std()) if ret20.std() > 0 else 0.0
@@ -131,6 +163,7 @@ def hype_signal(ctx: Context) -> None:
                       "qu'une décision est impulsive ni ne permettent de prédire les cours.")
     ctx.source(starter.STARTER_SOURCE_ID, "AlphaForge starter kit, prices_daily.csv (Yahoo Finance via yfinance)",
                as_of=px.index.max().date().isoformat())
+    datasets.price_history(ctx, ticker, hist, "starter", True, hist.index.min(), hist.index.max())
     hype = z >= 2 or v_ratio >= 1.5
     ctx.metric("rendement 20 séances", last20)
     ctx.metric("z-score du rendement 20 séances", z)
@@ -144,13 +177,30 @@ def hype_signal(ctx: Context) -> None:
             recent, base = vals.iloc[-14:].mean(), vals.iloc[:-14].mean()
             gdelt_ratio = float(recent / base) if base > 0 else None
         sid = ctx.source(f"gdelt_timeline_{ticker}", f"GDELT DOC 2.0, intensité de couverture, {tl.query}", tl.url)
+        datasets.gdelt_timeline(ctx, tl, sid)
         ctx.metric("couverture GDELT 14 j / 76 j précédents", gdelt_ratio if gdelt_ratio is not None else "n.d.")
         if gdelt_ratio is not None:
             ctx.report.factor("Pic médiatique GDELT (14 derniers jours / période précédente)", gdelt_ratio, "x",
                               source_id=sid, digits=2)
             hype = hype or gdelt_ratio >= 1.5
+        ctx.decide("Couverture médiatique utilisée ?",
+                   "oui" if gdelt_ratio is not None else "non",
+                   f"Intensité GDELT des 14 derniers jours / 76 jours précédents = {gdelt_ratio:.2f}."
+                   if gdelt_ratio is not None else f"Seulement {len(vals)} jour(s) de couverture GDELT (30 requis) "
+                   "ou couverture nulle : critère médiatique ignoré.", "au moins 30 jours de couverture")
     except ExternalUnavailable as exc:
         ctx.warn(f"GDELT indisponible ({exc.reason}) : signal de battage fondé sur les prix et volumes seulement.")
+        ctx.decide("Couverture médiatique utilisée ?", "non", f"GDELT indisponible ({exc.reason}) : le signal "
+                   "repose sur les prix et volumes seulement.")
+    triggered = [name for name, hit in (("z ≥ 2", z >= 2), ("volume × 1,5", v_ratio >= 1.5),
+                                        ("couverture GDELT × 1,5", gdelt_ratio is not None and gdelt_ratio >= 1.5))
+                 if hit]
+    ctx.decide("Battage détecté ?", "oui" if hype else "non",
+               ("Critère(s) atteint(s) : " + ", ".join(triggered) + ".") if triggered else
+               "Aucun critère atteint sur les 20 dernières séances.",
+               "battage si z-score du rendement 20 séances ≥ 2, volume récent ≥ 1,5 × l'habituel ou couverture "
+               "GDELT ≥ 1,5 × la période précédente",
+               {"z-score": z, "ratio de volume": v_ratio, "ratio GDELT": gdelt_ratio})
     ctx.state["hype"] = hype
     ctx.metric("battage détecté", "oui" if hype else "non")
     ctx.preview(["date", "adj_close", "volume"], [[d, r["adj_close"], r["volume"]] for d, r in hist.tail(20).iterrows()])
@@ -174,18 +224,42 @@ def profile_check(ctx: Context) -> None:
         flags += profile.asset_flags(ctx.persona, ctx.state["asset"], vol)
         ctx.report.factor(f"Volatilité annualisée de {ticker} (1 an)", vol, "ratio", source_id=starter.STARTER_SOURCE_ID)
         ctx.source(starter.STARTER_SOURCE_ID, "AlphaForge starter kit, prices_daily.csv (Yahoo Finance via yfinance)")
-    if "concentration" in cats:
-        flags.append(f"Concentration sur un seul titre, alors que le profil de {ctx.persona['name']} limite une "
-                     f"position à {c['max_single_position'] * 100:.0f} % du portefeuille.")
-    if "panique" in cats and c["horizon_years"][0] >= 8:
-        flags.append(f"Le message contient un indice possible de panique ; à mettre en perspective avec "
-                     f"l'horizon de {ctx.persona['name']} ({ctx.persona['horizon']}).")
+        asset_flags = flags[:]
+        ctx.decide(f"{ticker} compatible avec le profil ?", "à surveiller" if asset_flags else "oui",
+                   " ".join(asset_flags) if asset_flags else "Aucun écart avec les contraintes du profil.",
+                   f"volatilité 1 an ≤ {c['max_volatility'] * 100:.0f} %, cryptos "
+                   f"{'permises' if c['allow_crypto'] else 'exclues'}, secteurs et titres exclus",
+                   {"volatilité": vol})
+    else:
+        ctx.decide("Titre confronté au profil ?", "non", "Aucun titre du kit identifié : seuls les biais du message "
+                   "sont confrontés au profil.")
+    lo, hi = c["horizon_years"]
+    checks = (
+        ("Concentration contraire au profil ?", "concentration" in cats,
+         f"position ≤ {c['max_single_position'] * 100:.0f} % du portefeuille",
+         f"Concentration sur un seul titre, alors que le profil de {ctx.persona['name']} limite une "
+         f"position à {c['max_single_position'] * 100:.0f} % du portefeuille.",
+         "Pas de signal de concentration dans le message."),
+        ("Panique à mettre en perspective avec l'horizon ?", "panique" in cats and lo >= 8,
+         "panique détectée et horizon minimal ≥ 8 ans",
+         f"Le message contient un indice possible de panique ; à mettre en perspective avec "
+         f"l'horizon de {ctx.persona['name']} ({ctx.persona['horizon']}).",
+         "Pas de panique détectée." if "panique" not in cats else f"Horizon minimal de {lo} ans (< 8)."),
+        ("Horizon trop court pour ce risque ?", hi <= 5 and (vol or 0) > c["max_volatility"],
+         f"horizon maximal ≤ 5 ans et volatilité > {c['max_volatility'] * 100:.0f} %",
+         f"Horizon court ({ctx.persona['horizon']}) : peu de temps pour récupérer d'une baisse.",
+         f"Horizon de {lo} à {hi} ans" + ("" if vol is None else ", volatilité dans les limites") + "."),
+    )
+    for question, hit, rule, flag, otherwise in checks:
+        if hit:
+            flags.append(flag)
+        ctx.decide(question, "oui" if hit else "non", flag if hit else otherwise, rule)
     if "ESG" in ctx.persona.get("preferences", []):
         ctx.report.limit("Le jeu de données ne permet pas de vérifier les controverses ESG de l'entreprise : "
                          "le filtre sectoriel ne constitue pas une vérification ESG complète.")
-    _, hi = c["horizon_years"]
-    if hi <= 5 and (vol or 0) > c["max_volatility"]:
-        flags.append(f"Horizon court ({ctx.persona['horizon']}) : peu de temps pour récupérer d'une baisse.")
+        ctx.decide("Controverses ESG vérifiées ?", "non", "Le profil a une préférence ESG mais le jeu de données "
+                   "ne couvre pas les controverses : seul le filtre sectoriel s'applique (limite déclarée).",
+                   "préférence ESG du profil → limite ajoutée")
     ctx.report.profile_flags.extend(flags)
     ctx.report.limit("Aucun historique des décisions ou transactions du profil n'est disponible : "
                      "on ne peut pas établir une habitude comportementale.")
@@ -193,6 +267,9 @@ def profile_check(ctx: Context) -> None:
     ctx.metric("volatilité maximale du profil", c["max_volatility"])
     ctx.metric("position maximale du profil", c["max_single_position"])
     ctx.preview(["écart au profil"], [[f] for f in flags])
+    ctx.dataset("profile_flags", "Écarts au profil", ["écart au profil"], [[f] for f in flags])
+    ctx.dataset("profile_constraints", f"Contraintes du profil {ctx.persona['name']} (personas.json)",
+                ["contrainte", "valeur"], datasets.flatten(c))
     ctx.report.factor("Position maximale par titre (profil)", c["max_single_position"], "ratio")
     ctx.report.factor("Volatilité maximale retenue pour le profil", c["max_volatility"], "ratio")
     ctx.report.assume(f"Seuils du profil {ctx.persona['name']} : volatilité ≤ {c['max_volatility'] * 100:.0f} %, "
@@ -202,19 +279,45 @@ def profile_check(ctx: Context) -> None:
 def simulation_2022(ctx: Context) -> None:
     choice = ctx.opt("portfolio")
     ticker = ctx.state.get("ticker")
+    question, rule = "Quel portefeuille simuler ?", f"option portfolio = {choice}"
     if choice == "ticker" and (not ticker or not starter.in_starter(ticker)):
         ctx.warn("Portefeuille « titre » demandé sans titre du kit identifié : simulation sur le 60/40.")
         choice = "60_40"
+        ctx.decide(question, "60/40 SPY/AGG (repli)", "Portefeuille « titre » demandé sans titre du kit identifié.",
+                   rule)
+    else:
+        ctx.decide(question, "60/40 SPY/AGG" if choice == "60_40" else f"100 % {ticker}",
+                   "Choix de l'option de l'étape.", rule)
     weights = {"SPY": 0.6, "AGG": 0.4} if choice == "60_40" else {ticker: 1.0}
     tickers = list(weights)
     prices = pd.concat({t: starter.adj_close_cad(t) for t in tickers}, axis=1, join="inner").dropna()
     start = pd.Timestamp("2022-01-01")
     if prices.loc[prices.index.year == 2022].empty:
         ctx.warn("Simulation indisponible : aucun historique de prix commun en 2022 pour ce titre.")
+        ctx.decide("Simuler ?", "non", "Aucun historique de prix commun en 2022 pour ce portefeuille.")
         return
     value = simulation.portfolio_value(prices, weights, start, INITIAL_CAD)
     cash = starter.adj_close_cad(CASH_PROXY)
     res = simulation.simulate_panic(value, cash, ctx.opt("sell_point"), ctx.opt("reentry"))
+    sell_rule = f"option sell_point = {ctx.opt('sell_point')}"
+    if res.sell_date is None:
+        ctx.decide("Quand vendre ?", "jamais", "La valeur n'est jamais descendue à −20 % de la valeur initiale en "
+                   "2022 : conserver et vendre donnent le même résultat.", sell_rule)
+    else:
+        ctx.decide("Quand vendre ?", res.sell_date, (f"Creux de 2022 : valeur la plus basse de l'année ({res.sell_value:,.0f} $)."
+                   if ctx.opt("sell_point") == "trough" else "Premier jour de 2022 à −20 % de la valeur initiale.")
+                   .replace(",", " "), sell_rule, {"baisse à la vente": res.drawdown_at_sale})
+        ctx.decide("Où placer le produit de la vente ?", f"{CASH_PROXY} (obligations ultra-courtes)",
+                   "Équivalent de liquidités du kit, en CAD.")
+        ctx.decide("Réinvestir ?", res.reentry_date or "non",
+                   "Jamais, par option." if ctx.opt("reentry") == "never" else
+                   ("Dès le retour à la valeur initiale." if res.reentry_date is not None else
+                    "La valeur initiale n'a pas été retrouvée avant la fin du kit."),
+                   f"option reentry = {ctx.opt('reentry')}")
+    ctx.decide("Conserver ou vendre en panique ?", "conserver" if res.difference >= 0 else "vendre",
+               f"Valeur finale au {res.end.date()} : {res.hold_final:,.0f} $ en conservant contre "
+               f"{res.panic_final:,.0f} $ après la vente.".replace(",", " "), "plus grande valeur finale",
+               {"écart": res.difference})
     ctx.source(starter.STARTER_SOURCE_ID, "AlphaForge starter kit, prices_daily.csv (Yahoo Finance via yfinance)")
     ctx.source("boc_fx", "Banque du Canada, FXUSDCAD (fx_usdcad_daily.csv du kit)")
     label = "60/40 SPY/AGG" if choice == "60_40" else ticker
@@ -239,6 +342,16 @@ def simulation_2022(ctx: Context) -> None:
     monthly = pd.DataFrame({"hold": res.hold_path, "panic": res.panic_path}).resample("QE").last()
     ctx.preview(["fin de trimestre", "conservation (CAD)", "vente panique (CAD)"],
                 [[d, r["hold"], r["panic"]] for d, r in monthly.iterrows()])
+    ctx.dataset("quarterly_values", "Valeurs de fin de trimestre",
+                ["fin de trimestre", "conservation (CAD)", "vente panique (CAD)"],
+                ([d, r["hold"], r["panic"]] for d, r in monthly.iterrows()), starter.STARTER_SOURCE_ID)
+    if ctx.collect_datasets:
+        daily = prices.rename(columns=lambda t: f"{t} (CAD)")
+        daily[f"{CASH_PROXY} (CAD)"] = cash
+        daily["conservation (CAD)"] = res.hold_path
+        daily["vente panique (CAD)"] = res.panic_path
+        ctx.dataset_frame("daily_paths", f"Simulation quotidienne : prix en CAD et valeur du portefeuille {label}",
+                          daily.loc[daily.index >= res.start], starter.STARTER_SOURCE_ID, index="date")
     src = starter.STARTER_SOURCE_ID
     ctx.report.factor("Simulation 2022 — portefeuille", label)
     ctx.report.factor("Montant initial simulé", INITIAL_CAD, "$", source_id=src, digits=0)

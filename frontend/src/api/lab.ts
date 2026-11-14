@@ -77,6 +77,36 @@ export interface LabPreview {
   rows: LabCell[][]
 }
 
+/**
+ * A complete table a stage fetched or produced: every column, and every row
+ * unless the response had to be cut to stay under the Lambda size limit
+ * (then `truncated` is true and `rows.length < total_rows`; columns are never cut).
+ * Booleans arrive as "oui"/"non", dates as "YYYY-MM-DD", lists and objects as JSON text.
+ */
+export interface LabDataset {
+  /** Unique within its stage, e.g. `prices_AAPL`, `edgar_facts`. */
+  id: string
+  title: string
+  /** Resolves in the stage's `sources`, else in `result.sources`; null for tables StockLock computed. */
+  source_id: string | null
+  columns: string[]
+  rows: LabCell[][]
+  /** Rows the dataset really has, before any cut. */
+  total_rows: number
+  truncated: boolean
+}
+
+/** A branch the stage took, recorded where it happened: question → answer, and why. */
+export interface LabDecision {
+  question: string
+  answer: LabCell
+  reason: string
+  /** The option, threshold or formula applied, e.g. `option source = starter`. */
+  rule?: string
+  /** The values that decided, by name. */
+  inputs?: Record<string, LabCell>
+}
+
 export interface LabStageResult {
   id: string
   name: string
@@ -87,6 +117,9 @@ export interface LabStageResult {
   preview: LabPreview | null
   warnings: string[]
   sources: LabSource[]
+  /** Optional on the client: absent from responses of a backend older than this contract. */
+  decisions?: LabDecision[]
+  datasets?: LabDataset[]
 }
 
 export interface LabFactor {

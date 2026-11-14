@@ -64,12 +64,12 @@ def build_response(result: RunResult) -> AnalysisResponse:
 
 
 def execute(step_id: str, persona: dict[str, Any], inputs: dict[str, Any] | BaseModel,
-            options: dict[str, Any] | None = None) -> tuple[RunResult, AnalysisResponse]:
+            options: dict[str, Any] | None = None, datasets: bool = False) -> tuple[RunResult, AnalysisResponse]:
     """Runs one step. Raises KeyError (unknown step), ValidationError (inputs), OptionError,
-    PipelineInputError (unanalysable inputs)."""
+    PipelineInputError (unanalysable inputs). `datasets` collects each stage's complete tables (Lab)."""
     step = STEPS[step_id]
     parsed = parse_inputs(step, inputs)
-    result = run(step, persona, parsed, options)
+    result = run(step, persona, parsed, options, collect_datasets=datasets)
     return result, build_response(result)
 
 

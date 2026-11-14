@@ -57,6 +57,7 @@ class NewsSummary:
     top_articles: list[dict] = field(default_factory=list)
     from_cache: bool = False
     url: str = ""
+    bins: list[dict] = field(default_factory=list)  # raw tonechart bins: bin, count, toparts
 
 
 def query_for(ticker: str, name: str) -> str:
@@ -110,7 +111,8 @@ def news_summary(ticker: str, name: str, start: date, end: date) -> NewsSummary:
     key = "|".join(f"{k}={params[k]}" for k in sorted(params))
     payload, hit = cache.cached("gdelt", key, 12 * 3600, lambda: _throttled_get(params))
     total, tone, tops = summarize_tonechart(payload)
-    return NewsSummary(query, start, end, total, tone, tops, hit, API_URL + "?" + urlencode(params))
+    return NewsSummary(query, start, end, total, tone, tops, hit, API_URL + "?" + urlencode(params),
+                       payload.get("tonechart", []) or [])
 
 
 @dataclass

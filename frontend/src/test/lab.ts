@@ -91,6 +91,43 @@ export const LAB_RUN: LabRunResponse = {
           as_of: '2026-11-13',
         },
       ],
+      decisions: [
+        {
+          question: 'Quelle source de prix pour SHOP.TO ?',
+          answer: 'kit de départ (prices_daily.csv)',
+          reason: "Choix de l'option de l'étape.",
+          rule: 'option source = starter',
+        },
+        {
+          question: 'Quelles séances garder ?',
+          answer: '2 séances sur 1255',
+          reason: 'Filtre sur la période 2026-11-12 → 2026-11-13.',
+          inputs: { début: '2026-11-12', fin: '2026-11-13' },
+        },
+      ],
+      datasets: [
+        {
+          id: 'prices_SHOP.TO',
+          title: 'Prix quotidiens SHOP.TO (kit, prices_daily.csv)',
+          source_id: 's1',
+          columns: ['date', 'ticker', 'close', 'volume'],
+          rows: [
+            ['2026-11-12', 'SHOP.TO', 101.5, 1200],
+            ['2026-11-13', 'SHOP.TO', null, 900],
+          ],
+          total_rows: 2,
+          truncated: false,
+        },
+        {
+          id: 'edgar_facts',
+          title: 'Faits XBRL EDGAR (companyfacts)',
+          source_id: null,
+          columns: ['concept', 'val', 'filed'],
+          rows: [['Revenues', 100, '2026-02-15']],
+          total_rows: 3,
+          truncated: true,
+        },
+      ],
     },
     {
       id: 'scoring',
@@ -102,6 +139,16 @@ export const LAB_RUN: LabRunResponse = {
       preview: null,
       warnings: ['Données ESG manquantes'],
       sources: [{ id: 's2', title: 'Rapport annuel' }],
+      decisions: [
+        {
+          question: 'Que faire des sous-scores manquants ?',
+          answer: 'poids redistribué (Sous-score ton médiatique)',
+          reason: '1 sous-score sans donnée : son poids est réparti entre les 6 autres.',
+          rule: 'poids effectif = poids nominal / somme des poids nominaux disponibles',
+          inputs: { 'poids manquant': 0.1 },
+        },
+      ],
+      datasets: [],
     },
   ],
   result: {
