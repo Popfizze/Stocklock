@@ -30,7 +30,7 @@ export function RunHistory({ items, shownId, onShow, compareIds, onToggleCompare
   return (
     <section aria-labelledby="historique-runs" className="space-y-3">
       <div className="space-y-1">
-        <h2 id="historique-runs" className="text-xl font-semibold tracking-tight">
+        <h2 id="historique-runs" className="text-3xl leading-tight">
           Historique
         </h2>
         <p className="text-sm text-muted-foreground">

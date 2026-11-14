@@ -24,11 +24,16 @@ export function ChoosePersonaPage() {
 
   return (
     <main className="min-h-screen bg-background px-4 py-10 sm:py-16">
-      <div className="mx-auto max-w-5xl space-y-10">
-        <header className="space-y-6">
-          <p className="text-lg font-semibold tracking-tight">StockLock</p>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-semibold tracking-tight">Choisir un profil</h1>
+      <div className="mx-auto max-w-6xl space-y-12">
+        <header className="fade-up space-y-10">
+          <p className="font-display text-2xl leading-none font-medium tracking-tight">
+            <span className="text-tile-3">Stock</span>Lock
+          </p>
+          <div className="space-y-4">
+            <p className="eyebrow">Aide à la décision, adaptée à l'investisseur</p>
+            <h1 className="text-5xl leading-none sm:text-7xl">
+              Choisir <em>un profil</em>
+            </h1>
             <p className="max-w-2xl text-muted-foreground">
               Aucune connexion : les analyses s'adaptent au profil d'investisseur choisi. Vous
               pourrez en changer à tout moment.
@@ -49,7 +54,7 @@ export function ChoosePersonaPage() {
         )}
 
         {personas && (
-          <ul className="grid gap-4 md:grid-cols-3">
+          <ul className="stagger grid gap-5 md:grid-cols-3">
             {personas.map((persona) => (
               <li key={persona.id}>
                 <PersonaCard persona={persona} onChoose={() => handleChoose(persona.id)} />

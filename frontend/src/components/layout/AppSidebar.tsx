@@ -47,7 +47,9 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" id={SIDEBAR_ID}>
       <SidebarHeader>
         <div className="flex h-9 items-center px-2 group-data-[collapsible=icon]:hidden">
-          <span className="text-lg font-semibold tracking-tight">StockLock</span>
+          <span className="font-display text-2xl leading-none font-medium tracking-tight">
+            <span className="text-tile-3">Stock</span>Lock
+          </span>
         </div>
       </SidebarHeader>
 
@@ -68,7 +70,7 @@ export function AppSidebar() {
                         asChild
                         isActive={isActive}
                         tooltip={isCollapsed ? item.title : undefined}
-                        className="h-9 text-muted-foreground data-[active=true]:text-foreground group-data-[collapsible=icon]:mx-auto"
+                        className="h-10 rounded-full px-3 text-muted-foreground data-[active=true]:text-foreground group-data-[collapsible=icon]:mx-auto"
                       >
                         <Link
                           to={item.path}

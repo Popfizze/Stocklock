@@ -12,6 +12,7 @@ import { STOCK_QUERY_KEYS } from '@/api/stocks'
 import { Button } from '@/components/ui/button'
 import { INPUT_NODE, OUTPUT_NODE, scoreFlow } from './flow/flowModel'
 import { PipelineFlow } from './flow/PipelineFlow'
+import { PipelineScene } from './flow/PipelineScene'
 import { StagePanel } from './flow/StagePanel'
 import { pipelineErrorMessage } from './pipeline/pipelineFormat'
 import { ScoreRunForm } from './pipeline/ScoreRunForm'
@@ -105,6 +106,8 @@ export function ScorePipelineView({ list }: ScorePipelineViewProps) {
         </p>
       )}
       {run && <ScoreRunProgress run={run} />}
+
+      <PipelineScene nodes={nodes} onSelect={setSelected} name={"du pipeline de score"} />
 
       <PipelineFlow
         nodes={nodes}

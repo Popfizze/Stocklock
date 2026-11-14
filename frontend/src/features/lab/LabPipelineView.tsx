@@ -5,6 +5,7 @@ import { useActivePersona } from '@/features/personas/activePersona'
 import { FinalResult } from './FinalResult'
 import { INPUT_NODE, OUTPUT_NODE, labFlow } from './flow/flowModel'
 import { PipelineFlow } from './flow/PipelineFlow'
+import { PipelineScene } from './flow/PipelineScene'
 import { StagePanel } from './flow/StagePanel'
 import { initialInputDraft, initialOptionValues, runErrorMessage, toRequestInputs } from './labForm'
 import {
@@ -118,6 +119,8 @@ export function LabPipelineView({ step }: LabPipelineViewProps) {
           </p>
         )}
       </div>
+
+      <PipelineScene nodes={nodes} onSelect={setSelected} name={`du pipeline ${step.label}`} />
 
       <PipelineFlow
         nodes={nodes}

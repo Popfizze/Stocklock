@@ -10,6 +10,7 @@ import {
   KPIS,
   NVDA_1M,
   SCORE_ABSENT,
+  SEARCH_BIT,
   SEARCH_NONE,
   SEARCH_RY,
   SECTION_BEST,
@@ -94,6 +95,11 @@ describe('DashboardPage', () => {
     const canada = within(await section('Populaires au Canada'))
     expect(within(await canada.findByRole('link', { name: /RY\.TO/ })).getByText('288,37 $')).toBeInTheDocument()
 
+    // The day's market as a field of tiles, with its plain reading next to it.
+    const field = within(await screen.findByRole('region', { name: 'Le marché du jour' }))
+    expect(field.getByText(/3 titres de « Les plus populaires » et « Meilleurs scores » : 2 en hausse, 1 en baisse\./)).toBeInTheDocument()
+    expect(field.getByRole('img', { name: /Le marché du jour en tuiles : 3 titres, 2 en hausse/ })).toBeInTheDocument()
+
     // A KPI strip stands where the row of section links used to be.
     const kpis = within(await screen.findByRole('region', { name: 'Indicateurs' }))
     expect(kpis.getByText('S&P 500')).toBeInTheDocument()
@@ -136,7 +142,7 @@ describe('DashboardPage', () => {
 
     await section('IA et semi-conducteurs')
     const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
-    expect(headings).toEqual(['IA et semi-conducteurs', 'Cryptomonnaies', 'Les plus populaires', 'Plus fortes hausses'])
+    expect(headings).toEqual(['Le marché du jour', 'IA et semi-conducteurs', 'Cryptomonnaies', 'Les plus populaires', 'Plus fortes hausses'])
     expect(within(await section('IA et semi-conducteurs')).getByText(/Pour vous · Préférence « IA » du profil d’Amira\./)).toBeInTheDocument()
     const cryptos = within(await section('Cryptomonnaies'))
     expect(cryptos.getByText(/Pour vous · Le profil d’Amira accepte les cryptoactifs\./)).toBeInTheDocument()
@@ -147,7 +153,7 @@ describe('DashboardPage', () => {
     // The profile tiles count the compatible titles of its first section.
     const kpis = within(screen.getByRole('region', { name: 'Indicateurs' }))
     expect(await kpis.findByText('dans « IA et semi-conducteurs »')).toBeInTheDocument()
-    expect(kpis.getByText('Votre volatilité max.')).toBeInTheDocument()
+    expect(kpis.getByText('Volatilité max.')).toBeInTheDocument()
   })
 
   it('explains why « Meilleurs scores » is empty until the pipeline has run', async () => {
@@ -225,6 +231,18 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('region', { name: 'Les plus populaires' })).not.toBeInTheDocument()
     await userEvent.clear(search)
     expect(await section('Les plus populaires')).toBeInTheDocument()
+  })
+
+  it('lists the cryptocurrencies that match, after the listed titles', async () => {
+    mockApi({ search: [json(SEARCH_BIT)] })
+    renderDashboard()
+
+    await userEvent.type(screen.getByRole('searchbox', { name: /Rechercher un titre/ }), 'bit')
+    const results = within(await screen.findByRole('region', { name: 'Résultats de la recherche' }))
+    const btc = results.getByRole('link', { name: /BTC-USD/ })
+    expect(btc).toHaveAttribute('href', '/titres/BTC-USD')
+    expect(btc).toHaveTextContent('Cryptomonnaie')
+    expect(results.getByRole('link', { name: /BITF/ })).toHaveTextContent('Nasdaq · États-Unis')
   })
 
   it('says so when nothing matches', async () => {

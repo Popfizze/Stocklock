@@ -3,6 +3,7 @@ import { ACCOUNT_IDS, type AccountId, type AccountProjection } from '@/api/accou
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { cn } from '@/lib/utils'
 import { AccountFactsList } from './AccountFactsList'
+import { AccountTowers } from './AccountTowers'
 import { AfterTaxBars } from './AfterTaxBars'
 import { AssetSnapshot } from './AssetSnapshot'
 import { formatMoney, formatPercent } from './format'
@@ -52,6 +53,8 @@ export function ProjectionResults({ projection, level, accounts = ACCOUNT_IDS, s
           </ul>
         </section>
       )}
+
+      {normal && <AccountTowers accounts={outcomes} series={projection.series} years={inputs.years} />}
 
       <div className="@container">
         <div className={cn('grid gap-4', normal ? '@5xl:grid-cols-5' : 'max-w-3xl')}>

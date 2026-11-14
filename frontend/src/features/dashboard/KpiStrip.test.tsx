@@ -63,8 +63,8 @@ describe('KpiStrip', () => {
     const calls = mockApi()
     renderWithProviders(<KpiStrip section={DIVIDENDES} />, { personaId: 'robert' })
 
-    expect(await within(tile('Votre volatilité max.')).findByText('25 %')).toBeInTheDocument()
-    expect(within(tile('Votre position max.')).getByText('10 %')).toBeInTheDocument()
+    expect(await within(tile('Volatilité max.')).findByText('25 %')).toBeInTheDocument()
+    expect(within(tile('Position max.')).getByText('10 %')).toBeInTheDocument()
     const compatible = within(tile('Titres compatibles'))
     expect(compatible.getByText('1 sur 3')).toBeInTheDocument()
     expect(compatible.getByText('dans « Dividendes réguliers »')).toBeInTheDocument()
@@ -76,7 +76,7 @@ describe('KpiStrip', () => {
     mockApi({ fit: [json({ detail: 'x' }, 503)] })
     renderWithProviders(<KpiStrip section={DIVIDENDES} />, { personaId: 'robert' })
 
-    const volatility = within(tile('Votre volatilité max.'))
+    const volatility = within(tile('Volatilité max.'))
     expect(await volatility.findByText('Indisponible', undefined, { timeout: 4000 })).toBeInTheDocument()
     expect(volatility.getByText('—')).toBeInTheDocument()
     // The indices are not affected.

@@ -24,7 +24,7 @@ const FORMATS: Record<MarketKpi['kind'], Intl.NumberFormat> = {
   count: new Intl.NumberFormat(LOCALE, { maximumFractionDigits: 0 }),
 }
 
-const GRID = 'grid grid-cols-2 gap-x-8 gap-y-6 border-y border-border py-5 sm:grid-cols-3 xl:grid-cols-6'
+const GRID = 'grid grid-cols-2 gap-x-8 gap-y-8 border-y border-border py-7 sm:grid-cols-3 xl:grid-cols-6'
 const INDEX_SKELETONS = 3
 
 interface KpiStripProps {
@@ -84,17 +84,17 @@ interface TileProps {
 function Tile({ label, value, detail, title }: TileProps) {
   return (
     <div className="min-w-0" title={title}>
-      <dt className="truncate text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1">
+      <dt className="eyebrow truncate">{label}</dt>
+      <dd className="mt-2">
         <span
           className={cn(
-            'block truncate text-2xl font-semibold tracking-tight tabular-nums',
+            'display flip-in block truncate text-4xl',
             value === null && 'text-muted-foreground',
           )}
         >
           {value ?? '—'}
         </span>
-        <span className="mt-0.5 block text-xs tabular-nums">{detail}</span>
+        <span className="mt-1.5 block text-xs tabular-nums">{detail}</span>
       </dd>
     </div>
   )
@@ -138,14 +138,14 @@ function ProfileTiles({ section }: { section: MarketSectionInfo }) {
   return (
     <>
       <Tile
-        label="Votre volatilité max."
+        label="Volatilité max."
         value={limits ? formatWeight(limits.max_volatility) : null}
-        detail={muted(limits ? 'par an, selon votre profil' : waiting)}
+        detail={muted(limits ? 'par an, pour votre profil' : waiting)}
       />
       <Tile
-        label="Votre position max."
+        label="Position max."
         value={limits ? formatWeight(limits.max_position) : null}
-        detail={muted(limits ? 'du portefeuille par titre' : waiting)}
+        detail={muted(limits ? 'par titre, pour votre profil' : waiting)}
       />
       <Tile
         label="Titres compatibles"

@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { AddHolding } from './AddHolding'
 import { DiversificationView } from './DiversificationView'
 import { HoldingsTable } from './HoldingsTable'
+import { PortfolioBlocks } from './PortfolioBlocks'
 import { PortfolioFindings, PortfolioSuggestionList } from './PortfolioInsights'
 import {
   MAX_HOLDINGS,
@@ -54,6 +55,12 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
     if (holdings.some((holding) => holding.ticker === ticker) || holdings.length >= MAX_HOLDINGS) return
     update([...holdings, { ticker, weight: NEW_WEIGHT }])
   }
+  const handleWeight = (ticker: string, weight: number) =>
+    update(
+      holdings.map((holding) =>
+        holding.ticker === ticker ? { ...holding, weight: Number.isFinite(weight) ? weight : 0 } : holding,
+      ),
+    )
   const handleReset = () => {
     clearPortfolio(personaId)
     setHoldings(examplePortfolio(personaId))
@@ -67,9 +74,10 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
   return (
     <div className="space-y-10">
       <PageHeader
-        title="Mon portefeuille"
+        title="Mon"
+        accent="portefeuille"
         eyebrow={persona ? `Profil de ${persona.name}` : undefined}
-        description="Vos titres et leur poids, gardés dans ce navigateur. L'analyse dit si le portefeuille est diversifié, si chaque titre convient à votre profil, et propose des pistes."
+        description="Vos titres en blocs : glissez-les pour changer leur poids. L'analyse dit si le portefeuille est diversifié, si chaque titre convient à votre profil, et propose des pistes. Tout est gardé dans ce navigateur."
         actions={
           <Button type="button" variant="outline" size="sm" onClick={handleReset}>
             <RotateCcw aria-hidden="true" /> Revenir à l'exemple
@@ -79,7 +87,7 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
 
       <section aria-labelledby="titres-portefeuille" className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 id="titres-portefeuille" className="text-xl font-semibold tracking-tight">
+          <h2 id="titres-portefeuille" className="text-3xl leading-tight">
             Titres ({holdings.length})
           </h2>
           <p className="text-sm text-muted-foreground tabular-nums">
@@ -88,19 +96,33 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
           </p>
         </div>
         {holdings.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+          <p className="rounded-3xl border border-dashed border-border p-5 text-sm text-muted-foreground">
             Aucun titre : ajoutez-en un par la recherche, ou revenez à l'exemple du profil.
           </p>
         ) : (
-          <HoldingsTable
-            holdings={holdings}
-            analyzed={analyzed}
-            maxPosition={data?.diversification.max_position ?? null}
-            onWeightChange={(ticker, weight) =>
-              update(holdings.map((holding) => (holding.ticker === ticker ? { ...holding, weight: Number.isFinite(weight) ? weight : 0 } : holding)))
-            }
-            onRemove={(ticker) => update(holdings.filter((holding) => holding.ticker !== ticker))}
-          />
+          <>
+            <PortfolioBlocks
+              holdings={holdings}
+              analyzed={analyzed}
+              maxPosition={data?.diversification.max_position ?? null}
+              onWeightChange={handleWeight}
+            />
+            {/* The same holdings as a table: the keyboard and screen-reader way to read and edit them. */}
+            <details className="rounded-3xl border border-border px-5 py-4">
+              <summary className="cursor-pointer text-sm font-medium">
+                Tableau des titres : lire et modifier les poids au clavier
+              </summary>
+              <div className="pt-4">
+                <HoldingsTable
+                  holdings={holdings}
+                  analyzed={analyzed}
+                  maxPosition={data?.diversification.max_position ?? null}
+                  onWeightChange={handleWeight}
+                  onRemove={(ticker) => update(holdings.filter((holding) => holding.ticker !== ticker))}
+                />
+              </div>
+            </details>
+          </>
         )}
         <AddHolding
           held={holdings.map((holding) => holding.ticker)}

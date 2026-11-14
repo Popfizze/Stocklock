@@ -24,17 +24,17 @@ interface StagePanelProps {
 export function StagePanel({ node, description, children }: StagePanelProps) {
   if (!node) {
     return (
-      <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+      <p className="rounded-3xl border border-dashed border-border p-5 text-sm text-muted-foreground">
         Cliquez une étape du diagramme pour voir son détail : statut, durée, décisions, données,
         sources.
       </p>
     )
   }
   return (
-    <section aria-label={`Détail : ${node.label}`} className="space-y-4 rounded-xl border border-border p-4 sm:p-5">
+    <section aria-label={`Détail : ${node.label}`} className="fade-up space-y-4 rounded-3xl border border-border p-5 sm:p-7">
       <header className="space-y-1">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h3 className="text-lg font-semibold tracking-tight">
+          <h3 className="text-2xl leading-tight">
             {node.order !== undefined && `${node.order}. `}
             {node.label}
           </h3>

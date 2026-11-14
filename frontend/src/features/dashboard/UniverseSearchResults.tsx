@@ -36,7 +36,8 @@ export function UniverseSearchResults({ query }: UniverseSearchResultsProps) {
     )
   }
 
-  if (data.results.length === 0) {
+  const crypto = data.crypto ?? []
+  if (data.results.length === 0 && crypto.length === 0) {
     return (
       <p className="py-12 text-center text-muted-foreground">
         Aucun titre ne correspond à « {shown} ».
@@ -57,7 +58,7 @@ export function UniverseSearchResults({ query }: UniverseSearchResultsProps) {
           isPlaceholderData && 'opacity-60',
         )}
       >
-        {data.results.map((match) => (
+        {[...data.results, ...crypto].map((match) => (
           <li key={match.ticker}>
             <Link
               to={`/titres/${encodeURIComponent(match.ticker)}`}
@@ -66,7 +67,9 @@ export function UniverseSearchResults({ query }: UniverseSearchResultsProps) {
               <span className="w-24 shrink-0 truncate font-semibold">{match.ticker}</span>
               <span className="min-w-0 flex-1 truncate">{displayName(match.name)}</span>
               <span className="shrink-0 text-right text-sm text-muted-foreground">
-                {match.exchange} · {COUNTRY_LABELS[match.country] ?? match.country}
+                {match.country === null
+                  ? 'Cryptomonnaie'
+                  : `${match.exchange} · ${COUNTRY_LABELS[match.country] ?? match.country}`}
               </span>
             </Link>
           </li>

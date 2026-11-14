@@ -39,15 +39,15 @@ function PipelineRow({ to, title, kind, description, lastRun }: PipelineRowProps
     <li>
       <Link
         to={to}
-        className="group flex flex-wrap items-center gap-x-6 gap-y-2 px-2 py-4 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="group flex flex-wrap items-center gap-x-6 gap-y-2 px-2 py-6 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <span className="min-w-0 flex-1 basis-72">
-          <span className="block text-lg font-semibold tracking-tight">{title}</span>
-          <span className="block text-xs text-muted-foreground">{kind}</span>
+          <span className="block font-display text-2xl leading-tight">{title}</span>
+          <span className="eyebrow mt-1 block">{kind}</span>
           <span className="mt-1 block max-w-2xl text-sm text-muted-foreground">{description}</span>
         </span>
         <span className="flex w-56 shrink-0 flex-col items-start gap-1 text-sm">
-          <span className="text-xs text-muted-foreground">Dernier run</span>
+          <span className="eyebrow">Dernier run</span>
           {lastRun === undefined ? (
             <Skeleton className="h-5 w-32" />
           ) : lastRun === null ? (
@@ -93,6 +93,7 @@ export function LabPage() {
       <div className="space-y-8">
         <PageHeader
           title="Labo"
+          accent="des pipelines"
           description="La console des pipelines : ouvrez-en un pour voir son diagramme en direct, le lancer, lire les décisions et les données de chaque étape, et comparer deux runs."
         />
 

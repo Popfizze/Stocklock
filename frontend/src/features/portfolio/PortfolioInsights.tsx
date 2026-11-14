@@ -16,7 +16,7 @@ export function PortfolioFindings({ findings }: FindingsProps) {
   if (findings.length === 0) return null
   return (
     <section aria-labelledby="constats" className="space-y-3">
-      <h2 id="constats" className="text-xl font-semibold tracking-tight">
+      <h2 id="constats" className="text-3xl leading-tight">
         Constats
       </h2>
       <ul className="space-y-2">
@@ -44,7 +44,7 @@ export function PortfolioSuggestionList({ suggestions, onAdd }: SuggestionsProps
   return (
     <section aria-labelledby="suggestions" className="space-y-3">
       <div className="space-y-1">
-        <h2 id="suggestions" className="text-xl font-semibold tracking-tight">
+        <h2 id="suggestions" className="text-3xl leading-tight">
           Suggestions
         </h2>
         <p className="text-sm text-muted-foreground">

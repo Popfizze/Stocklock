@@ -50,7 +50,7 @@ export function PipelineFlow({ nodes, selectedId, onSelect, label }: PipelineFlo
               )}
               <section aria-label={COLUMN_LABELS[column]} className="min-w-0 flex-1 space-y-2">
                 <div>
-                  <h3 className="text-sm font-semibold">{COLUMN_LABELS[column]}</h3>
+                  <h3 className="eyebrow text-foreground">{COLUMN_LABELS[column]}</h3>
                   <p className="text-xs text-muted-foreground">{COLUMN_HINTS[column]}</p>
                 </div>
                 <ul className="space-y-2 border-t border-border pt-3">
@@ -92,7 +92,7 @@ function FlowNodeButton({ node, selected, onSelect }: FlowNodeButtonProps) {
       onClick={() => onSelect(node.id)}
       aria-pressed={selected}
       className={cn(
-        'w-full rounded-lg border border-border bg-card px-3 py-2 text-left transition-colors hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+        'w-full rounded-2xl border border-border bg-card px-3.5 py-2.5 text-left transition-colors hover:border-foreground/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
         selected && 'border-foreground',
       )}
     >

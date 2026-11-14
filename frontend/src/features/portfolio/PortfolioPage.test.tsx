@@ -47,6 +47,12 @@ describe('PortfolioPage', () => {
     expect(items[3]).toHaveTextContent('Conforme : Concentration faible')
     expect(analyzeBodies(calls)[0]).toEqual({ persona_id: 'robert', holdings: EXAMPLE_PORTFOLIOS.robert })
 
+    // The holdings lead as 3D blocks under the profile's ceiling, with their plain reading.
+    expect(
+      await screen.findByRole('img', { name: /Le portefeuille en blocs : 11 titres, hauteur selon le poids, sous un plafond à 10\s%\. Au-dessus du plafond : PLTR\./ }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Glissez un bloc vers le haut ou le bas/)).toBeInTheDocument()
+
     // Each holding: its share, volatility and fit for the profile.
     const pltr = screen.getByRole('row', { name: /PLTR/ })
     expect(pltr).toHaveTextContent('Palantir Technologies Inc.')

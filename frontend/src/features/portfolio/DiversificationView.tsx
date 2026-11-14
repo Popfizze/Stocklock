@@ -25,7 +25,7 @@ export function DiversificationView({ diversification: d }: DiversificationViewP
 
   return (
     <section aria-labelledby="diversification" className="space-y-5">
-      <h2 id="diversification" className="text-xl font-semibold tracking-tight">
+      <h2 id="diversification" className="text-3xl leading-tight">
         Diversification
       </h2>
 
@@ -87,9 +87,9 @@ interface FigureProps {
 function Figure({ label, value, detail, alert }: FigureProps) {
   return (
     <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-1">
-        <span className="block text-2xl font-semibold tracking-tight">{value}</span>
+      <dt className="eyebrow">{label}</dt>
+      <dd className="mt-2 space-y-1.5">
+        <span className="display block text-4xl">{value}</span>
         <span className={cn('block text-xs', alert ? 'text-destructive' : 'text-muted-foreground')}>{detail}</span>
       </dd>
     </div>
@@ -125,7 +125,7 @@ function WeightBars({ title, buckets, limit }: WeightBarsProps) {
                 aria-hidden="true"
                 viewBox="0 0 100 1"
                 preserveAspectRatio="none"
-                className={cn('mt-1 block h-1 w-full rounded-full bg-muted', over ? 'text-destructive' : 'text-foreground')}
+                className={cn('mt-1 block h-1 w-full bg-muted', over ? 'text-destructive' : 'text-foreground')}
               >
                 <rect width={(bucket.weight / scale) * 100} height="1" fill="currentColor" />
               </svg>

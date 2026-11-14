@@ -40,7 +40,7 @@ describe('LabPage', () => {
   it('lists the pipelines, each one opening its page', async () => {
     renderLab()
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Labo' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Labo des pipelines' })).toBeInTheDocument()
     const list = within(screen.getByRole('list', { name: 'Pipelines' }))
     expect(list.getByRole('link', { name: /Table des scores/ })).toHaveAttribute('href', '/labo/scores')
     expect(await list.findByRole('link', { name: /1\. Score/ })).toHaveAttribute('href', '/labo/score')

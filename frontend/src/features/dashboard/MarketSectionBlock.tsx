@@ -44,7 +44,7 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
             Pour vous · {section.persona_reason}
           </p>
         )}
-        <h2 id={headingId} className="text-xl font-semibold tracking-tight">
+        <h2 id={headingId} className="text-3xl leading-tight">
           {section.title}
         </h2>
         <p className="max-w-3xl text-sm text-muted-foreground">{section.description}</p>

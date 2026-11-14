@@ -32,7 +32,9 @@ export function AppLayout({ children }: AppLayoutProps) {
         <SidebarInset className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex h-14 items-center gap-3 border-b border-border px-4 md:hidden">
             <SidebarTrigger aria-label="Ouvrir le menu" />
-            <span className="font-semibold tracking-tight">StockLock</span>
+            <span className="font-display text-xl leading-none font-medium tracking-tight">
+              <span className="text-tile-3">Stock</span>Lock
+            </span>
           </div>
           <SidebarCollapseButton />
           <main className="mx-auto w-full max-w-screen-2xl px-4 py-8 sm:px-8 md:pl-12 lg:px-12 lg:py-10">

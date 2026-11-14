@@ -55,9 +55,11 @@ export function AccountsPage() {
   return (
     <AppLayout>
       <div className="space-y-6">
-        <header className="space-y-2">
+        <header className="fade-up space-y-3">
           <p className="eyebrow">Étape 3 · Optimiser fiscalement</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Comptes enregistrés au Canada</h1>
+          <h1 className="text-4xl leading-none sm:text-5xl lg:text-6xl">
+            Comptes enregistrés <em>au Canada</em>
+          </h1>
           <p className="max-w-3xl text-muted-foreground">
             CELI, REER, CELIAPP et compte non enregistré : comment chacun fonctionne, ce qu'il permet et ce qu'il
             resterait après impôt.

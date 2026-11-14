@@ -8,6 +8,7 @@ import { useActivePersona } from '@/features/personas/activePersona'
 import { marketErrorMessage } from '@/features/stocks/format'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { KpiStrip } from './KpiStrip'
+import { MarketField } from './MarketField'
 import { MarketSectionBlock } from './MarketSectionBlock'
 import { UniverseSearchResults } from './UniverseSearchResults'
 
@@ -29,7 +30,8 @@ export function DashboardPage() {
     <AppLayout>
       <div className="space-y-8">
         <PageHeader
-          title="Tableau de bord"
+          title="Tableau"
+          accent="de bord"
           eyebrow={persona ? `Bonjour ${persona.name}` : undefined}
           description={
             persona
@@ -66,8 +68,9 @@ export function DashboardPage() {
           </p>
         ) : (
           <>
+            {sections.length > 0 && <MarketField sections={sections} />}
             <KpiStrip section={sections[0]} />
-            <div className="space-y-12">
+            <div className="space-y-16">
               {sections.map((section) => (
                 <MarketSectionBlock key={section.id} section={section} />
               ))}
