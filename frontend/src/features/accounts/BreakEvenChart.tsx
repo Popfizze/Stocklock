@@ -36,16 +36,16 @@ export function BreakEvenChart({ profile }: BreakEvenChartProps) {
   })
   const reerAtProfile = AMOUNT * growth * (1 - profile.rate_retirement)
   const gap = reerAtProfile - celi
-  const verdict =
+  const summary =
     Math.abs(gap) < 1
-      ? `Pour ${profile.name}, le taux ne change pas à la retraite : REER et CELI font jeu égal.`
+      ? `Pour ${profile.name}, le taux ne change pas à la retraite : REER et CELI donnent le même montant.`
       : gap > 0
         ? `Pour ${profile.name} (${formatPercent(profile.rate_now)} aujourd'hui, ${formatPercent(profile.rate_retirement)} prévu à la retraite) : le REER laisse ${formatMoney(gap)} de plus.`
         : `Pour ${profile.name}, le CELI laisse ${formatMoney(-gap)} de plus : le taux prévu à la retraite est plus élevé.`
 
   return (
     <figure className="space-y-3">
-      <p className="font-medium">{verdict}</p>
+      <p className="font-medium">{summary}</p>
       <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm" aria-label="Légende">
         <li className="flex items-center gap-2">
           <AccountLabel account="CELI" />

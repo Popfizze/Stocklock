@@ -32,12 +32,15 @@ export function parseNumber(text: string, min: number, max: number): number | nu
 }
 
 /**
- * The request for `draft`. An invalid field gets an error and falls back to
- * its default, so the charts keep showing a meaningful projection.
+ * The request for `draft`, for a generic saving or for one stock (`ticker`).
+ * A stock's return is its own long-term assumption, so the return field is
+ * left out. An invalid field gets an error and falls back to its default,
+ * so the charts keep showing a meaningful projection.
  */
 export function toProjectionRequest(
   personaId: string,
   draft: SimulatorDraft,
+  ticker?: string | null,
 ): { request: ProjectionRequest; errors: DraftErrors } {
   const errors: DraftErrors = {}
 
@@ -48,9 +51,6 @@ export function toProjectionRequest(
   const wholeYears = years !== null && Number.isInteger(years) ? years : null
   if (wholeYears === null) errors.years = 'Un nombre entier d’années, de 1 à 50.'
 
-  const returnPct = parseNumber(draft.returnPct, -50, 50)
-  if (returnPct === null) errors.returnPct = 'Entre -50 % et 50 %.'
-
   const income = draft.income.trim() === '' ? null : parseNumber(draft.income, 1, 10_000_000)
   if (draft.income.trim() !== '' && income === null) errors.income = 'Un revenu positif, en dollars.'
 
@@ -58,7 +58,13 @@ export function toProjectionRequest(
     persona_id: personaId,
     annual_contribution: contribution ?? 7000,
     years: wholeYears ?? 15,
-    expected_return: (returnPct ?? 5) / 100,
+  }
+  if (ticker) {
+    request.ticker = ticker
+  } else {
+    const returnPct = parseNumber(draft.returnPct, -50, 50)
+    if (returnPct === null) errors.returnPct = 'Entre -50 % et 50 %.'
+    request.expected_return = (returnPct ?? 5) / 100
   }
   if (income !== null) request.income = income
   if (draft.firstHomeBuyer !== null) request.first_home_buyer = draft.firstHomeBuyer

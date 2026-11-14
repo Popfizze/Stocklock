@@ -51,4 +51,10 @@ describe('toProjectionRequest', () => {
     expect(request).toEqual({ persona_id: 'amira', annual_contribution: 7000, years: 15, expected_return: 0.05 })
     expect(Object.keys(errors).sort()).toEqual(['contribution', 'income', 'returnPct', 'years'])
   })
+
+  it('projects one stock with its own return assumption', () => {
+    const { request, errors } = toProjectionRequest('mateo', { ...DEFAULT_DRAFT, returnPct: '80' }, 'JNJ')
+    expect(request).toEqual({ persona_id: 'mateo', annual_contribution: 7000, years: 15, ticker: 'JNJ' })
+    expect(errors).toEqual({})
+  })
 })

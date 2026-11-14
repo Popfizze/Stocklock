@@ -125,13 +125,14 @@ export interface AccountOutcome {
 /** After-tax value if everything were withdrawn at the end of `year`; `null` when not eligible. */
 export type SeriesPoint = { year: number } & Record<AccountId, number | null>
 
-export type Verdict = 'best' | 'close' | 'behind' | 'ineligible'
+/** Where an account's projected amount stands among the others: a fact, not a pick. */
+export type Standing = 'highest' | 'close' | 'lower' | 'ineligible'
 
-export interface AccountAdvice {
+export interface AccountFacts {
   account: AccountId
   rank: number | null
-  verdict: Verdict
-  verdict_label: string
+  standing: Standing
+  standing_label: string
   summary: string
   pros: string[]
   cons: string[]
@@ -152,7 +153,7 @@ export interface AccountProjection {
   series: SeriesPoint[]
   accounts: AccountOutcome[]
   ranking: Array<{ account: AccountId; after_tax: number }>
-  recommendations: { headline: string; accounts: AccountAdvice[] }
+  comparison: { headline: string; accounts: AccountFacts[] }
   profile_flags: string[]
   assumptions: string[]
   limits: string[]

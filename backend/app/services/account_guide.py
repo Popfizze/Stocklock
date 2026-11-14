@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from app.data import starter
-from app.services import account_advice, tax_calc
+from app.services import account_facts, tax_calc
 from app.services.account_projection import AssetIncome, eligible_dividend_rate, project_yearly
 
 ASSUMPTIONS_PATH = Path(__file__).resolve().parent.parent / "rules" / "projection_assumptions_2026.json"
@@ -218,7 +218,7 @@ def profile_flags(persona: dict[str, Any], profile: TaxProfile, asset: AssetProf
     flags = []
     if years > hi:
         flags.append(f"Horizon simulé de {years} ans plus long que l'horizon de {profile.name} "
-                     f"({profile.horizon}) : regardez surtout la valeur à {hi} ans.")
+                     f"({profile.horizon}) ; la valeur à {hi} ans est sur le graphique année par année.")
     if profile.age + years > tax_calc.rules()["rrsp_maturity"]["max_age"]:
         flags.append(f"{profile.name} aura {profile.age + years} ans : le REER doit être converti en FERR ou en "
                      "rente au plus tard à 71 ans (retraits minimaux imposables, non modélisés).")
@@ -277,10 +277,10 @@ def build(persona: dict[str, Any], ticker: str | None = None, annual_contributio
                      key=lambda kv: kv[1], reverse=True)
     series = [{"year": k + 1, **{name: (res.after_tax_by_year[k] if res.eligible else None)
                                  for name, res in central.items()}} for k in range(years)]
-    advice = account_advice.advise(profile, asset, central, ranking, params, r)
+    comparison = account_facts.compare(profile, asset, central, ranking, params, r)
     if asset_mismatches(persona, profile, asset):
-        advice["headline"] += (f" Attention : ce titre ne respecte pas le profil de {profile.name} "
-                               "(voir le contrôle de profil).")
+        comparison["headline"] += (f" Ce titre sort d'au moins une contrainte du profil de {profile.name} "
+                                   "(voir le contrôle de profil).")
     return {
         "profile": asdict(profile),
         "asset": asdict(asset) if asset else None,
@@ -290,7 +290,7 @@ def build(persona: dict[str, Any], ticker: str | None = None, annual_contributio
         "series": series,
         "accounts": accounts,
         "ranking": [{"account": a, "after_tax": v} for a, v in ranking],
-        "recommendations": advice,
+        "comparison": comparison,
         "profile_flags": profile_flags(persona, profile, asset, years),
         "assumptions": _assumptions(profile, asset, total_return, spread),
         "limits": _limits(asset),

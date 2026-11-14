@@ -1,44 +1,20 @@
 /**
- * Learning content of the Comptes tab: golden rules, « Le saviez-vous ? »
- * facts, recommended orders by situation and goals. Amounts come from the
- * versioned rules.
+ * Learning content of the Comptes tab: three facts to remember, « Le saviez-vous ? »
+ * figures, and what each account allows for a given goal. Facts only: nothing
+ * here tells the reader which account to open or fill first.
  */
 
-import {
-  Car,
-  HandCoins,
-  House,
-  PiggyBank,
-  Receipt,
-  Sunset,
-  Umbrella,
-  Wallet,
-  type LucideIcon,
-} from 'lucide-react'
-import type { AccountId, TaxProfile, TaxRules } from '@/api/accounts'
+import { Flag, House, Infinity as Unlimited, Receipt, Sunset, Wallet, type LucideIcon } from 'lucide-react'
+import type { AccountId, TaxRules } from '@/api/accounts'
+import type { Tone } from './comparison'
 import { formatMoney, formatPercent } from './format'
 
-export interface GoldenRule {
-  title: string
-  detail: string
-}
-
-export function goldenRules(r: TaxRules): GoldenRule[] {
-  return [
-    {
-      title: 'Premier acheteur ? Le CELIAPP d’abord.',
-      detail: `Il est le seul à cumuler déduction et retrait sans impôt : ${formatMoney(r.fhsa.annual_limit)} par an.`,
-    },
-    {
-      title: 'Taux plus bas à la retraite ? REER. Sinon, CELI.',
-      detail: 'Avec le même taux aujourd’hui et à la retraite, les deux donnent exactement le même résultat.',
-    },
-    {
-      title: 'Chaque placement dans le compte où il est le moins imposé.',
-      detail: 'Obligations à l’abri, actions américaines au REER. Hors abri, ce sont les actions canadiennes à dividendes qui perdent le moins.',
-    },
-  ]
-}
+/** Three facts that explain most differences, in words only (shown at every level). */
+export const KEY_FACTS: string[] = [
+  "Seuls le REER et le CELIAPP réduisent l'impôt de l'année où l'on cotise.",
+  "Au même taux d'imposition aujourd'hui et au retrait, le REER et le CELI laissent le même montant après impôt.",
+  "Un même placement n'est pas imposé de la même façon selon ce qu'il verse : intérêts, dividendes ou gains.",
+]
 
 export interface Fact {
   value: string
@@ -47,6 +23,7 @@ export interface Fact {
   sourceId: string
 }
 
+/** Figures worth knowing (Complexe level). */
 export function didYouKnow(r: TaxRules): Fact[] {
   const homeTotal = r.fhsa.lifetime_limit + r.home_buyers_plan.withdrawal_limit
   return [
@@ -58,115 +35,119 @@ export function didYouKnow(r: TaxRules): Fact[] {
     },
     {
       value: formatMoney(homeTotal),
-      label: 'de mise de fonds par personne',
-      detail: `CELIAPP (${formatMoney(r.fhsa.lifetime_limit)}) + RAP (${formatMoney(r.home_buyers_plan.withdrawal_limit)}). Le double pour un couple.`,
+      label: 'pour une première propriété',
+      detail: `CELIAPP (${formatMoney(r.fhsa.lifetime_limit)}) et RAP (${formatMoney(r.home_buyers_plan.withdrawal_limit)}), par personne.`,
       sourceId: 'cra_hbp',
     },
     {
       value: '60 jours',
-      label: 'de rattrapage pour le REER',
-      detail: 'Une cotisation faite en janvier ou février peut réduire l’impôt de l’année précédente.',
+      label: 'pour cotiser au REER',
+      detail: 'Une cotisation faite en janvier ou février peut être déduite de l’année précédente.',
       sourceId: 'cra_rrsp',
     },
     {
       value: formatPercent(r.us_dividend_withholding.rate, 0),
-      label: 'de retenue évitée au REER',
-      detail: 'Sur les dividendes américains, grâce à la convention fiscale. Pas au CELI.',
+      label: 'de retenue sur les dividendes américains',
+      detail: 'Le REER en est exempté par la convention fiscale ; le CELI et le CELIAPP, non.',
       sourceId: 'canada_us_treaty',
     },
     {
       value: formatPercent(r.capital_gains.inclusion_rate, 0),
-      label: 'seulement des gains imposés',
-      detail: 'Hors compte enregistré, et seulement quand vous vendez.',
+      label: 'du gain est imposable',
+      detail: 'Hors compte enregistré, et seulement à la vente.',
       sourceId: 'cra_capital_gains',
     },
     {
       value: '0 $',
       label: 'd’impôt sur un retrait du CELI',
-      detail: 'Il n’augmente pas votre revenu imposable, même à la retraite.',
+      detail: 'Il n’augmente pas le revenu imposable, même à la retraite.',
       sourceId: 'cra_tfsa',
     },
   ]
 }
 
-export interface Situation {
-  id: 'start' | 'home' | 'high' | 'retire'
-  icon: LucideIcon
-  title: string
-  who: string
-  order: Array<{ account: AccountId; why: string }>
+export interface GoalAccount {
+  account: AccountId
+  tone: Tone
+  /** Simple: a few words. */
+  text: string
+  /** Normale: the condition or the catch. */
+  detail: string
+  /** Complexe: the figure of the rule. */
+  figure?: string
 }
 
-export function situations(r: TaxRules): Situation[] {
+export interface Goal {
+  id: 'cash' | 'home' | 'retirement' | 'tax' | 'unlimited' | 'us'
+  icon: LucideIcon
+  title: string
+  accounts: GoalAccount[]
+}
+
+/** For each goal, what each account allows: the rules, in no particular order of preference. */
+export function goals(r: TaxRules): Goal[] {
+  const wh = formatPercent(r.us_dividend_withholding.rate, 0)
+  const inclusion = formatPercent(r.capital_gains.inclusion_rate, 0)
   return [
     {
-      id: 'start',
+      id: 'cash',
       icon: Wallet,
-      title: 'Je commence ma carrière',
-      who: 'Revenu modeste, taux d’imposition encore bas.',
-      order: [
-        { account: 'CELI', why: 'La déduction du REER vaudrait peu aujourd’hui.' },
-        { account: 'REER', why: 'Plus tard : vos droits s’accumulent et attendent un meilleur taux.' },
-        { account: 'Non enregistré', why: 'Une fois le CELI plein.' },
+      title: "Garder de l'argent disponible",
+      accounts: [
+        { account: 'CELI', tone: 'advantage', text: 'Retrait sans impôt, en tout temps', detail: 'Le montant retiré redevient cotisable le 1er janvier suivant.' },
+        { account: 'Non enregistré', tone: 'neutral', text: 'Retrait libre', detail: 'Le gain réalisé à la vente est imposé en partie.', figure: `${inclusion} du gain est imposable` },
+        { account: 'REER', tone: 'tax', text: 'Retrait possible mais imposé', detail: 'Les droits de cotisation utilisés ne reviennent pas.' },
       ],
     },
     {
       id: 'home',
       icon: House,
-      title: 'J’achète ma première maison',
-      who: 'Achat prévu dans les 15 prochaines années.',
-      order: [
-        { account: 'CELIAPP', why: `Déductible et retiré sans impôt, ${formatMoney(r.fhsa.annual_limit)} par an.` },
-        { account: 'REER', why: `Le RAP permet d'y retirer jusqu'à ${formatMoney(r.home_buyers_plan.withdrawal_limit)}.` },
-        { account: 'CELI', why: 'Pour compléter avec souplesse.' },
+      title: 'Acheter une première propriété',
+      accounts: [
+        { account: 'CELIAPP', tone: 'advantage', text: 'Déduction et retrait sans impôt', detail: 'Réservé aux premiers acheteurs ; rien à rembourser.', figure: `${formatMoney(r.fhsa.annual_limit)} par an, ${formatMoney(r.fhsa.lifetime_limit)} à vie` },
+        { account: 'REER', tone: 'neutral', text: 'Retrait sans impôt avec le RAP', detail: `À rembourser au REER sur ${r.home_buyers_plan.repayment_years} ans.`, figure: `Jusqu'à ${formatMoney(r.home_buyers_plan.withdrawal_limit)} par personne` },
+        { account: 'CELI', tone: 'advantage', text: 'Retrait sans impôt', detail: "Aucune condition sur l'usage de l'argent." },
       ],
     },
     {
-      id: 'high',
-      icon: HandCoins,
-      title: 'Mon revenu est élevé',
-      who: 'Taux actuel plus haut que celui prévu à la retraite.',
-      order: [
-        { account: 'REER', why: 'La déduction rembourse beaucoup d’impôt aujourd’hui.' },
-        { account: 'CELI', why: 'Pour l’épargne qui ne rentre plus au REER.' },
-        { account: 'Non enregistré', why: 'Actions canadiennes à dividendes en priorité.' },
-      ],
-    },
-    {
-      id: 'retire',
+      id: 'retirement',
       icon: Sunset,
-      title: 'Je prépare ma retraite',
-      who: 'Moins de 10 ans avant de retirer.',
-      order: [
-        { account: 'REER', why: 'Si votre taux baissera à la retraite.' },
-        { account: 'CELI', why: 'Retraits sans impôt qui ne gonflent pas votre revenu.' },
-        { account: 'Non enregistré', why: `Le REER devient un FERR à ${r.rrsp_maturity.max_age} ans.` },
+      title: 'Préparer la retraite',
+      accounts: [
+        { account: 'REER', tone: 'neutral', text: 'Impôt reporté au retrait', detail: 'Le retrait est imposé au taux de ce moment-là.', figure: `FERR ou rente au plus tard à ${r.rrsp_maturity.max_age} ans` },
+        { account: 'CELI', tone: 'advantage', text: 'Retraits non imposés', detail: "Ils n'augmentent pas le revenu imposable de la retraite." },
+        { account: 'Non enregistré', tone: 'neutral', text: 'Sans plafond', detail: 'Revenus imposés chaque année ; gain imposé en partie à la vente.' },
+      ],
+    },
+    {
+      id: 'tax',
+      icon: Receipt,
+      title: "Réduire l'impôt de l'année",
+      accounts: [
+        { account: 'REER', tone: 'advantage', text: 'Cotisation déductible', detail: 'Une cotisation de janvier ou février peut compter pour l’année précédente.', figure: `${formatPercent(r.rrsp.rate_of_earned_income, 0)} du revenu, au plus ${formatMoney(r.rrsp.dollar_limit)}` },
+        { account: 'CELIAPP', tone: 'advantage', text: 'Cotisation déductible', detail: 'Pour les premiers acheteurs seulement.', figure: `${formatMoney(r.fhsa.annual_limit)} par an` },
+        { account: 'CELI', tone: 'neutral', text: 'Aucune déduction', detail: "L'avantage vient au retrait, non imposé." },
+        { account: 'Non enregistré', tone: 'neutral', text: 'Aucune déduction', detail: 'Les pertes réduisent toutefois les gains imposables.' },
+      ],
+    },
+    {
+      id: 'unlimited',
+      icon: Unlimited,
+      title: 'Placer au-delà des plafonds',
+      accounts: [
+        { account: 'Non enregistré', tone: 'neutral', text: 'Aucun plafond', detail: 'Intérêts et dividendes imposés chaque année ; gain imposé en partie à la vente.' },
+      ],
+    },
+    {
+      id: 'us',
+      icon: Flag,
+      title: 'Recevoir des dividendes américains',
+      accounts: [
+        { account: 'REER', tone: 'advantage', text: 'Aucune retenue américaine', detail: 'Exemption prévue par la convention fiscale Canada–États-Unis.', figure: `Retenue évitée : ${wh}` },
+        { account: 'Non enregistré', tone: 'neutral', text: 'Retenue récupérable', detail: 'Par le crédit pour impôt étranger ; dividendes imposés chaque année.' },
+        { account: 'CELI', tone: 'tax', text: 'Retenue perdue', detail: "Le CELI n'est pas couvert par la convention.", figure: `${wh} des dividendes` },
+        { account: 'CELIAPP', tone: 'tax', text: 'Retenue perdue', detail: "Le CELIAPP n'est pas couvert par la convention.", figure: `${wh} des dividendes` },
       ],
     },
   ]
 }
-
-/** The typical situation matching a profile, if any. */
-export function matchingSituation(profile: TaxProfile): Situation['id'] | null {
-  if (profile.fhsa_eligible) return 'home'
-  if (profile.age >= 55 || profile.horizon_years[1] <= 10) return 'retire'
-  if (profile.rate_now - profile.rate_retirement >= 0.05) return 'high'
-  if (profile.rate_now <= 0.3) return 'start'
-  return null
-}
-
-export interface Goal {
-  icon: LucideIcon
-  goal: string
-  accounts: AccountId[]
-  why: string
-}
-
-export const GOALS: Goal[] = [
-  { icon: Umbrella, goal: "Un fonds d'urgence", accounts: ['CELI'], why: 'Retrait immédiat, sans impôt.' },
-  { icon: House, goal: 'Ma première maison', accounts: ['CELIAPP', 'REER'], why: 'CELIAPP, puis le RAP du REER.' },
-  { icon: Sunset, goal: 'Ma retraite', accounts: ['REER', 'CELI'], why: 'REER si votre taux baissera, sinon CELI.' },
-  { icon: Car, goal: 'Un projet dans 2 à 5 ans', accounts: ['CELI'], why: 'Souple, et rien à payer au retrait.' },
-  { icon: Receipt, goal: 'Payer moins d’impôt cette année', accounts: ['REER', 'CELIAPP'], why: 'Les deux seuls comptes déductibles.' },
-  { icon: PiggyBank, goal: 'J’ai rempli mes comptes', accounts: ['Non enregistré'], why: 'Sans plafond ; dividendes canadiens favorisés.' },
-]

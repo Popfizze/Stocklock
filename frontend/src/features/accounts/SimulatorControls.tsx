@@ -6,10 +6,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatMoney, formatPercent } from './format'
 import type { DraftErrors, SimulatorDraft } from './simulatorForm'
+import { atLeast, type Level } from './viewOptions'
 
 interface SimulatorControlsProps {
   draft: SimulatorDraft
   errors: DraftErrors
+  level: Level
+  /** False for a stock: its return is its own long-term assumption. */
+  withReturn: boolean
   profile?: TaxProfile
   onChange: (patch: Partial<SimulatorDraft>) => void
   onReset: () => void
@@ -17,26 +21,40 @@ interface SimulatorControlsProps {
 
 type TextField = 'contribution' | 'years' | 'returnPct' | 'income'
 
-/** The simulator's inputs and the tax facts they lead to. */
-export function SimulatorControls({ draft, errors, profile, onChange, onReset }: SimulatorControlsProps) {
+interface FieldSpec {
+  name: TextField
+  label: string
+  help: string
+  placeholder?: string
+}
+
+/** The simulator's inputs: amount and years from Normale; return, income and the profile's figures at Complexe. */
+export function SimulatorControls(props: SimulatorControlsProps) {
+  const { draft, errors, level, withReturn, profile, onChange, onReset } = props
   const id = useId()
-  const fields: Array<{ name: TextField; label: string; help: string; placeholder?: string }> = [
+  const complete = atLeast(level, 'complexe')
+  const incomeFilled = draft.income.trim() !== ''
+
+  const fields: FieldSpec[] = [
     { name: 'contribution', label: 'Montant annuel avant impôt ($)', help: 'Revenu brut mis de côté chaque année.' },
-    { name: 'years', label: 'Horizon (années)', help: 'La comparaison de référence porte sur 15 ans.' },
-    { name: 'returnPct', label: 'Rendement total annuel (%)', help: 'Dividendes compris, avant frais.' },
-    {
+    { name: 'years', label: 'Durée (années)', help: 'De 1 à 50 ans.' },
+  ]
+  if (complete && withReturn) {
+    fields.push({ name: 'returnPct', label: 'Rendement total annuel (%)', help: 'Dividendes compris, avant frais.' })
+  }
+  if (complete) {
+    fields.push({
       name: 'income',
       label: 'Revenu annuel ($)',
       // While the field is empty, the profile's income is the demo value.
-      help:
-        draft.income.trim() !== ''
-          ? 'Videz le champ pour revenir au revenu du profil.'
-          : profile
-            ? `Vide : ${formatMoney(profile.income)}, valeur de démonstration du profil.`
-            : 'Vide : revenu du profil.',
-      placeholder: draft.income.trim() === '' && profile ? String(Math.round(profile.income)) : undefined,
-    },
-  ]
+      help: incomeFilled
+        ? 'Videz le champ pour revenir au revenu du profil.'
+        : profile
+          ? `Vide : ${formatMoney(profile.income)}, valeur de démonstration du profil.`
+          : 'Vide : revenu du profil.',
+      placeholder: !incomeFilled && profile ? String(Math.round(profile.income)) : undefined,
+    })
+  }
   const firstHomeBuyer = draft.firstHomeBuyer ?? profile?.first_home_buyer ?? false
 
   return (
@@ -65,44 +83,50 @@ export function SimulatorControls({ draft, errors, profile, onChange, onReset }:
         })}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <input
-            id={`${id}-fhb`}
-            type="checkbox"
-            checked={firstHomeBuyer}
-            onChange={(event) => onChange({ firstHomeBuyer: event.target.checked })}
-            className="size-4 accent-primary"
-          />
-          <Label htmlFor={`${id}-fhb`}>Premier achat d'une propriété prévu (CELIAPP)</Label>
-        </div>
-        <Button variant="outline" size="sm" onClick={onReset}>
-          <RotateCcw aria-hidden="true" className="mr-2 size-4" />
-          Revenir au profil
-        </Button>
-      </div>
-
-      {profile && (
-        <dl className="grid gap-3 rounded-lg bg-muted p-4 text-sm sm:grid-cols-3 lg:grid-cols-5">
-          <Fact label="Taux marginal actuel" value={formatPercent(profile.rate_now)} />
-          <Fact
-            label="Taux prévu à la retraite"
-            value={`${formatPercent(profile.rate_retirement)} (revenu de ${formatMoney(profile.retirement_income)})`}
-          />
-          <Fact label="Droits CELI disponibles" value={formatMoney(profile.tfsa_room)} />
-          <Fact label="Droits REER annuels" value={formatMoney(profile.rrsp_room)} />
-          <Fact label="CELIAPP" value={profile.fhsa_eligible ? `Admissible, ${profile.fhsa_years} ans` : 'Non admissible'} />
-        </dl>
+      {complete && (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <input
+                id={`${id}-fhb`}
+                type="checkbox"
+                checked={firstHomeBuyer}
+                onChange={(event) => onChange({ firstHomeBuyer: event.target.checked })}
+                className="size-4 accent-primary"
+              />
+              <Label htmlFor={`${id}-fhb`}>Premier achat d'une propriété prévu (CELIAPP)</Label>
+            </div>
+            <Button variant="outline" size="sm" onClick={onReset}>
+              <RotateCcw aria-hidden="true" />
+              Revenir au profil
+            </Button>
+          </div>
+          {profile && <ProfileFigures profile={profile} />}
+        </>
       )}
     </div>
   )
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
+function ProfileFigures({ profile }: { profile: TaxProfile }) {
+  const facts = [
+    { label: 'Taux marginal actuel', value: formatPercent(profile.rate_now) },
+    {
+      label: 'Taux prévu à la retraite',
+      value: `${formatPercent(profile.rate_retirement)} (revenu de ${formatMoney(profile.retirement_income)})`,
+    },
+    { label: 'Droits CELI disponibles', value: formatMoney(profile.tfsa_room) },
+    { label: 'Droits REER annuels', value: formatMoney(profile.rrsp_room) },
+    { label: 'CELIAPP', value: profile.fhsa_eligible ? `Admissible, ${profile.fhsa_years} ans` : 'Non admissible' },
+  ]
   return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-semibold">{value}</dd>
-    </div>
+    <dl className="grid gap-3 rounded-lg bg-muted p-4 text-sm sm:grid-cols-3 lg:grid-cols-5">
+      {facts.map((fact) => (
+        <div key={fact.label}>
+          <dt className="text-xs text-muted-foreground">{fact.label}</dt>
+          <dd className="font-semibold">{fact.value}</dd>
+        </div>
+      ))}
+    </dl>
   )
 }

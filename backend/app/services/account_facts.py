@@ -1,6 +1,7 @@
-"""Rule-based explanations of each account for one profile and one asset (French UI text, no LLM).
+"""Facts about each account for one profile and one asset (French UI text, no LLM).
 
-Every sentence comes from a documented rule (tax_rules_ca_2026.json) or from the projection itself.
+Every sentence states a documented rule (tax_rules_ca_2026.json) or a result of the projection; none tells
+the user what to do. The standing only places an account's projected amount among the others.
 """
 
 from __future__ import annotations
@@ -13,12 +14,12 @@ from app.services.account_projection import YearlyResult
 if TYPE_CHECKING:  # avoid a runtime import cycle with account_guide
     from app.services.account_guide import AssetProfile, TaxProfile
 
-CLOSE_ENOUGH = 0.98  # within 2 % of the best value: « presque équivalent »
+CLOSE_ENOUGH = 0.98  # within 2 % of the highest amount
 
-VERDICTS = {
-    "best": "Le plus avantageux ici",
-    "close": "Presque équivalent",
-    "behind": "Moins avantageux",
+STANDINGS = {
+    "highest": "Montant le plus élevé",
+    "close": "À moins de 2 % du plus élevé",
+    "lower": "Montant plus bas",
     "ineligible": "Non admissible",
 }
 
@@ -80,7 +81,7 @@ def _rrsp(p: TaxProfile, a: AssetProfile | None, res: YearlyResult, params: tax_
 def _fhsa(p: TaxProfile, a: AssetProfile | None, res: YearlyResult, params: tax_calc.Params,
           r: dict[str, Any]) -> tuple[list[str], list[str]]:
     f = r["fhsa"]
-    pros = ["Déductible comme le REER, et retrait libre d'impôt pour une première propriété : le meilleur des deux.",
+    pros = ["Déductible comme le REER, et retrait libre d'impôt pour une première propriété, comme le CELI.",
             f"{_money(f['annual_limit'])} par an, {_money(f['lifetime_limit'])} à vie, pendant {p.fhsa_years} ans "
             "au plus.",
             "Si l'achat n'a pas lieu, transfert au REER sans toucher aux droits REER."]
@@ -107,36 +108,43 @@ def _taxable(p: TaxProfile, a: AssetProfile | None, res: YearlyResult, params: t
         cons.append(f"Distributions imposées chaque année : environ {_money(res.annual_tax_paid)} d'impôt payé en "
                     "cours de route.")
     if a is not None and a.income_type == "interest":
-        cons.append(f"Intérêts imposés en entier au taux marginal ({_pct(p.rate_now)}) : le compte le moins "
-                    "efficace pour des obligations.")
+        cons.append(f"Intérêts imposés en entier, chaque année, au taux marginal ({_pct(p.rate_now)}).")
     return pros, cons
 
 
 RULES = {"CELI": _tfsa, "REER": _rrsp, "CELIAPP": _fhsa, "Non enregistré": _taxable}
 
 
-def advise(profile: TaxProfile, asset: AssetProfile | None, results: dict[str, YearlyResult],
-           ranking: list[tuple[str, float]], params: tax_calc.Params, r: dict[str, Any]) -> dict[str, Any]:
-    best_name, best_value = ranking[0]
+def compare(profile: TaxProfile, asset: AssetProfile | None, results: dict[str, YearlyResult],
+            ranking: list[tuple[str, float]], params: tax_calc.Params, r: dict[str, Any]) -> dict[str, Any]:
+    """Each account's standing in the projection, its facts, and a one-sentence summary of the result."""
+    top_name, top_value = ranking[0]
     rank = {name: i + 1 for i, (name, _) in enumerate(ranking)}
     items = []
     for name, res in results.items():
         if not res.eligible:
-            items.append({"account": name, "rank": None, "verdict": "ineligible", "verdict_label": VERDICTS["ineligible"],
-                          "summary": profile.fhsa_reason, "pros": [], "cons": [profile.fhsa_reason]})
+            items.append({"account": name, "rank": None, "standing": "ineligible",
+                          "standing_label": STANDINGS["ineligible"], "summary": profile.fhsa_reason,
+                          "pros": [], "cons": [profile.fhsa_reason]})
             continue
-        verdict = "best" if name == best_name else ("close" if res.after_tax >= CLOSE_ENOUGH * best_value else "behind")
+        standing = ("highest" if name == top_name
+                    else "close" if res.after_tax >= CLOSE_ENOUGH * top_value else "lower")
         pros, cons = RULES[name](profile, asset, res, params, r)
-        items.append({"account": name, "rank": rank[name], "verdict": verdict, "verdict_label": VERDICTS[verdict],
+        items.append({"account": name, "rank": rank[name], "standing": standing,
+                      "standing_label": STANDINGS[standing],
                       "summary": f"Environ {_money(res.after_tax)} après impôt dans {params.years} ans.",
                       "pros": pros, "cons": cons})
     items.sort(key=lambda it: it["rank"] or 99)
-    subject = f"{asset.name} ({asset.ticker})" if asset else "cette épargne"
     if len(ranking) > 1:
         second_name, second_value = ranking[1]
-        headline = (f"Pour {profile.name} et {subject}, le compte {best_name} laisse le plus après impôt dans "
-                    f"{params.years} ans : {_money(best_value)}, soit {_money(best_value - second_value)} de plus que "
-                    f"le compte {second_name}.")
+        headline = (f"Dans cette simulation, le {_account(top_name)} donne le montant après impôt le plus élevé "
+                    f"dans {params.years} ans : {_money(top_value)}, soit {_money(top_value - second_value)} de plus "
+                    f"que le {_account(second_name)}.")
     else:
-        headline = f"Pour {profile.name} et {subject}, seul le compte {best_name} est admissible."
+        headline = f"Dans cette simulation, seul le {_account(top_name)} est admissible pour {profile.name}."
     return {"headline": headline, "accounts": items}
+
+
+def _account(name: str) -> str:
+    """« CELI » → « CELI », « Non enregistré » → « compte non enregistré » (after « le »)."""
+    return "compte non enregistré" if name == "Non enregistré" else name

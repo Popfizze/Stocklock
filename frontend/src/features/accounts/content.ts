@@ -1,6 +1,8 @@
 /**
- * Educational content of the Comptes tab. Every amount, rate and age comes
- * from the versioned rules (`GET /api/accounts/rules`), never from this file.
+ * Educational content of the Comptes tab, one guide per account. Facts only:
+ * what the account is, how it works, what it can be used for, its pros and
+ * its constraints. Every amount, rate and age comes from the versioned rules
+ * (`GET /api/accounts/rules`), never from this file.
  */
 
 import {
@@ -26,7 +28,7 @@ export interface KeyFact {
   value: string
 }
 
-export interface UseCase {
+export interface AccountUse {
   icon: LucideIcon
   label: string
   detail: string
@@ -34,19 +36,16 @@ export interface UseCase {
 
 export interface AccountGuide {
   id: AccountId
-  /** The account in one sentence. */
+  /** The account in one sentence, without figures (Simple level). */
   tagline: string
   represents: string
   how: string[]
+  /** The rule's figures (Complexe level). */
   keyFacts: KeyFact[]
-  /** The one short number shown on the account's tile. */
-  glance: KeyFact
-  useCases: UseCase[]
-  /** Where it usually sits in the order of accounts to fill. */
-  orderTip: string
+  /** What it can be used for (Normale level). */
+  uses: AccountUse[]
   pros: string[]
   cons: string[]
-  bestFor: string
   sourceIds: string[]
 }
 
@@ -58,8 +57,8 @@ export function accountGuides(r: TaxRules): AccountGuide[] {
   return [
     {
       id: 'CELI',
-      tagline: "On y verse de l'argent déjà imposé ; tout ce qui pousse reste à vous, même au retrait.",
-      represents: "Une enveloppe à l'abri de l'impôt pour n'importe quel projet, pas seulement un compte d'épargne.",
+      tagline: "On y verse de l'argent déjà imposé ; ce qu'il rapporte n'est jamais imposé, même au retrait.",
+      represents: "Une enveloppe à l'abri de l'impôt, pour n'importe quel projet ; elle peut contenir actions, FNB, obligations ou CPG.",
       how: [
         'Vous versez de l’argent après impôt.',
         'Intérêts, dividendes et gains poussent sans impôt.',
@@ -71,18 +70,16 @@ export function accountGuides(r: TaxRules): AccountGuide[] {
         { label: 'Cumul possible depuis 2009', value: formatMoney(r.tfsa_total_since_2009) },
         { label: 'Âge minimum', value: `${r.tfsa.eligibility_age} ans` },
       ],
-      glance: { label: `Plafond ${r.year}`, value: formatMoney(r.tfsa.annual_limits[year]) },
-      useCases: [
+      uses: [
         { icon: Umbrella, label: "Fonds d'urgence", detail: 'Disponible en tout temps, sans impôt.' },
         { icon: Plane, label: 'Projet dans 2 à 5 ans', detail: 'Voyage, voiture, études.' },
-        { icon: Rocket, label: 'Placements à forte croissance', detail: 'Un gros gain n’est jamais imposé.' },
-        { icon: Sunset, label: "Retraite d'appoint", detail: 'Retraits qui n’augmentent pas le revenu imposable.' },
+        { icon: Rocket, label: 'Placements de croissance', detail: 'Un gain, même important, n’est pas imposé.' },
+        { icon: Sunset, label: 'Retraite', detail: 'Les retraits n’augmentent pas le revenu imposable.' },
       ],
-      orderTip: '1er choix si votre revenu est modeste ; sinon, juste après le REER ou le CELIAPP.',
       pros: [
         'Retraits non imposés, sans effet sur votre revenu imposable.',
-        'Souplesse totale : retraits en tout temps, droits rétablis ensuite.',
-        'Avantageux si votre taux d’imposition futur pourrait être plus élevé.',
+        'Retraits en tout temps ; les droits sont rétablis l’année suivante.',
+        'Le retrait reste non imposé, même si le taux d’imposition monte plus tard.',
       ],
       cons: [
         "Aucune déduction à l'entrée.",
@@ -90,13 +87,12 @@ export function accountGuides(r: TaxRules): AccountGuide[] {
         'Une perte ne peut pas être déduite.',
         'Un excédent de cotisation est pénalisé chaque mois.',
       ],
-      bestFor: 'Objectifs souples, revenu modeste aujourd’hui, placements à forte croissance.',
       sourceIds: ['cra_tfsa', 'cra_limits'],
     },
     {
       id: 'REER',
-      tagline: 'Déduire aujourd’hui, payer l’impôt plus tard, idéalement à un taux plus bas.',
-      represents: "Un régime pour la retraite : l'impôt est reporté jusqu'au retrait, souvent quand le revenu a baissé.",
+      tagline: 'La cotisation réduit l’impôt aujourd’hui ; l’impôt est payé plus tard, au retrait.',
+      represents: "Un régime d'épargne-retraite : l'impôt est reporté jusqu'au retrait, au taux de ce moment-là.",
       how: [
         'Vos cotisations réduisent votre revenu imposable.',
         'Les placements poussent sans impôt dans le régime.',
@@ -111,31 +107,28 @@ export function accountGuides(r: TaxRules): AccountGuide[] {
         { label: 'RAP (1re maison)', value: formatMoney(r.home_buyers_plan.withdrawal_limit) },
         { label: 'Échéance', value: `${r.rrsp_maturity.max_age} ans` },
       ],
-      glance: { label: `Plafond ${r.year} (${formatPercent(r.rrsp.rate_of_earned_income, 0)} du revenu)`, value: formatMoney(r.rrsp.dollar_limit) },
-      useCases: [
-        { icon: Sunset, label: 'Retraite', detail: 'Le but premier : reporter l’impôt à plus tard.' },
-        { icon: Receipt, label: "Baisser l'impôt d'une bonne année", detail: 'Prime, hausse de salaire : la déduction vaut plus.' },
-        { icon: House, label: 'Mise de fonds (RAP)', detail: `Jusqu'à ${formatMoney(r.home_buyers_plan.withdrawal_limit)} empruntés à vous-même.` },
+      uses: [
+        { icon: Sunset, label: 'Retraite', detail: 'L’impôt est reporté au retrait.' },
+        { icon: Receipt, label: "Réduire l'impôt d'une année", detail: 'La déduction vaut plus quand le taux marginal est élevé.' },
+        { icon: House, label: 'Mise de fonds (RAP)', detail: `Jusqu'à ${formatMoney(r.home_buyers_plan.withdrawal_limit)}, à rembourser au REER.` },
         { icon: Flag, label: 'Actions américaines à dividendes', detail: `Aucune retenue de ${wh}.` },
       ],
-      orderTip: '1er choix si votre taux d’imposition actuel dépasse celui prévu à la retraite.',
       pros: [
-        'Remboursement d’impôt immédiat grâce à la déduction.',
+        'La déduction réduit l’impôt de l’année de cotisation.',
         `Dividendes américains exemptés de la retenue de ${wh}.`,
         'Droits inutilisés reportés aux années suivantes.',
       ],
       cons: [
-        'Retraits imposés comme un salaire : dividendes et gains perdent leur traitement favorable.',
+        'Retraits imposés comme un salaire, dividendes et gains compris.',
         'Les droits utilisés ne reviennent pas après un retrait.',
         'Conversion obligatoire et retraits minimaux après l’échéance.',
       ],
-      bestFor: 'Revenu élevé aujourd’hui et revenu plus bas prévu à la retraite.',
       sourceIds: ['cra_rrsp', 'cra_limits', 'cra_rrsp_maturity', 'cra_hbp'],
     },
     {
       id: 'CELIAPP',
-      tagline: 'Déductible comme un REER, libre d’impôt comme un CELI, pour une première maison.',
-      represents: 'Un compte réservé aux premiers acheteurs, qui cumule les deux avantages fiscaux pour la mise de fonds.',
+      tagline: 'Déductible à l’entrée et retiré sans impôt, pour l’achat d’une première propriété.',
+      represents: 'Un compte réservé aux premiers acheteurs : déductible comme le REER, retiré sans impôt comme le CELI.',
       how: [
         'Vos cotisations sont déductibles.',
         'Les placements poussent sans impôt.',
@@ -147,29 +140,26 @@ export function accountGuides(r: TaxRules): AccountGuide[] {
         { label: 'Plafond à vie', value: formatMoney(r.fhsa.lifetime_limit) },
         { label: 'Durée maximale', value: `${r.fhsa.max_participation_years} ans, avant ${r.fhsa.max_age} ans` },
       ],
-      glance: { label: 'Plafond annuel', value: formatMoney(r.fhsa.annual_limit) },
-      useCases: [
-        { icon: House, label: 'Mise de fonds', detail: 'Le compte le plus avantageux pour une 1re maison.' },
+      uses: [
+        { icon: House, label: 'Mise de fonds', detail: 'Déductible à l’entrée, retiré sans impôt pour l’achat.' },
         { icon: Building2, label: 'Avec le RAP', detail: 'Les deux se combinent pour la même maison.' },
-        { icon: Landmark, label: 'Achat incertain', detail: 'Rien n’est perdu : transfert au REER possible.' },
+        { icon: Landmark, label: 'Sans achat', detail: 'Le solde peut être transféré au REER.' },
       ],
-      orderTip: '1er choix pour tout premier acheteur, avant le REER et le CELI.',
       pros: [
-        'Double avantage : déduction à l’entrée et retrait non imposé.',
+        'Déduction à l’entrée et retrait non imposé pour l’achat.',
         'Transfert au REER possible si l’achat n’a pas lieu.',
         'Combinable avec le RAP.',
       ],
       cons: [
         'Réservé à une première propriété.',
-        'Plafonds modestes et période limitée.',
+        'Plafond annuel, plafond à vie et durée limitée.',
         `Retenue américaine de ${wh} non récupérable, comme au CELI.`,
       ],
-      bestFor: 'Premiers acheteurs qui prévoient acheter dans les 15 prochaines années.',
       sourceIds: ['cra_fhsa', 'cra_hbp'],
     },
     {
       id: 'Non enregistré',
-      tagline: 'Aucun plafond ni restriction, mais l’impôt s’applique chaque année aux revenus.',
+      tagline: 'Aucun plafond ni condition ; les revenus sont imposés chaque année.',
       represents: 'Le compte de placement ordinaire : pas d’abri fiscal, mais un traitement favorable des gains et des dividendes canadiens.',
       how: [
         'Vous versez de l’argent après impôt, sans plafond.',
@@ -182,13 +172,11 @@ export function accountGuides(r: TaxRules): AccountGuide[] {
         { label: 'Part imposable des gains', value: inclusion },
         { label: 'Majoration des dividendes', value: formatPercent(r.eligible_dividends.gross_up, 0) },
       ],
-      glance: { label: 'Plafond', value: 'Aucun' },
-      useCases: [
-        { icon: Banknote, label: 'Une fois les comptes pleins', detail: 'Il prend le relais sans limite.' },
-        { icon: TrendingUp, label: 'Actions canadiennes à dividendes', detail: "Crédit d'impôt : taux réduit." },
-        { icon: TrendingDown, label: 'Placements risqués', detail: 'Une perte peut être déduite des gains.' },
+      uses: [
+        { icon: Banknote, label: 'Au-delà des plafonds', detail: 'Aucune limite de cotisation.' },
+        { icon: TrendingUp, label: 'Dividendes canadiens', detail: "Crédit d'impôt pour dividendes : taux réduit." },
+        { icon: TrendingDown, label: 'Pertes', detail: 'Une perte peut être déduite des gains.' },
       ],
-      orderTip: 'En dernier, quand les comptes enregistrés sont remplis.',
       pros: [
         'Aucun plafond, retraits libres.',
         'Crédit d’impôt pour dividendes canadiens.',
@@ -199,7 +187,6 @@ export function accountGuides(r: TaxRules): AccountGuide[] {
         'Aucune déduction à l’entrée.',
         'Il faut suivre le coût de chaque placement pour l’impôt.',
       ],
-      bestFor: 'Après avoir rempli les comptes enregistrés ; actions canadiennes à dividendes.',
       sourceIds: ['cra_capital_gains', 'cra_dividend_credit', 'rq_dividend_credit'],
     },
   ]

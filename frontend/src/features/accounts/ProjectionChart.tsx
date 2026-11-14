@@ -33,13 +33,12 @@ export function ProjectionChart({ series, accounts, horizon }: ProjectionChartPr
     year: point.year,
     ...Object.fromEntries(eligible.map((a) => [ACCOUNTS[a.account].key, point[a.account]])),
   }))
-  const legend = [...eligible].sort((a, b) => b.after_tax - a.after_tax)
   const showHorizon = horizon && horizon.to < years
 
   return (
     <figure className="space-y-3">
       <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm" aria-label="Légende">
-        {legend.map((account) => (
+        {eligible.map((account) => (
           <li key={account.account} className="flex items-center gap-2">
             <AccountLabel account={account.account} />
             <span className="font-semibold tabular-nums">{formatMoney(account.after_tax)}</span>
@@ -112,7 +111,7 @@ export function ProjectionChart({ series, accounts, horizon }: ProjectionChartPr
       </ChartContainer>
       <figcaption className="text-xs text-muted-foreground">
         Ce qui resterait si tout était retiré à la fin de chaque année, impôt payé. Survolez le
-        graphique pour lire les valeurs ; le tableau détaillé suit.
+        graphique pour lire les valeurs.
       </figcaption>
     </figure>
   )

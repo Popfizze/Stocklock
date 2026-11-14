@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '@/test/render'
 import { json, mockFetchByUrl, mockFetchUnreachable, type MockResponse } from '@/test/mockFetch'
@@ -29,155 +29,180 @@ const projectionBodies = (calls: Array<{ url: string; init: RequestInit }>) =>
     .filter((call) => call.url.endsWith('/api/accounts/projection'))
     .map((call) => JSON.parse(String(call.init.body)) as Record<string, unknown>)
 
+const flow = () => screen.getByRole('figure', { name: "Le parcours de l'argent dans chaque compte" })
+const lanes = () => within(flow()).getByRole('list', { name: 'Un parcours par compte' })
+
+/** Wording that would advise, rather than inform. */
+const ADVICE = /conseillé|recommandé|devriez|meilleur|idéal|privilégiez|plus avantageux|1er choix|en premier/i
+
 describe('AccountsPage', () => {
   afterEach(() => {
     globalThis.fetch = ORIGINAL_FETCH
     vi.restoreAllMocks()
   })
 
-  it('starts with the essentials: one tile per account, three golden rules and facts', async () => {
+  it('opens on the path of the money, in the simple view, without a single figure', async () => {
     renderAccounts()
 
-    expect(await screen.findByRole('heading', { name: "Les 4 comptes en un coup d'œil" })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: "L'essentiel" })).toHaveAttribute('aria-selected', 'true')
+    expect(await screen.findByRole('heading', { name: "Le parcours de l'argent" })).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Le parcours' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('radio', { name: 'Simple' })).toHaveAttribute('aria-checked', 'true')
 
-    const celi = screen.getByRole('heading', { name: 'CELI' }).closest('li') as HTMLElement
-    expect(within(celi).getByText(money(7000))).toBeInTheDocument()
-    expect(within(celi).getByRole('list', { name: 'Impôt dans le CELI' })).toHaveTextContent('Au retrait :Libre d\'impôt')
-    expect(within(celi).getByRole('link', { name: 'Tout savoir sur le CELI' })).toHaveAttribute(
-      'href',
-      '/comptes?onglet=comptes&compte=CELI',
-    )
-    expect(screen.getByRole('link', { name: 'Tout savoir sur le compte non enregistré' })).toBeInTheDocument()
+    const [celi, reer, celiapp, taxable] = within(lanes()).getAllByRole('listitem')
+    expect(celi).toHaveTextContent(/^CELI/)
+    expect(celi).toHaveTextContent('Quand on retireSans impôt (Avantage fiscal)')
+    expect(reer).toHaveTextContent('Imposé (Impôt ou perte)')
+    expect(await within(celiapp).findByText('Amira : admissible')).toBeInTheDocument()
+    expect(taxable).toHaveTextContent(/^Non enregistré/)
 
-    const rules = screen.getByRole('region', { name: "3 règles d'or" })
-    expect(within(rules).getAllByRole('listitem')).toHaveLength(3)
-    const facts = screen.getByRole('region', { name: 'Le saviez-vous ?' })
+    // Simple: words only. The figures and explanations wait for the higher levels.
+    for (const name of ["Le parcours de l'argent", 'À retenir', 'Chaque compte en détail']) {
+      const section = screen.getByRole('heading', { name }).closest('section') as HTMLElement
+      expect(section.textContent).not.toMatch(/\d/)
+    }
+    expect(screen.queryByText('Chaque retrait est imposé comme un salaire.')).not.toBeInTheDocument()
+  })
+
+  it('adds explanations, then figures and sources, as the level of detail goes up', async () => {
+    renderAccounts()
+    await screen.findByRole('heading', { name: "Le parcours de l'argent" })
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Normale' }))
+    expect(within(flow()).getByText('Chaque retrait est imposé comme un salaire.')).toBeInTheDocument()
+    expect(within(flow()).queryByText(`Plafond 2026 : ${money(7000)}`)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Complexe' }))
+    expect(within(flow()).getByText(`Plafond 2026 : ${money(7000)}`)).toBeInTheDocument()
+    const facts = screen.getByRole('heading', { name: 'Le saviez-vous ?' }).closest('section') as HTMLElement
     expect(facts).toHaveTextContent(`${money(109000)}de droits CELI cumulés`)
-    expect(facts).toHaveTextContent(`${money(100000)}de mise de fonds par personne`)
   })
 
-  it('details one account: use cases, place in the order and its frequently asked questions', async () => {
-    renderAccounts('/comptes?onglet=comptes&compte=REER')
+  it('keeps each account in a dropdown, with more inside at higher levels', async () => {
+    renderAccounts('/comptes?niveau=normale')
 
-    const reer = await screen.findByRole('article', { name: 'REER' })
-    expect(screen.getByRole('tab', { name: 'REER' })).toHaveAttribute('aria-selected', 'true')
-    expect(within(reer).getByText("Baisser l'impôt d'une bonne année")).toBeInTheDocument()
-    expect(within(reer).getByText(/1er choix si votre taux d’imposition actuel dépasse/)).toBeInTheDocument()
-
-    const question = within(reer).getByRole('button', { name: "Le remboursement d'impôt du REER, c'est un cadeau ?" })
-    expect(question).toHaveAttribute('aria-expanded', 'false')
-    await userEvent.click(question)
-    expect(question).toHaveAttribute('aria-expanded', 'true')
-    expect(within(reer).getByText(/Non, c'est un report/)).toBeVisible()
-
-    await userEvent.click(screen.getByRole('tab', { name: 'CELIAPP' }))
-    expect(await screen.findByRole('article', { name: 'CELIAPP' })).toHaveTextContent(money(40000))
+    const reer = await screen.findByRole('button', { name: /^REER ?La cotisation réduit l’impôt/ })
+    expect(reer).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(reer)
+    expect(reer).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('À quoi il peut servir')).toBeVisible()
+    expect(screen.getByText("Réduire l'impôt d'une année")).toBeVisible()
+    expect(screen.getByText('Inconvénients et contraintes')).toBeVisible()
   })
 
-  it('recommends the profile’s order, its situation and the decision path', async () => {
-    renderAccounts('/comptes?onglet=choisir')
+  it('filters the accounts shown, keeping at least one', async () => {
+    renderAccounts()
+    await screen.findByRole('heading', { name: "Le parcours de l'argent" })
 
-    const order = await screen.findByRole('heading', { name: "L'ordre conseillé pour Amira" })
-    const steps = within(order.closest('section') as HTMLElement).getAllByText(/^Étape \d :$/)
-    expect(steps.map((step) => step.parentElement?.textContent)).toEqual([
-      'Étape 1 : CELIAPP',
-      'Étape 2 : REER',
-      'Étape 3 : CELI',
-      'Étape 4 : Non enregistré',
-    ])
-    expect(screen.getByText('Situation de Amira').closest('li')).toHaveTextContent('J’achète ma première maison')
-    expect(screen.getByText("Un fonds d'urgence").closest('li')).toHaveTextContent('CELI')
-    expect(screen.getAllByText('Votre réponse')).toHaveLength(2)
+    const celiapp = screen.getByRole('button', { name: 'CELIAPP', pressed: true })
+    await userEvent.click(celiapp)
+    expect(celiapp).toHaveAttribute('aria-pressed', 'false')
+    expect(within(lanes()).getAllByRole('listitem')).toHaveLength(3)
+    expect(within(flow()).queryByText('CELIAPP')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'CELIAPP', level: 3 })).not.toBeInTheDocument() // its FAQ group
+
+    for (const name of ['REER', 'Non enregistré']) await userEvent.click(screen.getByRole('button', { name, pressed: true }))
+    const celi = screen.getByRole('button', { name: 'CELI', pressed: true })
+    await userEvent.click(celi)
+    expect(celi).toHaveAttribute('aria-pressed', 'true')
+    expect(within(lanes()).getAllByRole('listitem')).toHaveLength(1)
   })
 
-  it('compares the rules with charts computed at the profile’s rates', async () => {
-    renderAccounts('/comptes?onglet=comparer')
+  it('compares side by side: what each account allows and the REER–CELI arithmetic', async () => {
+    renderAccounts('/comptes?vue=comparer')
+
+    expect(await screen.findByRole('row', { name: /Réduit l'impôt de l'année de cotisation/ })).toHaveTextContent('NonOuiOuiNon')
+    expect(screen.getByText("Le taux d'imposition au retrait, comparé à celui d'aujourd'hui, est…")).toBeInTheDocument()
+    expect(screen.queryByText('Cas de Amira')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Selon ce que verse le placement' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Normale' }))
+    expect((await screen.findByText('Cas de Amira')).closest('li')).toHaveTextContent('Plus bas')
+    expect(screen.getByRole('row', { name: /Intérêts/ })).toHaveTextContent('Imposés en entier, chaque année')
+  })
+
+  it('shows the rules’ figures and charts at the profile’s rates in the complex view', async () => {
+    renderAccounts('/comptes?vue=comparer&niveau=complexe')
 
     expect(
       await screen.findByText(/Pour Amira \(36,1 % aujourd'hui, 25,7 % prévu à la retraite\) : le REER laisse/),
     ).toBeInTheDocument()
     expect(screen.getByText(`Au taux de Amira, 1 000 $ d'intérêts coûtent ${money(361)} d'impôt, contre ${money(164)} pour des dividendes canadiens.`)).toBeInTheDocument()
     expect(screen.getByText(/Amira a cumulé 57.000 \$ de droits CELI depuis 2018/)).toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /^Retenue américaine \(15/ })).toHaveTextContent('PerdueExemptéePerdueRécupérée par crédit')
+  })
+
+  it('lists goals with the accounts whose rules apply, each in a dropdown', async () => {
+    renderAccounts('/comptes?vue=objectifs&niveau=normale')
+
+    const cash = await screen.findByRole('button', { name: /Garder de l'argent disponible/ })
+    await userEvent.click(cash)
+    expect(screen.getByText('Retrait sans impôt, en tout temps')).toBeVisible()
+    expect(screen.getByText('Retrait possible mais imposé')).toBeVisible()
+
+    await userEvent.click(screen.getByRole('button', { name: /Acheter une première propriété/ }))
     expect(screen.getByText(/Jusqu'à 100.000 \$ par personne pour une première maison/)).toBeInTheDocument()
-
-    expect(screen.getByRole('row', { name: /Dividendes américains/ })).toHaveTextContent('PerdueExemptéePerdueRécupérée')
-    expect(screen.getByRole('row', { name: /Obligations et intérêts/ })).toHaveTextContent('Peu adapté')
   })
 
-  it('answers frequently asked questions in dropdowns', async () => {
-    renderAccounts('/comptes?onglet=faq')
+  it('projects 15 years in figures, with more inputs at higher levels', async () => {
+    const second = { ...PROJECTION, comparison: { headline: 'Avec 150 000 $ de revenu.', accounts: [] } }
+    const calls = renderAccounts('/comptes?vue=chiffres', [json(PROJECTION), json(second)])
 
-    expect(await screen.findByRole('heading', { name: 'Questions fréquentes' })).toBeInTheDocument()
-    for (const group of ['Les bases', 'CELI', 'REER', 'CELIAPP', 'Placements et impôt']) {
-      expect(screen.getByRole('heading', { name: group, level: 3 })).toBeInTheDocument()
-    }
-    const question = screen.getByRole('button', { name: "Un CELI, c'est un compte d'épargne ?" })
-    await userEvent.click(question)
-    expect(screen.getByText(/Non, c'est une enveloppe/)).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Source : ARC' })).toHaveAttribute('href', 'https://www.canada.ca/tfsa')
-  })
+    expect(await screen.findByText(PROJECTION.comparison.headline)).toBeInTheDocument()
+    expect(projectionBodies(calls)[0]).toEqual({ persona_id: 'amira', annual_contribution: 7000, years: 15, expected_return: 0.05 })
+    expect(screen.queryByLabelText('Montant annuel avant impôt ($)')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Dans 3 ans, après impôt' })).toBeInTheDocument()
 
-  it('projects 15 years with the profile’s defaults, then recomputes on input', async () => {
-    const second = { ...PROJECTION, recommendations: { headline: 'Avec 150 000 $ : le REER gagne.', accounts: [] } }
-    const calls = renderAccounts('/comptes?onglet=projection', [json(PROJECTION), json(second)])
-
-    expect(await screen.findByText(PROJECTION.recommendations.headline)).toBeInTheDocument()
-    expect(projectionBodies(calls)[0]).toEqual({
-      persona_id: 'amira',
-      annual_contribution: 7000,
-      years: 15,
-      expected_return: 0.05,
-    })
-    // the legend carries each account's final value, best first
-    const legend = screen.getByRole('list', { name: 'Légende' })
-    expect(within(legend).getAllByRole('listitem')[0]).toHaveTextContent(`CELIAPP${money(23171)}`)
-    expect(screen.getByText('Taux marginal actuel').nextSibling).toHaveTextContent('36,1 %')
-
+    await userEvent.click(screen.getByRole('radio', { name: 'Complexe' }))
+    const legend = screen.getAllByRole('list', { name: 'Légende' })[0]
+    expect(within(legend).getAllByRole('listitem')[0]).toHaveTextContent(`CELI${money(14808)}`) // fixed order, not a ranking
     const income = screen.getByLabelText('Revenu annuel ($)')
     expect(income).toHaveAttribute('placeholder', '62000')
     await userEvent.type(income, '150 000')
-    expect(await screen.findByText('Avec 150 000 $ : le REER gagne.')).toBeInTheDocument()
+    expect(await screen.findByText('Avec 150 000 $ de revenu.')).toBeInTheDocument()
     const bodies = projectionBodies(calls)
     expect(bodies[bodies.length - 1]).toMatchObject({ persona_id: 'amira', income: 150000 })
 
-    await userEvent.clear(screen.getByLabelText('Horizon (années)'))
-    await userEvent.type(screen.getByLabelText('Horizon (années)'), '2,5')
+    await userEvent.clear(screen.getByLabelText('Durée (années)'))
+    await userEvent.type(screen.getByLabelText('Durée (années)'), '2,5')
     expect(screen.getByText('Un nombre entier d’années, de 1 à 50.')).toBeInTheDocument()
   })
 
-  it('shows a stock’s account options from the URL', async () => {
-    const calls = renderAccounts('/comptes?onglet=titre&titre=JNJ', [json(STOCK_PROJECTION)])
+  it('projects one stock picked in the figures view, its facts in dropdowns', async () => {
+    const calls = renderAccounts('/comptes?vue=chiffres&niveau=normale&titre=JNJ', [json(PROJECTION), json(STOCK_PROJECTION)])
 
-    expect(
-      await screen.findByRole('heading', { name: 'Quel compte pour Johnson & Johnson (JNJ) ?' }),
-    ).toBeInTheDocument()
-    expect(projectionBodies(calls)).toContainEqual({
-      persona_id: 'amira',
-      ticker: 'JNJ',
-      annual_contribution: 7000,
-      years: 15,
-    })
-    expect(screen.getByText('Dividendes américains')).toBeInTheDocument()
-    expect(screen.getByText('Oui, 15 % (sauf REER)')).toBeInTheDocument()
+    expect(await screen.findByText(STOCK_PROJECTION.comparison.headline)).toBeInTheDocument()
+    expect(projectionBodies(calls)).toContainEqual({ persona_id: 'amira', ticker: 'JNJ', annual_contribution: 7000, years: 15 })
+    expect(screen.getByRole('radio', { name: 'Un titre précis' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('combobox', { name: 'Titre' })).toHaveTextContent('JNJ — Johnson & Johnson')
+    expect(screen.getByRole('region', { name: 'Contrôle de profil' })).toHaveTextContent('Volatilité historique de 18 %')
 
-    const options = within(screen.getByRole('list', { name: 'Options de compte' }))
-    const [reer, celi, celiapp] = options.getAllByRole('listitem').filter((item) => item.parentElement?.tagName === 'OL')
-    expect(reer).toHaveTextContent('REER')
-    expect(reer).toHaveTextContent('Le plus avantageux ici')
+    await userEvent.click(screen.getByRole('button', { name: 'Compte par compte : avantages et inconvénients' }))
+    const [reer, celi, celiapp] = within(screen.getByRole('list', { name: 'Compte par compte' })).getAllByRole('listitem').filter(
+      (item) => item.parentElement?.getAttribute('aria-label') === 'Compte par compte',
+    )
+    expect(reer).toHaveTextContent('Montant le plus élevé')
     expect(celi).toHaveTextContent('environ 40 $ perdus')
     expect(celiapp).toHaveTextContent('Non admissible')
-
-    expect(screen.getByRole('region', { name: 'Contrôle de profil' })).toHaveTextContent('Volatilité historique de 18 %')
-    expect(screen.getByRole('combobox', { name: 'Titre' })).toHaveTextContent('JNJ — Johnson & Johnson')
+    await userEvent.click(screen.getByRole('button', { name: 'Ce que verse ce titre' }))
+    expect(screen.getByText('Oui, 15 % (sauf REER)')).toBeVisible()
   })
+
+  it('states facts in every view, never advice', async () => {
+    for (const vue of ['parcours', 'comparer', 'objectifs', 'chiffres']) {
+      renderAccounts(`/comptes?vue=${vue}&niveau=complexe`)
+      await screen.findByRole('heading', { name: 'Questions fréquentes' })
+      // Every dropdown open: the hidden text counts too.
+      const closed = document.querySelectorAll<HTMLElement>('[data-slot="accordion-trigger"][aria-expanded="false"]')
+      for (const trigger of closed) fireEvent.click(trigger)
+      expect(document.body.textContent).not.toMatch(ADVICE)
+      cleanup()
+    }
+  }, 30_000)
 
   it('says so in French when the server cannot be reached', async () => {
     mockFetchUnreachable()
     renderWithProviders(<AccountsPage />, { route: '/comptes', personaId: 'amira' })
 
-    await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent('Impossible de joindre le serveur'),
-    )
+    await waitFor(() => expect(screen.getAllByRole('alert')[0]).toHaveTextContent('Impossible de joindre le serveur'))
   })
 })

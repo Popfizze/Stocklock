@@ -1,41 +1,51 @@
 import type { ReactNode } from 'react'
-import { Lightbulb, TriangleAlert } from 'lucide-react'
-import type { AccountProjection } from '@/api/accounts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ACCOUNT_IDS, type AccountId, type AccountProjection } from '@/api/accounts'
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { cn } from '@/lib/utils'
+import { AccountFactsList } from './AccountFactsList'
 import { AfterTaxBars } from './AfterTaxBars'
-import { formatMoney } from './format'
+import { AssetSnapshot } from './AssetSnapshot'
+import { formatMoney, formatPercent } from './format'
 import { MethodNotes } from './MethodNotes'
 import { ProjectionChart } from './ProjectionChart'
 import { ProjectionTable } from './ProjectionTable'
+import { atLeast, type Level } from './viewOptions'
 
 interface ProjectionResultsProps {
   projection: AccountProjection
+  level: Level
+  /** The accounts shown (all four by default). */
+  accounts?: AccountId[]
   /** Dims the results while a newer computation is on its way. */
   stale?: boolean
-  /** Shown between the headline (and profile checks) and the charts. */
-  children?: ReactNode
 }
 
-/** Headline, profile checks, both charts, the table view and the method notes. */
-export function ProjectionResults({ projection, stale = false, children }: ProjectionResultsProps) {
-  const { profile, inputs, recommendations, profile_flags: flags } = projection
+/**
+ * The projection by level. Simple: the result in one sentence and the bars.
+ * Normale: the profile checks, the year-by-year chart and each account's facts.
+ * Complexe: the full table. Details always sit in dropdowns.
+ */
+export function ProjectionResults({ projection, level, accounts = ACCOUNT_IDS, stale = false }: ProjectionResultsProps) {
+  const { profile, inputs, comparison, profile_flags: flags, asset } = projection
+  const outcomes = projection.accounts.filter((outcome) => accounts.includes(outcome.account))
+  const facts = comparison.accounts.filter((item) => accounts.includes(item.account))
+  const normal = atLeast(level, 'normale')
   const [from, to] = profile.horizon_years
+  const basis = asset ? `rendement supposé de ${formatPercent(asset.expected_return)} par an` : `rendement de ${formatPercent(inputs.total_return)} par an`
 
   return (
-    <div className={cn('space-y-4 transition-opacity', stale && 'opacity-60')} aria-busy={stale}>
-      <p className="flex gap-3 rounded-lg border border-primary/40 bg-primary/5 p-4">
-        <Lightbulb aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-muted-foreground" />
-        <span className="font-medium">{recommendations.headline}</span>
-      </p>
+    <div className={cn('space-y-5 transition-opacity', stale && 'opacity-60')} aria-busy={stale}>
+      <div className="space-y-1">
+        <p className="font-medium">{comparison.headline}</p>
+        <p className="text-xs text-muted-foreground">
+          {formatMoney(inputs.annual_contribution)} avant impôt par an pendant {inputs.years} ans, {basis}.
+        </p>
+      </div>
 
-      {flags.length > 0 && (
-        <section className="rounded-lg border border-warning/40 bg-warning/10 p-4" aria-label="Contrôle de profil">
-          <h4 className="flex items-center gap-2 text-sm font-semibold">
-            <TriangleAlert aria-hidden="true" className="size-4 text-warning" />
-            Contrôle de profil
-          </h4>
-          <ul className="mt-2 list-disc space-y-1 pl-6 text-sm">
+      {normal && flags.length > 0 && (
+        <section className="rounded-lg border border-warning/40 bg-warning/5 p-4 text-sm" aria-label="Contrôle de profil">
+          <h4 className="font-semibold">Contrôle de profil</h4>
+          <ul className="mt-1 list-disc space-y-1 pl-5">
             {flags.map((flag) => (
               <li key={flag}>{flag}</li>
             ))}
@@ -43,50 +53,61 @@ export function ProjectionResults({ projection, stale = false, children }: Proje
         </section>
       )}
 
-      {children}
-
-      {/* Side by side only when this block itself is wide: the stock page is narrower than the Comptes tab. */}
       <div className="@container">
-        <div className="grid gap-4 @5xl:grid-cols-5">
-          <Card className="@5xl:col-span-3">
-            <CardHeader>
-              <CardTitle className="font-semibold">Valeur après impôt, année par année</CardTitle>
-              <CardDescription>
-                {formatMoney(inputs.annual_contribution)} avant impôt mis de côté chaque année.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+        <div className={cn('grid gap-4', normal ? '@5xl:grid-cols-5' : 'max-w-3xl')}>
+          <Panel title={`Dans ${inputs.years} ans, après impôt`} className="@5xl:col-span-2">
+            <AfterTaxBars accounts={outcomes} years={inputs.years} />
+          </Panel>
+          {normal && (
+            <Panel title="Année par année" className="@5xl:col-span-3">
               <ProjectionChart
                 series={projection.series}
-                accounts={projection.accounts}
+                accounts={outcomes}
                 horizon={{ label: `Horizon de ${profile.name}`, from, to }}
               />
-            </CardContent>
-          </Card>
-          <Card className="@5xl:col-span-2">
-            <CardHeader>
-              <CardTitle className="font-semibold">Dans {inputs.years} ans, après impôt</CardTitle>
-              <CardDescription>Du plus avantageux au moins avantageux.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <AfterTaxBars accounts={projection.accounts} years={inputs.years} />
-            </CardContent>
-          </Card>
+            </Panel>
+          )}
         </div>
       </div>
 
-      <details className="rounded-lg border border-border p-4">
-        <summary className="cursor-pointer text-sm font-medium">Tableau détaillé de la projection</summary>
-        <div className="mt-3">
-          <ProjectionTable accounts={projection.accounts} years={inputs.years} />
-        </div>
-      </details>
-
-      <MethodNotes
-        assumptions={projection.assumptions}
-        limits={projection.limits}
-        sources={projection.sources}
-      />
+      <Accordion type="multiple">
+        {normal && asset && (
+          <Fold value="titre" title="Ce que verse ce titre">
+            <AssetSnapshot asset={asset} />
+          </Fold>
+        )}
+        {normal && (
+          <Fold value="comptes" title="Compte par compte : avantages et inconvénients">
+            <AccountFactsList accounts={facts} />
+          </Fold>
+        )}
+        {atLeast(level, 'complexe') && (
+          <Fold value="tableau" title="Tableau détaillé">
+            <ProjectionTable accounts={outcomes} years={inputs.years} />
+          </Fold>
+        )}
+        <Fold value="methode" title="Hypothèses, limites et sources">
+          <MethodNotes assumptions={projection.assumptions} limits={projection.limits} sources={projection.sources} />
+        </Fold>
+      </Accordion>
     </div>
+  )
+}
+
+function Panel({ title, className, children }: { title: string; className?: string; children: ReactNode }) {
+  return (
+    <div className={cn('space-y-3 rounded-xl border border-border p-4 sm:p-5', className)}>
+      <h3 className="font-semibold">{title}</h3>
+      {children}
+    </div>
+  )
+}
+
+function Fold({ value, title, children }: { value: string; title: string; children: ReactNode }) {
+  return (
+    <AccordionItem value={value}>
+      <AccordionTrigger>{title}</AccordionTrigger>
+      <AccordionContent>{children}</AccordionContent>
+    </AccordionItem>
   )
 }

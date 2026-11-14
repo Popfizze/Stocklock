@@ -7,7 +7,7 @@ export interface FaqItem {
   id: string
   question: string
   answer: string
-  /** Shown as « Bon à savoir » on this account's page. */
+  /** The account the question is about; hidden when that account is filtered out. */
   account?: AccountId
   sourceId?: string
 }
@@ -28,13 +28,13 @@ export function faqGroups(r: TaxRules): FaqGroup[] {
           id: 'celi-vs-reer',
           question: 'Quelle est la vraie différence entre le CELI et le REER ?',
           answer:
-            "Le moment où vous payez l'impôt. Au CELI, avant de verser l'argent ; au REER, au retrait. Si votre taux d'imposition est le même aux deux moments, le résultat est identique : le REER gagne seulement si votre taux baisse à la retraite.",
+            "Le moment où l'impôt est payé : au CELI, avant de verser l'argent ; au REER, au retrait. Au même taux d'imposition aux deux moments, le résultat est identique. Le REER laisse plus si le taux baisse au retrait, le CELI s'il monte.",
         },
         {
           id: 'celi-savings',
           question: "Un CELI, c'est un compte d'épargne ?",
           answer:
-            "Non, c'est une enveloppe. On peut y détenir des actions, des FNB, des obligations ou des CPG, pas seulement de l'épargne à faible intérêt. Laisser son CELI en liquidités, c'est se priver de l'essentiel de l'avantage.",
+            "Non, c'est une enveloppe. On peut y détenir des actions, des FNB, des obligations ou des CPG, pas seulement des liquidités. L'avantage fiscal porte sur ce que les placements rapportent.",
           account: 'CELI',
           sourceId: 'cra_tfsa',
         },
@@ -53,14 +53,14 @@ export function faqGroups(r: TaxRules): FaqGroup[] {
           id: 'celi-withdraw',
           question: 'Que se passe-t-il quand je retire de mon CELI ?',
           answer:
-            "Rien côté impôt. Le montant retiré redevient cotisable le 1er janvier suivant. Attention : le remettre la même année, sans droits disponibles, crée un excédent pénalisé de 1 % par mois.",
+            "Rien côté impôt. Le montant retiré redevient cotisable le 1er janvier suivant. Le remettre la même année, sans droits disponibles, crée un excédent pénalisé de 1 % par mois.",
           account: 'CELI',
           sourceId: 'cra_tfsa',
         },
         {
           id: 'celi-room',
           question: 'Combien puis-je cotiser à mon CELI ?',
-          answer: `Les droits s'accumulent depuis l'année de vos ${r.tfsa.eligibility_age} ans (au plus tôt 2009) : ${formatMoney(r.tfsa.annual_limits[year])} en ${r.year}, jusqu'à ${formatMoney(r.tfsa_total_since_2009)} au total. Votre solde exact est dans Mon dossier de l'ARC.`,
+          answer: `Les droits s'accumulent depuis l'année de vos ${r.tfsa.eligibility_age} ans (au plus tôt 2009) : ${formatMoney(r.tfsa.annual_limits[year])} en ${r.year}, jusqu'à ${formatMoney(r.tfsa_total_since_2009)} au total. Le solde exact de chaque personne est dans Mon dossier de l'ARC.`,
           account: 'CELI',
           sourceId: 'cra_tfsa',
         },
@@ -73,14 +73,14 @@ export function faqGroups(r: TaxRules): FaqGroup[] {
           id: 'reer-refund',
           question: "Le remboursement d'impôt du REER, c'est un cadeau ?",
           answer:
-            "Non, c'est un report : l'impôt sera payé au retrait. Le vrai gain vient de l'écart entre votre taux d'aujourd'hui et celui de la retraite, et du remboursement s'il est réinvesti, par exemple au CELI.",
+            "C'est un report : l'impôt est payé au retrait. L'effet net dépend de l'écart entre le taux d'imposition à la cotisation et celui au retrait, et de ce qui est fait du remboursement.",
           account: 'REER',
           sourceId: 'cra_rrsp',
         },
         {
           id: 'reer-unused',
           question: 'Mes droits REER inutilisés sont-ils perdus ?',
-          answer: `Non, ils se reportent sans limite de temps. Chaque année ajoute ${formatPercent(r.rrsp.rate_of_earned_income, 0)} du revenu gagné l'année précédente, jusqu'à ${formatMoney(r.rrsp.dollar_limit)}. On peut donc attendre une année à revenu plus élevé pour cotiser.`,
+          answer: `Non, ils se reportent sans limite de temps. Chaque année ajoute ${formatPercent(r.rrsp.rate_of_earned_income, 0)} du revenu gagné l'année précédente, jusqu'à ${formatMoney(r.rrsp.dollar_limit)}. Une cotisation peut donc être faite une année où le revenu, et la déduction, sont plus élevés.`,
           account: 'REER',
           sourceId: 'cra_rrsp',
         },
@@ -125,15 +125,15 @@ export function faqGroups(r: TaxRules): FaqGroup[] {
       items: [
         {
           id: 'us-stocks',
-          question: 'Pourquoi garder les actions américaines dans le REER ?',
+          question: 'Pourquoi la retenue américaine dépend-elle du compte ?',
           answer: `Les États-Unis retiennent ${wh} des dividendes versés à un Canadien. La convention fiscale exempte le REER, mais pas le CELI ni le CELIAPP, où cette retenue est perdue pour de bon.`,
           account: 'REER',
           sourceId: 'canada_us_treaty',
         },
         {
           id: 'bonds',
-          question: 'Pourquoi les obligations sont-elles mal imposées hors abri ?',
-          answer: `Les intérêts sont imposés en entier, chaque année, au taux marginal. Un gain en capital n'est imposé qu'à ${formatPercent(r.capital_gains.inclusion_rate, 0)}, et seulement à la vente. Les obligations profitent donc le plus d'un compte enregistré.`,
+          question: 'Comment les intérêts sont-ils imposés hors compte enregistré ?',
+          answer: `Les intérêts sont imposés en entier, chaque année, au taux marginal. Un gain en capital n'est imposé qu'à ${formatPercent(r.capital_gains.inclusion_rate, 0)}, et seulement à la vente. Dans un compte enregistré, les intérêts ne sont pas imposés chaque année.`,
           account: 'Non enregistré',
           sourceId: 'cra_capital_gains',
         },
@@ -148,11 +148,4 @@ export function faqGroups(r: TaxRules): FaqGroup[] {
       ],
     },
   ]
-}
-
-/** The questions tagged for one account, for its « Bon à savoir ». */
-export function accountFaq(r: TaxRules, account: AccountId): FaqItem[] {
-  return faqGroups(r)
-    .flatMap((group) => group.items)
-    .filter((item) => item.account === account)
 }

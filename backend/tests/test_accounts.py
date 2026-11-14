@@ -101,11 +101,11 @@ def test_asset_profiles(ticker, kind, withholding, er):
 
 def test_build_for_a_us_dividend_stock_explains_the_withholding():
     out = account_guide.build(get_persona("mateo"), ticker="JNJ")
-    reer = next(a for a in out["recommendations"]["accounts"] if a["account"] == "REER")
-    celi = next(a for a in out["recommendations"]["accounts"] if a["account"] == "CELI")
+    reer = next(a for a in out["comparison"]["accounts"] if a["account"] == "REER")
+    celi = next(a for a in out["comparison"]["accounts"] if a["account"] == "CELI")
     assert any("exemptés de la retenue" in p for p in reer["pros"])
     assert any("Retenue américaine" in c for c in celi["cons"])
-    assert out["recommendations"]["accounts"][-1]["verdict"] == "ineligible"  # CELIAPP, not first buyer
+    assert out["comparison"]["accounts"][-1]["standing"] == "ineligible"  # CELIAPP, not first buyer
     assert len(out["series"]) == 15 and out["series"][0]["CELIAPP"] is None
     ids = {s["id"] for s in out["sources"]}
     assert {"canada_us_treaty", "iqpf_2026", "starter_prices"} <= ids
@@ -118,13 +118,13 @@ def test_profile_flags():
     assert "exclut la crypto" in text
     assert "Volatilité historique" in text
     assert "71 ans" in text
-    assert "ne respecte pas le profil de Robert" in out["recommendations"]["headline"]
+    assert "sort d'au moins une contrainte du profil de Robert" in out["comparison"]["headline"]
     mateo = account_guide.build(get_persona("mateo"), ticker="ENB.TO")["profile_flags"]
     assert any("Energy" in f for f in mateo)
     # an asset within the profile and a horizon within Amira's: no flag, no warning
     amira = account_guide.build(get_persona("amira"), ticker="XIU.TO")
     assert amira["profile_flags"] == []
-    assert "Attention" not in amira["recommendations"]["headline"]
+    assert "contrainte" not in amira["comparison"]["headline"]
 
 
 # --- API ----------------------------------------------------------------------------------------
@@ -159,3 +159,14 @@ def test_projection_route_generic_and_overrides(client):
 def test_projection_route_rejects_unknown_ticker_and_persona(client):
     assert client.post("/api/accounts/projection", json={"persona_id": "amira", "ticker": "ZZZZ"}).status_code == 422
     assert client.post("/api/accounts/projection", json={"persona_id": "zorro"}).status_code == 422
+
+
+def test_projection_states_facts_without_advice():
+    """The comparison places amounts; it never tells the user which account to pick."""
+    import json
+    for persona, ticker in (("amira", None), ("mateo", "JNJ"), ("robert", "XBB.TO")):
+        out = account_guide.build(get_persona(persona), ticker=ticker)
+        assert out["comparison"]["headline"].startswith("Dans cette simulation")
+        text = json.dumps({k: out[k] for k in ("comparison", "profile_flags")}, ensure_ascii=False).lower()
+        for word in ("conseill", "recommand", "devriez", "meilleur", "privilégi", "avantageux", "regardez"):
+            assert word not in text, (persona, word)

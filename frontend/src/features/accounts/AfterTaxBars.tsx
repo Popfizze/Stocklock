@@ -17,11 +17,10 @@ interface AfterTaxBarsProps {
   years: number
 }
 
-/** What is left after tax at the horizon, one bar per eligible account, best first. */
+/** What is left after tax at the horizon, one bar per eligible account, in the accounts' fixed order. */
 export function AfterTaxBars({ accounts, years }: AfterTaxBarsProps) {
   const data = accounts
     .filter((account) => account.eligible)
-    .sort((a, b) => b.after_tax - a.after_tax)
     .map((account) => ({
       name: ACCOUNTS[account.account].short,
       value: Math.round(account.after_tax),
@@ -87,8 +86,8 @@ export function AfterTaxBars({ accounts, years }: AfterTaxBarsProps) {
         </BarChart>
       </ChartContainer>
       <figcaption className="text-xs text-muted-foreground">
-        Valeur nette après impôt dans {years} ans, scénario central. La fourchette (survol ou tableau)
-        correspond aux scénarios pessimiste et optimiste.
+        Valeur après impôt dans {years} ans, scénario central ; survolez une barre pour la fourchette des
+        scénarios pessimiste et optimiste.
       </figcaption>
     </figure>
   )

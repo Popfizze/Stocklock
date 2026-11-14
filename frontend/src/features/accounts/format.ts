@@ -37,9 +37,9 @@ export function formatPercent(value: number | null | undefined, digits = 1): str
   }).format(value)
 }
 
-/** The source's name only: « ARC, plafonds… » → « ARC », « Convention fiscale… (texte…) : art. X » → « Convention fiscale… ». */
+/** The source and its topic, without the details: « ARC, plafond de déduction REER (18 %…) » → « ARC, plafond de déduction REER ». */
 export function shortSourceTitle(title: string): string {
-  return title.split(/[,:(]/)[0].trim()
+  return title.split(/[:(]/)[0].trim()
 }
 
 export function projectionErrorMessage(error: ApiError): string {

@@ -106,9 +106,9 @@ export const PROJECTION: AccountProjection = {
     { account: 'CELI', after_tax: 14808 },
     { account: 'Non enregistré', after_tax: 14684 },
   ],
-  recommendations: {
+  comparison: {
     headline:
-      'Pour Amira et cette épargne, le compte CELIAPP laisse le plus après impôt dans 3 ans : 23 171 $, soit 5 958 $ de plus que le compte REER.',
+      'Dans cette simulation, le CELIAPP donne le montant après impôt le plus élevé dans 3 ans : 23 171 $, soit 5 958 $ de plus que le REER.',
     accounts: [],
   },
   profile_flags: [],
@@ -149,14 +149,14 @@ export const STOCK_PROJECTION: AccountProjection = {
     { account: 'CELI', after_tax: 14700 },
     { account: 'Non enregistré', after_tax: 14600 },
   ],
-  recommendations: {
-    headline: 'Pour Amira et Johnson & Johnson (JNJ), le compte REER laisse le plus après impôt dans 3 ans.',
+  comparison: {
+    headline: 'Dans cette simulation, le REER donne le montant après impôt le plus élevé dans 3 ans : 17 300 $, soit 2 600 $ de plus que le CELI.',
     accounts: [
       {
         account: 'REER',
         rank: 1,
-        verdict: 'best',
-        verdict_label: 'Le plus avantageux ici',
+        standing: 'highest',
+        standing_label: 'Montant le plus élevé',
         summary: 'Environ 17 300 $ après impôt dans 3 ans.',
         pros: ['Dividendes américains exemptés de la retenue de 15 % (convention fiscale Canada–États-Unis).'],
         cons: ['Chaque retrait est imposé comme un salaire, gains et dividendes compris.'],
@@ -164,8 +164,8 @@ export const STOCK_PROJECTION: AccountProjection = {
       {
         account: 'CELI',
         rank: 2,
-        verdict: 'behind',
-        verdict_label: 'Moins avantageux',
+        standing: 'lower',
+        standing_label: 'Montant plus bas',
         summary: 'Environ 14 700 $ après impôt dans 3 ans.',
         pros: ["Retraits libres d'impôt, en tout temps ; les droits reviennent l'année suivante."],
         cons: ['Retenue américaine de 15 % non récupérable : environ 40 $ perdus sur 3 ans.'],
@@ -173,8 +173,8 @@ export const STOCK_PROJECTION: AccountProjection = {
       {
         account: 'CELIAPP',
         rank: null,
-        verdict: 'ineligible',
-        verdict_label: 'Non admissible',
+        standing: 'ineligible',
+        standing_label: 'Non admissible',
         summary: "Réservé aux premiers acheteurs d'une propriété.",
         pros: [],
         cons: ["Réservé aux premiers acheteurs d'une propriété."],
@@ -190,9 +190,9 @@ export function stockProjection(ticker: string, name: string): AccountProjection
   return {
     ...STOCK_PROJECTION,
     asset: asset && { ...asset, ticker, name },
-    recommendations: {
-      ...STOCK_PROJECTION.recommendations,
-      headline: `Pour Amira et ${name} (${ticker}), le compte REER laisse le plus après impôt dans 3 ans.`,
+    comparison: {
+      ...STOCK_PROJECTION.comparison,
+      headline: `Dans cette simulation (${name}, ${ticker}), le REER donne le montant après impôt le plus élevé dans 3 ans.`,
     },
   }
 }

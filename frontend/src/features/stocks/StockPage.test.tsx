@@ -130,7 +130,7 @@ describe('StockPage', () => {
     expect(figure('Catégorie')).toHaveTextContent('Cryptoactifs')
   })
 
-  it('shows which account suits this stock for the active profile', async () => {
+  it('shows the stock after tax in each account for the active profile', async () => {
     const calls = mockFetchByUrl([
       { match: '/api/personas', responses: [json(PERSONAS)] },
       { match: '/api/fit/', responses: [json(FIT_NVDA_AMIRA)] },
@@ -141,7 +141,7 @@ describe('StockPage', () => {
     renderStock('NVDA')
 
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'Quel compte pour NVIDIA (NVDA) ?' }),
+      await screen.findByRole('heading', { level: 2, name: "L'impôt selon le compte" }),
     ).toBeInTheDocument()
     const request = calls.find((call) => call.url.endsWith('/api/accounts/projection'))
     expect(JSON.parse(String(request?.init.body))).toEqual({
@@ -150,7 +150,8 @@ describe('StockPage', () => {
       annual_contribution: 7000,
       years: 15,
     })
-    expect(screen.getByRole('list', { name: 'Options de compte' })).toHaveTextContent('Le plus avantageux ici')
+    expect(await screen.findByText(/le REER donne le montant après impôt le plus élevé/)).toBeInTheDocument()
+    expect(screen.getByRole('radio', { name: 'Simple' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('says the score is not computed yet while the pipeline has not run', async () => {
@@ -258,7 +259,7 @@ describe('StockPage', () => {
     expect(screen.getByText('ONE.V · TSXV')).toBeInTheDocument()
     expect(screen.getByText(/Cours au 13 novembre 2026 · Yahoo Finance/)).toBeInTheDocument()
     expect(screen.getByText(/couvre les 31 titres du jeu de données du datathon/)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: /Quel compte pour/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: "L'impôt selon le compte" })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: /Prendre du recul/ })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Prendre du recul' })).toBeInTheDocument()
     expect(calls.some((call) => call.url.includes('/api/accounts/'))).toBe(false)
