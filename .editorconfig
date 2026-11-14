@@ -1,0 +1,49 @@
+# EditorConfig StockLock
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Les écosystèmes qui écrivent 2. Pour Terraform et HCL ce n'est pas un goût : c'est
+# ce que produit `terraform fmt`, et un canonique à 4 se bat contre le formateur
+# officiel du langage. TOML est à 2 dans config/pii.toml, que la chaîne pose elle-même.
+# Deux suffixes que le glob ratait sans raison : `*.tfvars` n'attrape pas
+# `terraform.tfvars.example`, que `terraform fmt` écrit pourtant à 2 comme le reste du
+# HCL, et une suite `bats` est du shell, déjà à 2 par `sh`. Ce n'est pas un goût non
+# plus : dans les deux cas le canonique se battait contre le formateur du langage, ce
+# que la ligne au-dessus refuse déjà pour Terraform. Élargir un glob rend le canonique
+# PLUS strict — les dépôts qui portent déjà ces suffixes restent conformes —, mais un
+# dépôt dont le glob s'arrête à l'ancien en active désormais moins que le canonique :
+# la 16.3.0 se reprend chez les adoptés, elle ne les rattrape pas toute seule.
+# `.cjs` manquait à côté de `.mjs` : prettier, qui lit ce fichier, indentait à 4 le
+# `.dependency-cruiser.cjs` que la pose écrit (relevé sur une pose, 21 septembre 2026).
+[*.{js,jsx,ts,tsx,css,scss,json,yml,yaml,mjs,cjs,toml,html,sh,tf,tfvars,tfvars.example,hcl,bats}]
+indent_size = 2
+
+# En Markdown l'indentation est SÉMANTIQUE — 2 pour une puce, 3 pour la suite d'une
+# liste numérotée, 4 pour un bloc de code — donc aucune valeur n'est juste. Mesuré sur
+# la chaîne et le bac à sable : 265 lignes indentées, ZÉRO multiple de 4. `unset`
+# retire la règle pour ce type de fichier ; ne la remplace pas par un chiffre.
+[*.md]
+indent_size = unset
+trim_trailing_whitespace = false
+
+[Makefile]
+indent_style = tab
+
+# Même raison qu'au-dessus, un cran plus loin : ces deux scripts sont posés OCTET POUR
+# OCTET par `gardefous`, et c'est shfmt — l'outil que `formatage` fait tourner — qui les
+# écrit, aux tabulations, son défaut. Sans cette section, la chaîne pose deux fichiers que
+# ses propres processus refusent : mesuré sur les deux dépôts équipés, `configpartagee`
+# rendait 11 erreurs et `formatage`, BLOQUANT, tombait avec lui. Les convertir aux espaces
+# n'est pas une issue : la preuve `config` de `gardefous` compare les octets au canonique.
+# La section nomme ces deux fichiers et aucun autre : un dépôt qui range ses propres hooks
+# sous `.claude/hooks/`, indentés aux espaces comme ses autres `.sh`, rougissait sous une
+# glob `*.sh` qu'il a dû retirer, et son `.editorconfig` devenait un fork (apur, #264).
+[.claude/hooks/{stop,format}.sh]
+indent_style = tab

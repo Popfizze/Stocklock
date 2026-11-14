@@ -12,3 +12,89 @@ Thumbs.db
 # Case documents (kept local, not part of the deliverable)
 /Datathon - Case Officiel 2026*.pdf
 /Presentation_AlphaForge_AI_Participants*.pptx
+
+# Personal Claude Code settings
+.claude/settings.local.json
+
+# --- StockLock ---
+# Python
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Python venv lib directories (but not frontend src/lib)
+backend/lib/
+**/venv/lib/
+
+# Django
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+/staticfiles/
+/media/
+
+# Environment variables
+.env.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.cache/
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Misc
+*.bak
+*.tmp
+
+# Setup config (may contain sensitive data)
+config.json
+
+# Apps rendered into the checkout (setup-project.py --dest generated)
+/generated/
+
+# Rendered dev artifacts for template/frontend (source of truth is the .tmpl)
+/template/frontend/package.json
+/template/frontend/package-lock.json
+/template/frontend/index.html
+
+# Claude Code agent worktrees (local working copies, never committed)
+.claude/worktrees/
+
+# Per-worktree local instance (make dev): ports, pids, logs
+.dev/
+.dev-ports
+
+# Keep the committed env templates (the `.env.*` rule above would hide them)
+!.env.example
