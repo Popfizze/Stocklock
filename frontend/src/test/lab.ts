@@ -1,4 +1,4 @@
-import type { LabCatalog, LabRunResponse } from '@/api/lab'
+import type { LabBatchResponse, LabCatalog, LabGroupCatalog, LabRunResponse } from '@/api/lab'
 
 /** Test fixtures shaped like the Labo API contract; the values are placeholders. */
 export const LAB_CATALOG: LabCatalog = {
@@ -51,6 +51,8 @@ export const LAB_CATALOG: LabCatalog = {
           ],
         },
       ],
+      group_runnable: true,
+      group_input: 'ticker',
     },
     {
       id: 'fluctuations',
@@ -59,8 +61,130 @@ export const LAB_CATALOG: LabCatalog = {
       stages: [
         { id: 'news', name: 'Actualités', description: 'Cherche les nouvelles.', layer: 'bronze', options: [] },
       ],
+      group_runnable: false,
+      group_input: null,
     },
   ],
+}
+
+export const LAB_GROUPS: LabGroupCatalog = {
+  max_titles: 25,
+  sections: [
+    { id: 'populaires', title: 'Les plus populaires' },
+    { id: 'canada-populaires', title: 'Populaires au Canada' },
+  ],
+  sectors: [
+    { name: 'Technologie', count: 48 },
+    { name: 'Services financiers', count: 31 },
+  ],
+  sectors_source: 'Univers du pipeline de score (secteurs Yahoo Finance)',
+}
+
+const BATCH_RUN_REQUEST = {
+  step: 'score',
+  persona_id: 'amira',
+  inputs: { peers: ['RY.TO'], as_of: '2026-11-13' },
+  options: { 'fetch.window': '1y', 'scoring.method': 'rank' },
+}
+
+/** A group run on three titles: one ok, one with a warning, one past the time budget. */
+export const LAB_BATCH_RUN: LabBatchResponse = {
+  batch_id: 'batch-1',
+  step: 'score',
+  persona_id: 'amira',
+  duration_ms: 48200,
+  options_used: { 'fetch.window': '1y', 'scoring.method': 'rank' },
+  group: {
+    kind: 'section',
+    ref: 'populaires',
+    label: 'Les plus populaires',
+    source: 'Yahoo Finance (filtre de titres)',
+    tickers: ['NVDA', 'SHOP.TO', 'INTC'],
+    total: 24,
+    truncated: true,
+  },
+  budget: { limit_s: 240, estimated_s: 31, workers: 6, gdelt_calls: 3 },
+  summary: { requested: 3, ok: 1, warning: 1, error: 0, timeout: 1 },
+  items: [
+    {
+      ticker: 'NVDA',
+      name: 'NVIDIA Corporation',
+      status: 'ok',
+      duration_ms: 6100,
+      key_result: { label: 'Score sur 100', value: 81.2 },
+      governance_passed: true,
+      decisions: [
+        {
+          stage: 'fundamentals',
+          stage_name: 'Relevés financiers',
+          question: 'Quelle source de relevés financiers ?',
+          answer: 'SEC EDGAR (companyfacts)',
+          reason: 'EDGAR essayé en premier.',
+          rule: 'option source = edgar_then_yfinance',
+        },
+        {
+          stage: 'scoring',
+          stage_name: 'Score',
+          question: 'Score global ?',
+          answer: 81.2,
+          reason: 'Moyenne des sous-scores disponibles pondérée par les poids effectifs.',
+        },
+      ],
+      warnings: 0,
+      error: null,
+      run_id: 'run-nvda',
+      run_request: { ...BATCH_RUN_REQUEST, inputs: { ...BATCH_RUN_REQUEST.inputs, ticker: 'NVDA' } },
+    },
+    {
+      ticker: 'SHOP.TO',
+      name: 'Shopify Inc.',
+      status: 'warning',
+      duration_ms: 9400,
+      key_result: { label: 'Score sur 100', value: 64.5 },
+      governance_passed: true,
+      decisions: [
+        {
+          stage: 'events',
+          stage_name: 'Événements',
+          question: "Quelle source d'événements ?",
+          answer: 'actualités yfinance (repli)',
+          reason: 'GDELT indisponible (limite de débit atteinte (HTTP 429)).',
+        },
+      ],
+      warnings: 2,
+      error: null,
+      run_id: 'run-shop',
+      run_request: { ...BATCH_RUN_REQUEST, inputs: { ...BATCH_RUN_REQUEST.inputs, ticker: 'SHOP.TO' } },
+    },
+    {
+      ticker: 'INTC',
+      name: null,
+      status: 'timeout',
+      duration_ms: null,
+      key_result: null,
+      governance_passed: null,
+      decisions: [],
+      warnings: 0,
+      error: "Non terminé dans le temps imparti (240 s) : relancez ce titre seul.",
+      run_id: null,
+      run_request: { ...BATCH_RUN_REQUEST, inputs: { ...BATCH_RUN_REQUEST.inputs, ticker: 'INTC' } },
+    },
+  ],
+  table: {
+    columns: [
+      { key: 'ticker', label: 'Titre', kind: 'text' },
+      { key: 'status', label: 'Statut', kind: 'text' },
+      { key: 'score', label: 'Score /100', kind: 'number' },
+      { key: 'volatility', label: 'Volatilité', kind: 'percent' },
+      { key: 'profile', label: 'Adapté au profil', kind: 'text' },
+    ],
+    rows: [
+      { ticker: 'NVDA', status: 'ok', score: 81.2, volatility: 0.52, profile: 'à surveiller' },
+      { ticker: 'SHOP.TO', status: 'warning', score: 64.5, volatility: 0.48, profile: 'oui' },
+      { ticker: 'INTC', status: 'timeout', score: null, volatility: null, profile: null },
+    ],
+    default_sort: { key: 'score', direction: 'desc' },
+  },
 }
 
 export const LAB_RUN: LabRunResponse = {
