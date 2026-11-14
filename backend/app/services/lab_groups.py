@@ -1,31 +1,27 @@
 """Groups of titles for the Labo's group runs: explicit lists, dashboard sections, sectors.
 
 A section is resolved by the dashboard's own screener (`app.services.sections`), in its order. A sector
-comes from the score pipeline's latest silver `univers` table (Yahoo Finance profile sectors, read from
-the data bucket), largest market capitalisations first; without that table (local runs, tests) the
-starter kit's 31 assets and their sectors are used, and the response says which.
+is one of Yahoo Finance's sectors, resolved as the score pipeline does (`app.score_pipeline.groups` and
+`titres`): the sector's stock screeners for the United States and the TSX, largest market
+capitalisations first, keeping the titles of the universe (SEC + TMX) and leaving out Canadian
+depositary receipts.
 """
 
 from __future__ import annotations
 
-import threading
-import time
 from dataclasses import dataclass, field
 from typing import Any
 
-import pandas as pd
-
-from app.config import get_settings
-from app.data import starter
+from app.data import universe
 from app.data.cache import ExternalUnavailable
 from app.schemas import clean_ticker
+from app.score_pipeline import groups as score_groups
+from app.score_pipeline import titres
 from app.services import sections
 
 MAX_TITLES = 25
-SECTORS_TTL_S = 10 * 60
-SILVER_UNIVERSE_PREFIX = "silver/univers/"
-SCORED_SOURCE = "Univers du pipeline de score (secteurs du profil Yahoo Finance)"
-STARTER_SOURCE = "Kit de départ AlphaForge (assets_universe.csv, 31 actifs)"
+SECTORS_SOURCE = ("Filtres Yahoo Finance par secteur (États-Unis et TSX, plus grandes capitalisations), "
+                  "titres de l'univers SEC + TMX")
 
 
 class GroupError(ValueError):
@@ -51,61 +47,13 @@ class ResolvedGroup:
                 "tickers": self.tickers, "total": self.total, "truncated": self.truncated}
 
 
-# --- sectors ---------------------------------------------------------------------------------------
-
-_lock = threading.Lock()
-_memo: dict[str, Any] = {}
-
-
-def _scored_universe() -> pd.DataFrame | None:
-    """Latest silver `univers.csv` of the score pipeline (symbol, name, sector, market_cap), or None."""
-    bucket = get_settings().data_bucket
-    if not bucket:
-        return None
-    from app.score_pipeline import store as st
-
-    try:
-        store = st.S3Store(bucket)
-        keys = [k for k in store.list_keys(SILVER_UNIVERSE_PREFIX) if k.endswith("univers.csv")]
-        if not keys:
-            return None
-        frame = st.get_csv(store, max(keys))  # keys are silver/univers/<date>/<run id>/univers.csv
-    except Exception:  # bucket unreachable, object missing, unreadable CSV: fall back to the kit
-        return None
-    if not {"symbol", "sector"} <= set(frame.columns):
-        return None
-    return frame
-
-
-def _starter_universe() -> pd.DataFrame:
-    u = starter.universe()
-    return pd.DataFrame({"symbol": u["ticker"], "name": u["name"], "sector": u["sector"], "market_cap": None})
-
-
-def sector_table() -> tuple[pd.DataFrame, str]:
-    """(symbol, name, sector, market_cap) and the source label; re-read at most every 10 minutes."""
-    with _lock:
-        if not _memo or time.time() - _memo["loaded_at"] > SECTORS_TTL_S:
-            scored = _scored_universe()
-            table, source = (scored, SCORED_SOURCE) if scored is not None else (_starter_universe(), STARTER_SOURCE)
-            table = table.dropna(subset=["symbol", "sector"])
-            _memo.update(table=table, source=source, loaded_at=time.time())
-        return _memo["table"], _memo["source"]
-
-
-def reset() -> None:
-    with _lock:
-        _memo.clear()
-
-
 def catalog() -> dict[str, Any]:
-    table, source = sector_table()
-    counts = table.groupby("sector").size().sort_values(ascending=False)
     return {
         "max_titles": MAX_TITLES,
         "sections": [{"id": s.id, "title": s.title} for s in sections.BY_ID.values()],  # general + profile sections
-        "sectors": [{"name": str(name), "count": int(n)} for name, n in counts.items()],
-        "sectors_source": source,
+        # resolved live when a run asks for them: their size is not known in advance
+        "sectors": [{"name": name, "label": label, "count": None} for name, label in score_groups.SECTORS.items()],
+        "sectors_source": SECTORS_SOURCE,
     }
 
 
@@ -143,18 +91,36 @@ def _section(ref: str, limit: int) -> ResolvedGroup:
                          {i["ticker"]: i["name"] for i in items})
 
 
+def _sector_name(ref: str) -> str:
+    wanted = ref.strip().casefold()
+    for name, label in score_groups.SECTORS.items():
+        if wanted in (name.casefold(), label.casefold()):
+            return name
+    raise GroupError(f"Secteur inconnu {ref!r} ; secteurs : {', '.join(score_groups.SECTORS.values())}.")
+
+
 def _sector(ref: str, limit: int) -> ResolvedGroup:
-    table, source = sector_table()
-    rows = table.loc[table["sector"].astype(str).str.casefold() == ref.strip().casefold()]
-    if rows.empty:
-        known = ", ".join(sorted(table["sector"].astype(str).unique()))
-        raise GroupError(f"Secteur inconnu {ref!r} ; secteurs : {known}.")
-    if "market_cap" in rows and rows["market_cap"].notna().any():
-        rows = rows.sort_values("market_cap", ascending=False, na_position="last")
-    tickers = [str(s) for s in rows["symbol"]]
-    names = {str(s): str(n) for s, n in zip(rows["symbol"], rows.get("name", rows["symbol"]), strict=True)}
-    return ResolvedGroup("sector", str(rows["sector"].iloc[0]), f"Secteur {rows['sector'].iloc[0]}", source,
-                         tickers[:limit], len(tickers), names)
+    name = _sector_name(ref)
+    label = score_groups.SECTORS[name]
+    try:
+        listings = universe.listings()
+        quotes = []
+        for key in ("us_actions", "ca_actions"):  # one screener per market, each sorted by market cap
+            quotes += titres.fetch_screen({**titres.SCREENS[key], "sector": name}, limit + 10)
+    except ExternalUnavailable as exc:
+        raise GroupError(f"Secteur « {label} » indisponible ({exc.source} : {exc.reason}).") from exc
+    except Exception as exc:  # yfinance raises unrelated types on network issues
+        raise GroupError(f"Secteur « {label} » indisponible (filtre Yahoo Finance : {type(exc).__name__}).") from exc
+    kept: dict[str, dict[str, Any]] = {}
+    for q in sorted(quotes, key=lambda q: -(q.get("marketCap") or 0)):
+        symbol = q.get("symbol")
+        if symbol in listings and symbol not in kept and not titres.is_cdr(q):
+            kept[symbol] = q
+    if not kept:
+        raise GroupError(f"Aucun titre de l'univers dans le secteur « {label} » pour le moment.")
+    tickers = list(kept)
+    names = {s: q.get("longName") or q.get("shortName") or listings[s].name for s, q in kept.items()}
+    return ResolvedGroup("sector", name, f"Secteur {label}", SECTORS_SOURCE, tickers[:limit], len(tickers), names)
 
 
 def resolve(kind: str, tickers: list[str] | None = None, ref: str | None = None,

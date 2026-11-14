@@ -192,8 +192,10 @@ export interface LabGroupCatalog {
   /** Largest group one synchronous run accepts (25). */
   max_titles: number
   sections: { id: string; title: string }[]
-  sectors: { name: string; count: number }[]
-  /** Where the sectors come from, e.g. the score pipeline's universe or the starter kit. */
+  /** Yahoo Finance's sectors: `name` (send it as `ref`, the label works too), French `label`;
+   * `count` is null (resolved live, largest market capitalisations first). */
+  sectors: { name: string; label: string; count: number | null }[]
+  /** How sectors are resolved (Yahoo screeners, US and TSX, titles of the SEC + TMX universe). */
   sectors_source: string
 }
 

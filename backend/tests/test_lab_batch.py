@@ -2,7 +2,6 @@
 
 import time
 
-import pandas as pd
 import pytest
 
 from app.data import http
@@ -14,13 +13,29 @@ SCORE_INPUTS = {"portfolio": ["XIU.TO"]}
 NO_NARRATION = {"narration.model": "none"}
 
 
-@pytest.fixture(autouse=True)
-def starter_sectors(monkeypatch):
-    """No data bucket in tests: sectors come from the starter kit."""
-    monkeypatch.setattr(lab_groups, "_scored_universe", lambda: None)
-    lab_groups.reset()
-    yield
-    lab_groups.reset()
+class _Listing:
+    def __init__(self, name):
+        self.name = name
+
+
+@pytest.fixture
+def energy_screen(monkeypatch):
+    """Yahoo sector screeners (US then TSX, by market cap) and the SEC + TMX universe, offline."""
+    screens = {"us": [{"symbol": "XOM", "marketCap": 4e11, "longName": "Exxon Mobil"},
+                      {"symbol": "OTC1", "marketCap": 9e11}, {"symbol": "CVX", "marketCap": 3e11}],
+               "ca": [{"symbol": "CNQ.TO", "marketCap": 1e11, "longName": "Canadian Natural"},
+                      {"symbol": "XOM.TO", "marketCap": 5e11, "longName": "Exxon CDR (CAD Hedged)", "shortName": "X CDR"},
+                      {"symbol": "ENB.TO", "marketCap": 1.5e11}]}
+    calls = []
+
+    def fetch_screen(spec, wanted):
+        calls.append((spec["region"], spec["sector"], wanted))
+        return screens[spec["region"]]
+
+    monkeypatch.setattr(lab_groups.titres, "fetch_screen", fetch_screen)
+    known = {s: _Listing(s) for s in ("XOM", "CVX", "CNQ.TO", "XOM.TO", "ENB.TO")}
+    monkeypatch.setattr(lab_groups.universe, "listings", lambda: known)
+    return calls
 
 
 def _batch(client, step, group, inputs=None, options=None, persona="amira"):
@@ -34,12 +49,13 @@ def test_catalog_says_which_steps_run_on_a_group(client):
         "score": (True, "ticker"), "explain_move": (True, "ticker"), "bias": (True, "ticker"), "tax": (False, None)}
 
 
-def test_groups_catalog_lists_sections_and_kit_sectors(client):
+def test_groups_catalog_lists_sections_and_yahoo_sectors(client):
     body = client.get("/api/lab/groups").json()
     assert body["max_titles"] == lab_groups.MAX_TITLES == 25
     assert [s["id"] for s in body["sections"]] == list(sections.BY_ID)
-    sectors = {s["name"]: s["count"] for s in body["sectors"]}
-    assert sectors["Financials"] >= 3 and body["sectors_source"] == lab_groups.STARTER_SOURCE
+    sectors = {s["name"]: s for s in body["sectors"]}
+    assert sectors["Energy"] == {"name": "Energy", "label": "Énergie", "count": None}
+    assert len(sectors) == 11 and body["sectors_source"] == lab_groups.SECTORS_SOURCE
 
 
 def test_score_batch_summarises_each_title_and_builds_the_table(client):
@@ -98,9 +114,13 @@ def test_explain_move_and_bias_tables(client, fake_narrator):
     assert any(d["question"] == "Battage détecté ?" for d in bias["items"][0]["decisions"])
 
 
-def test_sector_and_section_groups_are_resolved_server_side(client, monkeypatch):
-    fin = lab_groups.resolve("sector", ref="financials", limit=2)
-    assert fin.kind == "sector" and len(fin.tickers) == 2 and fin.total >= 3 and fin.truncated
+def test_sector_and_section_groups_are_resolved_server_side(client, monkeypatch, energy_screen):
+    energy = lab_groups.resolve("sector", ref="énergie", limit=2)  # French label or Yahoo name
+    assert energy.kind == "sector" and energy.ref == "Energy" and energy.label == "Secteur Énergie"
+    # largest caps first across both markets, universe only (OTC1 dropped), CDR left out
+    assert energy.tickers == ["XOM", "CVX"] and energy.total == 4 and energy.truncated
+    assert energy.names["XOM"] == "Exxon Mobil" and energy.names["ENB.TO"] == "ENB.TO"
+    assert [(region, sector) for region, sector, _ in energy_screen] == [("us", "Energy"), ("ca", "Energy")]
     cards = [{"ticker": t, "name": f"Nom {t}"} for t in ("AAPL", "MSFT", "NVDA")]
     monkeypatch.setattr(sections, "build", lambda sid, limit: {"title": "Les plus populaires", "source": "Yahoo",
                                                                "message": None, "items": cards[:limit]})
@@ -124,7 +144,7 @@ def test_group_runs_that_cannot_start_are_422(client, payload, needle):
 
 
 def test_schema_caps_the_limit(client):
-    r = _batch(client, "score", {"kind": "sector", "ref": "Financials", "limit": 26})
+    r = _batch(client, "score", {"kind": "sector", "ref": "Energy", "limit": 26})
     assert r.status_code == 422
 
 
@@ -162,15 +182,6 @@ def test_titles_past_the_deadline_are_reported_not_dropped(client, monkeypatch):
     assert all("temps imparti" in i["error"] and i["run_request"]["inputs"]["ticker"] == i["ticker"]
                for i in body["items"])
     assert body["summary"]["timeout"] == 2 and [r["status"] for r in body["table"]["rows"]] == ["timeout"] * 2
-
-
-def test_scored_universe_sectors_are_preferred_and_sorted_by_market_cap(monkeypatch):
-    frame = pd.DataFrame({"symbol": ["A", "B", "C"], "name": ["a", "b", "c"], "sector": ["Tech", "Tech", "Énergie"],
-                          "market_cap": [1e9, 5e9, 2e9]})
-    monkeypatch.setattr(lab_groups, "_scored_universe", lambda: frame)
-    lab_groups.reset()
-    group = lab_groups.resolve("sector", ref="tech")
-    assert group.tickers == ["B", "A"] and group.source == lab_groups.SCORED_SOURCE
 
 
 def test_sec_requests_share_a_rate_limit(monkeypatch):

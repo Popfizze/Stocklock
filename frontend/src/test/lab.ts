@@ -74,10 +74,11 @@ export const LAB_GROUPS: LabGroupCatalog = {
     { id: 'canada-populaires', title: 'Populaires au Canada' },
   ],
   sectors: [
-    { name: 'Technologie', count: 48 },
-    { name: 'Services financiers', count: 31 },
+    { name: 'Technology', label: 'Technologie', count: null },
+    { name: 'Financial Services', label: 'Services financiers', count: null },
   ],
-  sectors_source: 'Univers du pipeline de score (secteurs Yahoo Finance)',
+  sectors_source:
+    'Filtres Yahoo Finance par secteur (États-Unis et TSX, plus grandes capitalisations), titres de l’univers SEC + TMX',
 }
 
 const BATCH_RUN_REQUEST = {
