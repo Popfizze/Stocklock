@@ -1,0 +1,76 @@
+# Builds the React app against the API Function URL, uploads it to S3 and invalidates CloudFront.
+name: deploy-frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-frontend
+  cancel-in-progress: false
+
+env:
+  FRONTEND_BUCKET: ${{ vars.FRONTEND_BUCKET }}
+  DISTRIBUTION_ID: ${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Resolve the API URL
+        id: api
+        env:
+          API_BASE_URL: ${{ vars.API_BASE_URL }}
+          FUNCTION_NAME: ${{ vars.LAMBDA_FUNCTION_NAME }}
+        run: |
+          set -euo pipefail
+          url="${API_BASE_URL:-}"
+          if [ -z "$url" ]; then
+            url=$(aws lambda get-function-url-config --function-name "$FUNCTION_NAME" --query FunctionUrl --output text)
+          fi
+          echo "url=${url%/}" >> "$GITHUB_OUTPUT"
+          echo "API: ${url%/}"
+
+      - run: npm ci
+
+      - run: npm run build
+        env:
+          VITE_API_BASE_URL: ${{ steps.api.outputs.url }}
+
+      - name: Upload to S3
+        run: |
+          set -euo pipefail
+          test -n "$FRONTEND_BUCKET" || { echo "::error::Repository variable FRONTEND_BUCKET is not set"; exit 1; }
+          # Hashed bundles first (immutable), then everything else; old bundles stay for open tabs.
+          aws s3 sync dist/assets "s3://$FRONTEND_BUCKET/assets" --cache-control "public,max-age=31536000,immutable"
+          aws s3 sync dist "s3://$FRONTEND_BUCKET" --delete --exclude "assets/*" --cache-control "no-cache"
+
+      - name: Invalidate CloudFront
+        run: |
+          test -n "$DISTRIBUTION_ID" || { echo "::error::Repository variable CLOUDFRONT_DISTRIBUTION_ID is not set"; exit 1; }
+          aws cloudfront create-invalidation --distribution-id "$DISTRIBUTION_ID" --paths "/*" --query Invalidation.Id --output text

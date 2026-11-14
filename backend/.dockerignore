@@ -1,0 +1,13 @@
+# Build context is backend/ (the starter CSVs come in as the "data" named context).
+.venv/
+.cache/
+.pytest_cache/
+**/__pycache__/
+**/*.py[cod]
+.env
+.env.*
+tests/
+agentcore/
+pytest.ini
+Dockerfile
+.dockerignore

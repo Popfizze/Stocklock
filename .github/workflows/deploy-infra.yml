@@ -1,0 +1,116 @@
+# Packages the AgentCore narration agents (arm64 wheels) to S3, then applies infra/ with Terraform.
+name: deploy-infra
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - "!infra/bootstrap/**"
+      - "backend/app/agents/**"
+      - ".github/workflows/deploy-infra.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-infra
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ARTIFACTS_BUCKET: ${{ vars.ARTIFACTS_BUCKET }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+  TF_IN_AUTOMATION: "1"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: astral-sh/setup-uv@v10.3.3
+
+      - name: Package and upload the agent code
+        id: agent
+        env:
+          AGENTS_HASH: ${{ hashFiles('backend/app/agents/**') }}
+        run: |
+          set -euo pipefail
+          key="agent/narrator-${AGENTS_HASH:0:16}.zip"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+          if aws s3api head-object --bucket "$ARTIFACTS_BUCKET" --key "$key" >/dev/null 2>&1; then
+            echo "Agent package s3://$ARTIFACTS_BUCKET/$key already exists."
+            exit 0
+          fi
+          python3 -c "import tomllib; print('\n'.join(tomllib.load(open('backend/app/agents/pyproject.toml', 'rb'))['project']['dependencies']))" > "$RUNNER_TEMP/agent-requirements.txt"
+          pkg="$RUNNER_TEMP/agent"
+          uv pip install --python-platform aarch64-manylinux_2_34 --python-version 3.12 \
+            --only-binary=:all: --target "$pkg" -r "$RUNNER_TEMP/agent-requirements.txt"
+          cp backend/app/agents/*.py "$pkg/"
+          find "$pkg" -type d -name __pycache__ -prune -exec rm -rf {} +
+          chmod -R u=rwX,go=rX "$pkg"
+          (cd "$pkg" && zip -qr -X "$RUNNER_TEMP/agent.zip" .)
+          ls -lh "$RUNNER_TEMP/agent.zip"
+          aws s3 cp "$RUNNER_TEMP/agent.zip" "s3://$ARTIFACTS_BUCKET/$key"
+
+      # The Lambda function is created from the image tagged "latest": push one on the very first deploy.
+      - name: Check for an API image
+        id: image
+        run: |
+          if aws ecr describe-images --repository-name "$ECR_REPOSITORY" --image-ids imageTag=latest >/dev/null 2>&1; then
+            echo "missing=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "missing=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - if: steps.image.outputs.missing == 'true'
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - if: steps.image.outputs.missing == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - if: steps.image.outputs.missing == 'true'
+        uses: docker/build-push-action@v7
+        with:
+          context: backend
+          build-contexts: data=alphaforge_starter
+          platforms: linux/amd64
+          provenance: false
+          sbom: false
+          push: true
+          tags: |
+            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.ecr.outputs.registry }}/${{ vars.ECR_REPOSITORY }}:latest
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "~1.17.0"
+          terraform_wrapper: false
+
+      - name: Terraform init
+        working-directory: infra
+        run: terraform init -input=false
+
+      - name: Terraform apply
+        working-directory: infra
+        run: terraform apply -input=false -auto-approve -var "agent_code_key=${{ steps.agent.outputs.key }}"
+
+      - name: Outputs
+        working-directory: infra
+        run: |
+          {
+            echo '### Terraform outputs'
+            echo '```json'
+            terraform output -json | jq 'map_values(.value)'
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -105,3 +105,8 @@ backend/.cache/
 backend/.env
 # AgentCore CLI local state (traces, logs, build cache)
 backend/agentcore/.cli/
+
+# Terraform
+.terraform/
+*.tfstate*
+*.tfplan
