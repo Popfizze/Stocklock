@@ -169,7 +169,7 @@ def benchmark(ctx: Context) -> None:
     ctx.report.factor("Rendement anormal de la fenêtre", abnormal, "ratio", source_id=src,
                       effect="positif = mieux que l'indice" if abnormal >= 0 else "négatif = moins bien que l'indice")
     if method == "market_model":
-        ctx.report.factor("Bêta (année précédant la fenêtre)", beta, "ratio", source_id=src, digits=3)
+        ctx.report.factor("Bêta (année précédant la fenêtre)", beta, None, source_id=src, digits=3)
         ctx.report.factor("R² du modèle de marché", r2, "ratio", source_id=src, digits=3)
         ctx.report.assume("Modèle de marché : alpha et bêta estimés sur les 12 mois précédant la fenêtre, "
                           "rendement anormal = (1 + rendement du titre) / (1 + rendement attendu) − 1.")
