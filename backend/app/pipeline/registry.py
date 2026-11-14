@@ -39,7 +39,8 @@ def catalog() -> dict[str, Any]:
                 options.append(opt)
             stages.append({"id": s.id, "name": s.name, "description": s.description, "layer": s.layer,
                            "options": options})
-        steps.append({"id": step.id, "label": step.label, "inputs": inputs, "stages": stages})
+        steps.append({"id": step.id, "label": step.label, "inputs": inputs, "stages": stages,
+                      "group_runnable": step.group_input is not None, "group_input": step.group_input})
     return {"steps": steps}
 
 

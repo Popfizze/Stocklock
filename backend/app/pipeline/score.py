@@ -481,4 +481,5 @@ STEP = StepSpec(
     ),
     request_model=ScoreInputs,
     key_result=_key,
+    group_input="ticker",
 )

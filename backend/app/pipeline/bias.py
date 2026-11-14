@@ -501,5 +501,6 @@ STEP = StepSpec(
     ),
     request_model=BiasInputs,
     key_result=_key,
+    group_input="ticker",
 )
 

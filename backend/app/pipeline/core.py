@@ -82,6 +82,9 @@ class StepSpec:
     request_model: type[BaseModel]
     key_result: Callable[["Context"], dict[str, Any]]
     input_defaults: Callable[[], dict[str, Any]] | None = None
+    # The input set once per title when the step runs on a group (POST /api/lab/run-batch);
+    # None for a step that does not run per title (tax).
+    group_input: str | None = None
 
     def option_specs(self) -> dict[str, OptionSpec]:
         return {f"{s.id}.{o.key}": o for s in self.stages for o in s.options}

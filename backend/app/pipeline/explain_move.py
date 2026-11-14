@@ -535,4 +535,5 @@ STEP = StepSpec(
     ),
     request_model=ExplainMoveInputs,
     key_result=_key,
+    group_input="ticker",
 )

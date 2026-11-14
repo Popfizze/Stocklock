@@ -15,13 +15,14 @@ from app.accounts_api import router as accounts_router
 from app.config import get_settings
 from app.market_api import router as market_router
 from app.personas import get_persona, list_public
+from app.pipeline import batch
 from app.pipeline.core import OptionError, PipelineInputError
 from app.pipeline.registry import STEPS, catalog, execute
 from app.profile_api import router as profile_router
 from app.score_pipeline_api import router as score_pipeline_router
-from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabRunRequest, Persona,
-                         ScoreRequest, StockBiasRequest, StockMovesRequest, TaxRequest)
-from app.services import moves_view
+from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabBatchRequest, LabRunRequest,
+                         Persona, ScoreRequest, StockBiasRequest, StockMovesRequest, TaxRequest)
+from app.services import lab_groups, moves_view
 
 settings = get_settings()
 app = FastAPI(title="StockLock API", version="0.1.0",
@@ -142,3 +143,26 @@ def lab_run(request: LabRunRequest) -> dict[str, Any]:
     except (OptionError, PipelineInputError) as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return result.to_dict(response.model_dump(mode="json"))
+
+
+@app.get("/api/lab/groups")
+def lab_groups_catalog() -> dict[str, Any]:
+    """Sections and sectors a group run can target, and the largest group size."""
+    return lab_groups.catalog()
+
+
+@app.post("/api/lab/run-batch")
+def lab_run_batch(request: LabBatchRequest) -> dict[str, Any]:
+    """One step on every title of a group, synchronously (see app.pipeline.batch for the time budget)."""
+    if request.step not in STEPS:
+        raise HTTPException(status_code=422, detail=f"étape inconnue {request.step!r} ; étapes : {sorted(STEPS)}")
+    persona = get_persona(request.persona_id)
+    g = request.group
+    try:
+        batch.check_step(request.step)
+        group = lab_groups.resolve(g.kind, g.tickers, g.ref, g.limit)
+        return batch.run_batch(request.step, persona, request.persona_id, group, request.inputs, request.options)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors(include_url=False, include_context=False)) from exc
+    except (OptionError, PipelineInputError, lab_groups.GroupError, batch.BatchError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

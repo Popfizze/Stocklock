@@ -2,15 +2,45 @@
 
 from __future__ import annotations
 
+import threading
+import time
 from typing import Any
+from urllib.parse import urlsplit
 
 import httpx
 
 from app.data.cache import ExternalUnavailable
 
 
+class RateLimiter:
+    """At most `per_second` calls per second across the process's threads."""
+
+    def __init__(self, per_second: float) -> None:
+        self.interval = 1.0 / per_second
+        self._lock = threading.Lock()
+        self._next = 0.0
+
+    def wait(self) -> None:
+        with self._lock:
+            slot = max(time.monotonic(), self._next)
+            self._next = slot + self.interval
+        delay = slot - time.monotonic()
+        if delay > 0:
+            time.sleep(delay)
+
+
+# SEC fair access: 10 requests per second at most. Group runs fetch EDGAR for several titles at once.
+SEC_LIMITER = RateLimiter(8)
+
+
+def _throttle(url: str) -> None:
+    if urlsplit(url).netloc.lower().endswith("sec.gov"):
+        SEC_LIMITER.wait()
+
+
 def get_json(source: str, url: str, *, headers: dict[str, str], timeout_s: float,
              params: dict[str, str] | None = None) -> Any:
+    _throttle(url)
     try:
         response = httpx.get(url, params=params, headers=headers, timeout=timeout_s,
                              follow_redirects=True)
@@ -34,6 +64,7 @@ def get_json(source: str, url: str, *, headers: dict[str, str], timeout_s: float
 def get_text(source: str, url: str, *, headers: dict[str, str], timeout_s: float,
              max_bytes: int = 1_500_000) -> tuple[str, str, str]:
     """(text, content type, final URL) of a page; only HTML and plain text, at most `max_bytes`."""
+    _throttle(url)
     try:
         with httpx.stream("GET", url, headers=headers, timeout=timeout_s, follow_redirects=True) as response:
             if response.status_code == 429:

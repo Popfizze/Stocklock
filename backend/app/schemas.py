@@ -189,3 +189,18 @@ class LabRunRequest(_PersonaRequest):
     step: str
     inputs: dict[str, Any] = Field(default_factory=dict)
     options: dict[str, Any] = Field(default_factory=dict)
+
+
+class LabGroup(BaseModel):
+    """Titles of a group run: an explicit list (tickers, portfolio) or a section / sector reference."""
+    kind: Literal["tickers", "portfolio", "section", "sector"]
+    tickers: list[str] | None = None
+    ref: str | None = Field(default=None, max_length=120)
+    limit: int | None = Field(default=None, ge=1, le=25)  # app.services.lab_groups.MAX_TITLES
+
+
+class LabBatchRequest(_PersonaRequest):
+    step: str
+    group: LabGroup
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    options: dict[str, Any] = Field(default_factory=dict)
