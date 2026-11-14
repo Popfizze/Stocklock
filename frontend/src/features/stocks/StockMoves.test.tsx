@@ -62,6 +62,18 @@ it('runs only when asked, then shows the figures, the narration and each move’
   expect(keyItems[1]).toHaveTextContent('Réaction du 25 août 2026 au 26 août 2026 : titre -9,00 %')
   expect(within(keyItems[1]).getByText('Mouvement marquant')).toBeInTheDocument()
 
+  // The period as a ribbon of tiles; the buttons walk through the marked moves, oldest first.
+  expect(screen.getByRole('img', { name: /La période en ruban de tuiles/ })).toHaveAccessibleName(
+    /NVDA \+5,12\s%, QQQ \+18,34\s%, et 3 mouvements marquants en pics/,
+  )
+  expect(screen.queryByText(/^Séance du/)).not.toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Mouvement suivant' }))
+  expect(screen.getByText('Séance du 2 mars 2026')).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Mouvement suivant' }))
+  expect(screen.getByText(/^Séance du/).parentElement).toHaveTextContent('Fait daté')
+  await userEvent.click(screen.getByRole('button', { name: 'Mouvement précédent' }))
+  expect(screen.getByText('Séance du 2 mars 2026').parentElement).toHaveTextContent('Aucun événement')
+
   await userEvent.click(screen.getByText('Sources, hypothèses et limites'))
   expect(screen.getByText(/Réserve fédérale \(Fed\) : hausse du taux/)).toBeInTheDocument()
   expect(screen.getByText(/GDELT indisponible/)).toBeInTheDocument()

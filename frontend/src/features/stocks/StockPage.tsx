@@ -98,7 +98,7 @@ export function StockPage() {
                 title="Détails"
                 description="Les chiffres de référence de la dernière séance et de l’année, et les dividendes versés."
               >
-                <div className="grid gap-x-12 gap-y-8 md:grid-cols-2">
+                <div className="space-y-10">
                   <KeyFigures stock={stock} />
                   <DividendList dividends={stock.stats.dividends} currency={stock.currency} />
                 </div>

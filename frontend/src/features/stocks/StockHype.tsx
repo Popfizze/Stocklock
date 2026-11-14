@@ -1,9 +1,11 @@
 import type { ApiError } from '@/api/client'
-import type { FitReason, HypeComponent, HypeLevel, HypeSignal } from '@/api/persona'
+import type { FitReason, HypeComponent, HypeComponentId, HypeLevel, HypeSignal } from '@/api/persona'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { FitReasonList } from './FitReasons'
 import { TREND_TEXT, formatCompact, formatLongDate, formatPercent, trendOf } from './format'
+import { HypeField } from './HypeField'
 import { signedRatio } from './movesMeta'
 import { BlockError } from './StockSection'
 
@@ -26,14 +28,19 @@ interface StockHypeProps {
   personaName: string
   /** What the profile's verdict says about the hype, if anything. */
   reasons: FitReason[]
+  /** The component the investor says tempts them (it starts the bias analysis), or `null`. */
+  picked: HypeComponentId | null
+  onPick: (component: HypeComponentId) => void
 }
 
 /**
  * « Signal de battage » : whether the title is in a frenzy — traded volume,
- * one-month run-up and news attention, each scored 0 to 2 — with the numbers
- * behind the level and what it means for the active profile.
+ * one-month run-up and news attention, each scored 0 to 2 — as a field of
+ * tiles, then the numbers behind the level and what it means for the active
+ * profile. Pointing at a component (in the field, or with its button) hands
+ * it to the bias analysis.
  */
-export function StockHype({ hype, error, isPending, onRetry, personaName, reasons }: StockHypeProps) {
+export function StockHype({ hype, error, isPending, onRetry, ...details }: StockHypeProps) {
   return (
     <div className="space-y-4">
       <h3 className="text-xl">Signal de battage</h3>
@@ -45,13 +52,15 @@ export function StockHype({ hype, error, isPending, onRetry, personaName, reason
       ) : error || !hype ? (
         error && <BlockError error={error} subject="Signal de battage" onRetry={onRetry} />
       ) : (
-        <HypeDetails hype={hype} personaName={personaName} reasons={reasons} />
+        <HypeDetails hype={hype} {...details} />
       )}
     </div>
   )
 }
 
-function HypeDetails({ hype, personaName, reasons }: Pick<StockHypeProps, 'personaName' | 'reasons'> & { hype: HypeSignal }) {
+type HypeDetailsProps = Pick<StockHypeProps, 'personaName' | 'reasons' | 'picked' | 'onPick'> & { hype: HypeSignal }
+
+function HypeDetails({ hype, personaName, reasons, picked, onPick }: HypeDetailsProps) {
   const reached = LEVELS.indexOf(hype.level)
   const figures: Array<{ label: string; value: string; tone?: string }> = [
     {
@@ -82,14 +91,34 @@ function HypeDetails({ hype, personaName, reasons }: Pick<StockHypeProps, 'perso
         </span>
       </div>
 
+      <div className="space-y-1">
+        <HypeField hype={hype} onPick={onPick} />
+        <p className="text-xs text-muted-foreground">
+          Trois bandes, de l’avant vers l’arrière : {hype.components.map((component) => component.label.toLowerCase()).join(', ')}.
+          Une bande calme reste à plat, une bande agitée bondit. Touchez celle qui vous donne envie d’agir pour
+          l’examiner plus bas.
+        </p>
+      </div>
+
       <ul aria-label="Composantes du signal" className="divide-y divide-border border-y border-border">
         {hype.components.map((component) => (
-          <li key={component.id} className="grid gap-x-6 gap-y-1 py-3 sm:grid-cols-3">
+          <li key={component.id} className="grid items-start gap-x-6 gap-y-2 py-3 sm:grid-cols-3">
             <div className="flex items-center justify-between gap-3 sm:block sm:space-y-1.5">
               <p className="text-sm font-medium">{component.label}</p>
               <Pips points={component.points} />
             </div>
-            <p className="text-sm text-muted-foreground sm:col-span-2">{component.message}</p>
+            <div className="space-y-2 sm:col-span-2">
+              <p className="text-sm text-muted-foreground">{component.message}</p>
+              <Button
+                type="button"
+                size="xs"
+                variant={picked === component.id ? 'default' : 'outline'}
+                aria-pressed={picked === component.id}
+                onClick={() => onPick(component.id)}
+              >
+                C’est ce qui me tente
+              </Button>
+            </div>
           </li>
         ))}
       </ul>

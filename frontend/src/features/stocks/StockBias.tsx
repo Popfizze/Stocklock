@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useStockBias, type BiasIntent } from '@/api/bias'
-import type { HypeSignal } from '@/api/persona'
+import type { HypeComponentId, HypeSignal } from '@/api/persona'
 import type { Persona } from '@/api/personas'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,11 +17,13 @@ const INTENTS: Array<{ value: BiasIntent; label: string }> = [
 interface BiasFormProps {
   ticker: string
   persona: Persona
-  /** The situation proposed while the hype signal is high; `null` otherwise. */
+  /** The situation proposed from the hype signal; `null` when there is none. */
   prefill: BiasPrefill | null
+  /** Name of the component the investor pointed at in the hype field, when they did. */
+  pickedLabel: string | null
 }
 
-function BiasForm({ ticker, persona, prefill }: BiasFormProps) {
+function BiasForm({ ticker, persona, prefill, pickedLabel }: BiasFormProps) {
   // `null` until the user touches a field: the proposal shows meanwhile, whenever the signal arrives.
   const [typed, setTyped] = useState<string | null>(null)
   const [chosen, setChosen] = useState<BiasIntent | null>(null)
@@ -52,9 +54,18 @@ function BiasForm({ ticker, persona, prefill }: BiasFormProps) {
 
       {prefill && (
         <p role="note" className="rounded-2xl border border-warning/40 bg-warning/5 p-5 text-sm">
-          <strong className="font-medium">Battage élevé sur {ticker}.</strong> C’est le moment où l’envie d’acheter
-          est la plus forte : le formulaire propose cette situation, à partir des chiffres du signal. Modifiez-la pour
-          décrire la vôtre, puis lancez l’analyse.
+          {pickedLabel ? (
+            <>
+              <strong className="font-medium">Vous avez désigné « {pickedLabel} ».</strong> Le formulaire part de
+              cette envie, avec les chiffres du signal.
+            </>
+          ) : (
+            <>
+              <strong className="font-medium">Battage élevé sur {ticker}.</strong> C’est le moment où l’envie
+              d’acheter est la plus forte : le formulaire propose cette situation, à partir des chiffres du signal.
+            </>
+          )}{' '}
+          Modifiez-la pour décrire la vôtre, puis lancez l’analyse.
         </p>
       )}
 
@@ -140,11 +151,27 @@ interface StockBiasProps {
   ticker: string
   /** The title's hype signal, once known: a high one pre-fills the form (the tempted investor's case). */
   hype?: HypeSignal
+  /** The component of the signal the investor pointed at: the form starts again from it. */
+  picked?: HypeComponentId | null
 }
 
-/** Step 4 on a stock page: examine an intention to buy or sell against the title's history and the active profile. */
-export function StockBias({ ticker, hype }: StockBiasProps) {
+/**
+ * Step 4 on a stock page: examine an intention to buy or sell against the
+ * title's history and the active profile. The hype signal comes first: what
+ * the investor points at there (or a high signal) words the intention, which
+ * stays free text to rewrite.
+ */
+export function StockBias({ ticker, hype, picked = null }: StockBiasProps) {
   const { personaId, persona } = useActivePersona()
   if (!personaId || !persona) return null
-  return <BiasForm key={`${ticker}:${personaId}`} ticker={ticker} persona={persona} prefill={biasPrefill(hype)} />
+  const pickedLabel = hype?.components.find((component) => component.id === picked)?.label ?? null
+  return (
+    <BiasForm
+      key={`${ticker}:${personaId}:${picked ?? ''}`}
+      ticker={ticker}
+      persona={persona}
+      prefill={biasPrefill(hype, picked)}
+      pickedLabel={pickedLabel}
+    />
+  )
 }

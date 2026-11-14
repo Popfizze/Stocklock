@@ -1,4 +1,5 @@
-import { useHype, type FitResult } from '@/api/persona'
+import { useState } from 'react'
+import { useHype, type FitResult, type HypeComponentId } from '@/api/persona'
 import { HYPE_RULES, reasonsFor } from './fitMeta'
 import { StockBias } from './StockBias'
 import { StockHype } from './StockHype'
@@ -18,6 +19,8 @@ interface StockReculProps {
  */
 export function StockRecul({ ticker, personaName, fit }: StockReculProps) {
   const hype = useHype(ticker)
+  // What the investor points at in the hype field: it words the intention examined below.
+  const [picked, setPicked] = useState<HypeComponentId | null>(null)
 
   return (
     <StockSection
@@ -34,9 +37,11 @@ export function StockRecul({ ticker, personaName, fit }: StockReculProps) {
         onRetry={() => hype.refetch()}
         personaName={personaName}
         reasons={reasonsFor(fit, HYPE_RULES)}
+        picked={picked}
+        onPick={setPicked}
       />
       <div className="border-t border-border pt-6">
-        <StockBias ticker={ticker} hype={hype.data} />
+        <StockBias ticker={ticker} hype={hype.data} picked={picked} />
       </div>
     </StockSection>
   )

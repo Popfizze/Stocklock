@@ -7,6 +7,7 @@ import { json, mockFetchByUrl } from '@/test/mockFetch'
 import { PERSONAS } from '@/test/personas'
 import { PROJECTION } from '@/test/accounts'
 import { FIT_NVDA_ROBERT, FIT_PLTR_ROBERT, HYPE_PLTR_HIGH } from '@/test/persona'
+import { REWEIGHT_AMIRA, WEIGHTS_AMIRA } from '@/test/scoring'
 import { mockStockPage } from '@/test/stockPage'
 import {
   NVDA_1M,
@@ -200,12 +201,14 @@ describe('StockPage', () => {
     expect(score.getByText('Comparé à').nextElementSibling).toHaveTextContent('Technologie, 48 titres')
     expect(score.getByText('Calculé le').nextElementSibling).toHaveTextContent('15 novembre 2026')
 
-    // The 3D scene of the sub-scores says what it shows (drawn flat here, without WebGL).
-    const scene = score.getByRole('img', { name: /Les sous-scores en piliers/ })
+    // The 3D scene says what it shows (drawn flat here, without WebGL): six pillars and the tower of their contributions.
+    const scene = score.getByRole('img', { name: /Le score en construction/ })
     expect(scene).toHaveAccessibleName(
-      /Rentabilité 92, Solidité financière 58, Croissance 54, Valorisation 36, Momentum et risque 72, Événements 65\. Le plan marque le score de 65,4\./,
+      /Rentabilité 92, Solidité financière 58, Croissance 54, Valorisation 36, Momentum et risque 72, Événements 65\), puis la tour de leurs contributions, haute de 65,4\./,
     )
-    expect(scene.querySelectorAll('rect')).toHaveLength(6)
+    expect(scene.querySelectorAll('rect')).toHaveLength(12)
+    // Without weights of their own, the profile is shown where to set some.
+    expect(score.getByRole('link', { name: 'Régler vos propres pondérations' })).toHaveAttribute('href', '/portefeuille')
 
     // Each sub-score: weight, score, contribution.
     expect(score.getAllByRole('button')).toHaveLength(6)
@@ -214,23 +217,56 @@ describe('StockPage', () => {
     expect(profitability).toHaveTextContent('92 / 100')
     expect(profitability).toHaveTextContent('+23,0 pts')
 
-    // The raw indicators appear when a sub-score is opened.
+    // Opening a sub-score shows its raw indicators, and turns the scene to them.
     await userEvent.click(profitability)
-    const roe = await score.findByRole('row', { name: /ROE/ })
+    const indicators = within(await score.findByRole('list', { name: 'Indicateurs bruts : Rentabilité' }))
+    const roe = indicators.getAllByRole('listitem')[0]
+    expect(roe).toHaveTextContent('ROE')
     expect(roe).toHaveTextContent('152 %')
-    expect(roe).toHaveTextContent('96')
-    expect(roe).toHaveTextContent('Plus haut, mieux')
+    expect(roe).toHaveTextContent('Rang 96 sur 100 · Plus haut, mieux')
+    expect(score.getByRole('img', { name: /Rentabilité : 2 indicateurs en colonnes/ })).toBeInTheDocument()
+    expect(score.queryByRole('table')).not.toBeInTheDocument()
+
+    // One sub-score at a time: the next one replaces it.
     await userEvent.click(score.getByRole('button', { name: /Valorisation/ }))
-    const pe = await score.findByRole('row', { name: /Cours \/ bénéfice/ })
+    const pe = within(await score.findByRole('list', { name: 'Indicateurs bruts : Valorisation' })).getAllByRole('listitem')[0]
     expect(pe).toHaveTextContent('35,2×')
     expect(pe).toHaveTextContent('Plus bas, mieux')
     expect(pe).toHaveTextContent('Comparé au secteur')
+    expect(score.queryByRole('list', { name: 'Indicateurs bruts : Rentabilité' })).not.toBeInTheDocument()
+
+    await userEvent.click(score.getByRole('button', { name: 'Revenir aux six sous-scores' }))
+    expect(score.getByRole('img', { name: /Le score en construction/ })).toBeInTheDocument()
 
     expect(score.getByRole('link', { name: 'SEC EDGAR (companyfacts)' })).toHaveAttribute(
       'href',
       'https://www.sec.gov/edgar',
     )
     expect(score.getByText(/au 10 novembre 2026/)).toBeInTheDocument()
+  })
+
+  it('shows the profile’s own score next to StockLock’s once it has set its weights', async () => {
+    window.localStorage.setItem(
+      'stocklock.scoreWeights.amira',
+      JSON.stringify({ weights: WEIGHTS_AMIRA.weights, excluded: [] }),
+    )
+    const calls = mockStockPage(NVDA_1M, { score: json(SCORE_AAPL) }, [
+      { match: '/api/scores/reweight', responses: [json(REWEIGHT_AMIRA)] },
+    ])
+    renderStock('NVDA')
+
+    const score = within(await region('Score StockLock'))
+    const own = REWEIGHT_AMIRA.items[0]
+    expect(await score.findByText('Votre score')).toBeInTheDocument()
+    expect(score.getByText(new RegExp(`Rang ${own.custom_rank} sur 200 avec vos pondérations \\(rang\\s+${own.default_rank} avec celles de StockLock\\)`))).toBeInTheDocument()
+    expect(score.getByRole('link', { name: 'Modifier vos pondérations' })).toHaveAttribute('href', '/portefeuille')
+    expect(score.queryByRole('link', { name: 'Régler vos propres pondérations' })).not.toBeInTheDocument()
+    // The scene gains the tower of the profile's own score.
+    expect(score.getByRole('img', { name: /et la tour de votre score/ })).toBeInTheDocument()
+    const request = calls.find((call) => call.url.endsWith('/api/scores/reweight'))
+    const body = JSON.parse(String(request?.init.body))
+    expect(body.tickers).toEqual(['NVDA'])
+    expect(body.weights.croissance).toBeCloseTo(WEIGHTS_AMIRA.weights?.croissance ?? 0, 5)
   })
 
   it('marks a partial score and its missing sub-scores', async () => {

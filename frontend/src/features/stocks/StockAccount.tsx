@@ -4,6 +4,7 @@ import { useAccountProjection } from '@/api/accounts'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 // Straight from the component files, not the feature's index: that would pull the whole Comptes tab in.
+import { AccountTowers } from '@/features/accounts/AccountTowers'
 import { projectionErrorMessage } from '@/features/accounts/format'
 import { LevelToggle } from '@/features/accounts/LevelToggle'
 import { ProjectionResults } from '@/features/accounts/ProjectionResults'
@@ -62,6 +63,10 @@ export function StockAccount({ ticker, starterKit }: StockAccountProps) {
         </div>
       ) : (
         <>
+          {/* The Comptes tab draws its towers from the « Normale » level up: the page shows them at once. */}
+          {level === 'simple' && (
+            <AccountTowers accounts={data.accounts} series={data.series} years={data.inputs.years} />
+          )}
           <ProjectionResults projection={data} level={level} stale={isFetching} />
           <p className="text-sm">
             <Link to={more} className="link">

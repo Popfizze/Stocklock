@@ -8,6 +8,7 @@ import { BiasNarrative } from './BiasNarrative'
 import { KeyEvents } from './KeyEvents'
 import { MoveList } from './MoveList'
 import { MovesChart } from './MovesChart'
+import { MovesRibbon } from './MovesRibbon'
 import { MovesSources } from './MovesSources'
 import { METHODS, PERIODS, signedRatio } from './movesMeta'
 import { TREND_TEXT, formatLongDate, trendOf } from './format'
@@ -43,7 +44,17 @@ function MovesResult({ result, persona }: { result: StockMovesResult; persona: P
         </p>
       </div>
 
-      {result.series.length > 1 && <MovesChart result={result} />}
+      {result.series.length > 1 && (
+        <>
+          <MovesRibbon result={result} />
+          <details className="text-sm">
+            <summary className="cursor-pointer font-medium">Courbe à l’échelle</summary>
+            <div className="mt-3">
+              <MovesChart result={result} />
+            </div>
+          </details>
+        </>
+      )}
 
       <section className="space-y-2">
         <h3 className="text-xl">Ce qu’on peut en dire</h3>

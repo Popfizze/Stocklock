@@ -50,9 +50,24 @@ describe('StockPage blocks', () => {
     expect(figure('Volume moyen, 3 mois')).toHaveTextContent('42,8 M')
     expect(recul.getByText(/Données au 13 novembre 2026 · Attention médiatique : non évaluée/)).toBeInTheDocument()
 
-    expect(recul.getByLabelText('Pourquoi envisagez-vous cette décision ?')).toHaveValue('')
+    // The signal as a field of tiles, one band per component.
+    expect(recul.getByRole('img', { name: /Le signal de battage en champ de tuiles/ })).toHaveAccessibleName(
+      /Volume échangé 0 point sur 2, Hausse sur un mois 0 point sur 2, Attention médiatique non évalué/,
+    )
+
+    const message = recul.getByLabelText('Pourquoi envisagez-vous cette décision ?')
+    expect(message).toHaveValue('')
     expect(recul.getByRole('radio', { name: 'Acheter' })).not.toBeChecked()
     expect(recul.queryByRole('note')).not.toBeInTheDocument()
+
+    // Pointing at what tempts words the intention; it stays free text.
+    await userEvent.click(within(components[0]).getByRole('button', { name: 'C’est ce qui me tente' }))
+    expect(recul.getByRole('note')).toHaveTextContent('Vous avez désigné « Volume échangé ».')
+    expect(recul.getByRole('radio', { name: 'Acheter' })).toBeChecked()
+    expect(recul.getByLabelText<HTMLTextAreaElement>('Pourquoi envisagez-vous cette décision ?').value).toMatch(
+      /^Le volume échangé est à 1,2 fois sa moyenne/,
+    )
+    expect(within(components[0]).getByRole('button', { name: 'C’est ce qui me tente' })).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('spells a high hype out for the profile and proposes the tempted buyer’s case to the bias analysis', async () => {
@@ -115,6 +130,9 @@ describe('StockPage blocks', () => {
       '/comptes?vue=chiffres&titre=NVDA',
     )
 
+    // The accounts as towers, at once.
+    expect(account.getByRole('img', { name: /Les comptes en tours après 3 ans/ })).toBeInTheDocument()
+
     // Simple by default; the profile checks come with the next level.
     expect(account.getByRole('radio', { name: 'Simple' })).toHaveAttribute('aria-checked', 'true')
     expect(account.queryByText(/Volatilité historique de 18 % supérieure au maximum du profil/)).not.toBeInTheDocument()
@@ -173,6 +191,11 @@ describe('StockPage blocks', () => {
     mockStockPage(NVDA_1M)
     renderStock('NVDA')
     await screen.findByRole('heading', { level: 1, name: 'NVIDIA' })
+
+    // The year as a strip of tiles and the dividends as a timeline; the figures stay in the page.
+    expect(screen.getByRole('img', { name: /Le dernier cours, 166,19\s\$\sUS, dans sa fourchette de 52 semaines, de 148,80\s\$\sUS à 243,37\s\$\sUS/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /2 dividendes en colonnes, du 5 mars 2024 au 10 septembre 2026/ })).toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
 
     expect(figure('Ouverture')).toHaveTextContent('151,01 $ US')
     expect(figure('Haut du jour')).toHaveTextContent('167,14 $ US')
