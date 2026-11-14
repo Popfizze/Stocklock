@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useUniverseSearch } from '@/api/stocks'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import { displayName, formatInteger, marketErrorMessage } from '@/features/stocks/format'
 
 const SEARCH_LIMIT = 30
@@ -51,11 +52,10 @@ export function UniverseSearchResults({ query }: UniverseSearchResultsProps) {
           : `${formatInteger(data.total)} ${data.total > 1 ? 'titres correspondent' : 'titre correspond'} à « ${data.query} ».`}
       </p>
       <ul
-        className={
-          isPlaceholderData
-            ? 'divide-y divide-border border-y border-border opacity-60 transition-opacity'
-            : 'divide-y divide-border border-y border-border transition-opacity'
-        }
+        className={cn(
+          'divide-y divide-border border-y border-border transition-opacity',
+          isPlaceholderData && 'opacity-60',
+        )}
       >
         {data.results.map((match) => (
           <li key={match.ticker}>
