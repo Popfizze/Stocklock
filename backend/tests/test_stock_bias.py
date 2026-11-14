@@ -25,6 +25,20 @@ def test_stock_bias_validates_ticker_and_blank_message(client):
     assert client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'ZZZZ', 'message': 'acheter'}).status_code == 422
 
 
+def test_profile_changes_the_analysis_for_the_same_cryptoasset(client):
+    payload = {'ticker': 'BTC-USD', 'message': 'Je réfléchis à acheter ce titre.'}
+    amira = client.post('/api/bias/stock', json={**payload, 'persona_id': 'amira'}).json()
+    robert = client.post('/api/bias/stock', json={**payload, 'persona_id': 'robert'}).json()
+    assert not any('Cryptoactif hors du profil' in flag for flag in amira['profile_flags'])
+    assert any('Cryptoactif hors du profil de Robert' in flag for flag in robert['profile_flags'])
+
+
+def test_mateo_esg_limit_is_visible_even_when_no_sector_is_excluded(client):
+    response = client.post('/api/bias/stock', json={'persona_id': 'mateo', 'ticker': 'AAPL', 'message': 'Je réfléchis.'})
+    assert response.status_code == 200
+    assert any('controverses ESG' in limit for limit in response.json()['analysis']['limits'])
+
+
 def test_stock_bias_without_2022_prices_does_not_simulate_another_asset(client, monkeypatch):
     original = starter.adj_close_cad
 

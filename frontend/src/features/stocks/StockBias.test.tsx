@@ -25,6 +25,8 @@ it('sends the selected title, active profile and message and shows a limited res
   expect((await screen.findByText('Panique')).closest('li')).toHaveTextContent('tout vendre')
   expect(screen.getByText(/Historique insuffisant/)).toBeInTheDocument()
   expect(screen.getByText(/Simulation historique indisponible/)).toBeInTheDocument()
+  expect(screen.getByRole('heading', { name: 'Lien avec le profil de Robert' })).toBeInTheDocument()
+  expect(screen.getByText(/Préférences : Revenu stable/)).toBeInTheDocument()
   const request = calls.find((call) => call.url.includes('/api/bias/stock'))
   expect(JSON.parse(String(request?.init.body))).toEqual({ persona_id: 'robert', ticker: 'NVDA', message: 'Je veux tout vendre' })
 })

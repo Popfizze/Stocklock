@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useStockBias, type BiasResult } from '@/api/bias'
 import { Button } from '@/components/ui/button'
+import type { Persona } from '@/api/personas'
 import { useActivePersona } from '@/features/personas/activePersona'
 import { BiasSimulation } from './BiasSimulation'
 
@@ -11,7 +12,7 @@ const labels: Record<string, string> = {
 }
 const percent = (value: number) => new Intl.NumberFormat('fr-CA', { style: 'percent', maximumFractionDigits: 1 }).format(value)
 
-function BiasDetails({ result }: { result: BiasResult }) {
+function BiasDetails({ result, persona }: { result: BiasResult; persona: Persona }) {
   return <div className="space-y-6" aria-live="polite">
     {result.warnings.length > 0 && <div role="status" className="rounded-lg bg-muted p-3 text-sm">
       <p className="font-medium">Certaines données ou fonctions sont indisponibles</p>
@@ -32,9 +33,12 @@ function BiasDetails({ result }: { result: BiasResult }) {
         <p className="text-xs text-muted-foreground">Données historiques du datathon, pas des cours en direct. Une variation passée ne prouve pas la motivation de la décision.</p>
       </div> : <p className="text-sm">Historique insuffisant ou indisponible pour contextualiser cette décision.</p>}
     </section>
-    <section className="space-y-2"><h3 className="font-semibold">Lien avec le profil</h3>
+    <section className="space-y-2"><h3 className="font-semibold">Lien avec le profil de {persona.name}</h3>
+      <p className="text-sm">Horizon : <strong>{persona.horizon}</strong> · Tolérance au risque : <strong>{persona.risk_tolerance}</strong>.</p>
+      {persona.preferences.length > 0 && <p className="text-sm text-muted-foreground">Préférences : {persona.preferences.join(', ')}.</p>}
       {result.profile_flags.length ? <ul className="list-disc pl-5 text-sm">{result.profile_flags.map((flag) => <li key={flag}>{flag}</li>)}</ul>
         : <p className="text-sm">Aucun écart détecté par les règles disponibles ; cela ne garantit pas que la décision convient au profil.</p>}
+      {persona.preferences.includes('ESG') && <p className="text-xs text-muted-foreground">Les controverses ESG ne sont pas vérifiables avec les données disponibles ; l’absence d’alerte ne signifie pas que le titre respecte ces critères.</p>}
     </section>
     <section className="space-y-2"><h3 className="font-semibold">Analyse</h3><p className="whitespace-pre-line text-sm">{result.analysis.answer}</p>
       {!result.analysis.governance.passed && <p role="alert" className="text-sm text-destructive">Certains contrôles de l’analyse ont échoué. Consultez les limites avant de l’interpréter.</p>}
@@ -50,16 +54,16 @@ function BiasDetails({ result }: { result: BiasResult }) {
   </div>
 }
 
-function BiasForm({ ticker, personaId, personaName }: { ticker: string; personaId: string; personaName: string }) {
+function BiasForm({ ticker, persona }: { ticker: string; persona: Persona }) {
   const [message, setMessage] = useState('')
   const mutation = useStockBias()
   function submit(event: FormEvent) {
     event.preventDefault()
-    if (message.trim()) mutation.mutate({ ticker, persona_id: personaId, message: message.trim() })
+    if (message.trim()) mutation.mutate({ ticker, persona_id: persona.id, message: message.trim() })
   }
   return <section id="prendre-du-recul" aria-labelledby="bias-heading" className="scroll-mt-6 space-y-5 border-t border-border pt-6">
     <div className="space-y-1"><h2 id="bias-heading" className="text-2xl font-semibold tracking-tight">Prendre du recul</h2>
-      <p className="text-sm text-muted-foreground">Examinez votre intention pour {ticker} à la lumière de l’historique du titre et du profil de {personaName}.</p></div>
+      <p className="text-sm text-muted-foreground">Examinez votre intention pour {ticker} à la lumière de l’historique du titre et du profil de {persona.name}.</p></div>
     <form onSubmit={submit} className="space-y-3">
       <label htmlFor="bias-message" className="block text-sm font-medium">Que souhaitez-vous faire, et pourquoi ?</label>
       <textarea id="bias-message" value={message} disabled={mutation.isPending} maxLength={4000} rows={3} placeholder="Par exemple : je souhaite vendre parce que le cours a baissé…"
@@ -68,12 +72,12 @@ function BiasForm({ ticker, personaId, personaName }: { ticker: string; personaI
       <Button type="submit" disabled={!message.trim() || mutation.isPending} loading={mutation.isPending} loadingText="Analyse en cours…">Analyser ma décision</Button>
     </form>
     {mutation.isError && <p role="alert" className="text-sm text-destructive">Impossible de terminer l’analyse. {mutation.error.status === 0 ? 'Vérifiez la connexion au serveur.' : mutation.error.message}</p>}
-    {mutation.data && <BiasDetails result={mutation.data} />}
+    {mutation.data && <BiasDetails result={mutation.data} persona={persona} />}
   </section>
 }
 
 export function StockBias({ ticker }: { ticker: string }) {
   const { personaId, persona } = useActivePersona()
   if (!personaId || !persona) return null
-  return <BiasForm key={`${ticker}:${personaId}`} ticker={ticker} personaId={personaId} personaName={persona.name} />
+  return <BiasForm key={`${ticker}:${personaId}`} ticker={ticker} persona={persona} />
 }

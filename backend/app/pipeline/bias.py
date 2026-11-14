@@ -178,8 +178,12 @@ def profile_check(ctx: Context) -> None:
         flags.append(f"Concentration sur un seul titre, alors que le profil de {ctx.persona['name']} limite une "
                      f"position à {c['max_single_position'] * 100:.0f} % du portefeuille.")
     if "panique" in cats and c["horizon_years"][0] >= 8:
-        flags.append("Réaction de panique incohérente avec un horizon long.")
-    lo, hi = c["horizon_years"]
+        flags.append(f"Le message contient un indice possible de panique ; à mettre en perspective avec "
+                     f"l'horizon de {ctx.persona['name']} ({ctx.persona['horizon']}).")
+    if "ESG" in ctx.persona.get("preferences", []):
+        ctx.report.limit("Le jeu de données ne permet pas de vérifier les controverses ESG de l'entreprise : "
+                         "le filtre sectoriel ne constitue pas une vérification ESG complète.")
+    _, hi = c["horizon_years"]
     if hi <= 5 and (vol or 0) > c["max_volatility"]:
         flags.append(f"Horizon court ({ctx.persona['horizon']}) : peu de temps pour récupérer d'une baisse.")
     ctx.report.profile_flags.extend(flags)
