@@ -63,6 +63,7 @@ export function LabStepPanel({ step, onRun }: LabStepPanelProps) {
           setOptions((current) => ({ ...current, [id]: value }))
         }
         results={stageResults}
+        runSources={run.data?.result.sources}
       />
 
       <div className="space-y-3">
@@ -70,6 +71,12 @@ export function LabStepPanel({ step, onRun }: LabStepPanelProps) {
           {run.isPending && <Loader2 className="animate-spin" aria-hidden="true" />}
           {run.isPending ? 'Exécution…' : 'Exécuter'}
         </Button>
+        {run.isPending && (
+          <p role="status" className="text-sm text-muted-foreground">
+            Exécution en cours : chaque étape interroge ses sources, cela peut prendre une quinzaine
+            de secondes.
+          </p>
+        )}
         {run.error && (
           <p role="alert" className="text-sm text-destructive">
             {runErrorMessage(run.error)}

@@ -97,9 +97,40 @@ describe('LabPage', () => {
       'https://finance.yahoo.com/quote/SHOP.TO',
     )
     expect(panel.getByText('— au 2026-11-13')).toBeInTheDocument()
-    expect(panel.getByText('101,5')).not.toBeVisible()
-    await userEvent.click(panel.getByText('Aperçu des données (2 lignes)'))
-    expect(panel.getByText('101,5')).toBeVisible()
+
+    // Decisions: question → answer, the reason, then the rule and the inputs.
+    const decision = panel.getByText('Quelle source de prix pour SHOP.TO ?').closest('li') as HTMLElement
+    expect(decision).toHaveTextContent('kit de départ (prices_daily.csv)')
+    expect(decision).toHaveTextContent("Choix de l'option de l'étape.")
+    expect(within(decision).getByText('option source = starter')).toBeInTheDocument()
+    const filter = panel.getByText('Quelles séances garder ?').closest('li') as HTMLElement
+    expect(filter).toHaveTextContent('2 séances sur 1255')
+    expect(within(filter).getByText('début :').nextElementSibling).toHaveTextContent('2026-11-12')
+    expect(panel.getByText('Que faire des sous-scores manquants ?')).toBeInTheDocument()
+
+    // Datasets: collapsed, with their counts and source; every column and row once opened.
+    expect(panel.queryByText('101,5')).not.toBeInTheDocument()
+    expect(panel.queryByText('Aperçu des données (2 lignes)')).not.toBeInTheDocument()
+    const prices = panel.getByText('Prix quotidiens SHOP.TO (kit, prices_daily.csv)').closest('details') as HTMLElement
+    expect(prices).toHaveTextContent('2 lignes × 4 colonnes')
+    expect(prices).toHaveTextContent('Source : Yahoo Finance')
+    await userEvent.click(within(prices).getByText('Prix quotidiens SHOP.TO (kit, prices_daily.csv)'))
+    const table = within(within(prices).getByRole('table'))
+    expect(table.getAllByRole('columnheader').map((header) => header.textContent)).toEqual([
+      'Ligne#',
+      'date',
+      'ticker',
+      'close',
+      'volume',
+    ])
+    expect(table.getByRole('row', { name: /1 2026-11-12 SHOP\.TO 101,5 1[\s\u202f\u00a0]200/ })).toBeInTheDocument()
+    expect(table.getByRole('row', { name: /2 2026-11-13 SHOP\.TO — 900/ })).toBeInTheDocument()
+    expect(prices).toHaveTextContent('Lignes 1–2 sur 2')
+
+    const edgar = panel.getByText('Faits XBRL EDGAR (companyfacts)').closest('details') as HTMLElement
+    expect(edgar).toHaveTextContent('3 lignes × 3 colonnes')
+    expect(edgar).toHaveTextContent('Tronqué : 1 ligne sur 3')
+    expect(edgar).toHaveTextContent('Calculé par StockLock')
 
     // Final result
     expect(panel.getByText('Résultat final')).toBeInTheDocument()
@@ -153,5 +184,54 @@ describe('LabPage', () => {
       'Entrée invalide : inputs.ticker : Field required',
     )
     expect(within(runsCard()).getByText("Aucune exécution pour l'instant.")).toBeInTheDocument()
+  })
+
+  it('pages through a large dataset instead of drawing every row', async () => {
+    const rows = Array.from({ length: 250 }, (_, i) => [`2026-01-01`, `R${i + 1}`])
+    const big = {
+      id: 'big',
+      title: 'Grand jeu',
+      source_id: null,
+      columns: ['date', 'ref'],
+      rows,
+      total_rows: 250,
+      truncated: false,
+    }
+    const run = { ...LAB_RUN, stages: [{ ...LAB_RUN.stages[0], datasets: [big] }, LAB_RUN.stages[1]] }
+    renderLab([json(run)])
+    const panel = within(await screen.findByRole('tabpanel', { name: '1. Score' }))
+    await panel.findByDisplayValue('Amira')
+    await userEvent.click(panel.getByRole('button', { name: 'Exécuter' }))
+
+    const dataset = (await panel.findByText('Grand jeu')).closest('details') as HTMLElement
+    expect(dataset).toHaveTextContent('250 lignes × 2 colonnes')
+    await userEvent.click(within(dataset).getByText('Grand jeu'))
+    expect(within(dataset).getAllByRole('row')).toHaveLength(101)
+    expect(dataset).toHaveTextContent('Lignes 1–100 sur 250')
+    expect(within(dataset).getByRole('button', { name: 'Précédentes' })).toBeDisabled()
+
+    await userEvent.click(within(dataset).getByRole('button', { name: 'Suivantes' }))
+    await userEvent.click(within(dataset).getByRole('button', { name: 'Suivantes' }))
+    expect(dataset).toHaveTextContent('Lignes 201–250 sur 250')
+    expect(within(dataset).getByText('R250')).toBeInTheDocument()
+    expect(within(dataset).queryByText('R1')).not.toBeInTheDocument()
+    expect(within(dataset).getByRole('button', { name: 'Suivantes' })).toBeDisabled()
+  })
+
+  it('falls back to the short preview when a stage sends no dataset (older backend)', async () => {
+    const run = {
+      ...LAB_RUN,
+      stages: LAB_RUN.stages.map((stage) => ({ ...stage, datasets: undefined, decisions: undefined })),
+    }
+    renderLab([json(run)])
+    const panel = within(await screen.findByRole('tabpanel', { name: '1. Score' }))
+    await panel.findByDisplayValue('Amira')
+    await userEvent.click(panel.getByRole('button', { name: 'Exécuter' }))
+
+    expect(await panel.findByText('Aperçu des données (2 lignes)')).toBeInTheDocument()
+    expect(panel.getByText('101,5')).not.toBeVisible()
+    await userEvent.click(panel.getByText('Aperçu des données (2 lignes)'))
+    expect(panel.getByText('101,5')).toBeVisible()
+    expect(panel.queryByText(/Décisions/)).not.toBeInTheDocument()
   })
 })

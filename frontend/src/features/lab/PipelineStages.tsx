@@ -1,5 +1,5 @@
 import { useId } from 'react'
-import type { LabOption, LabScalar, LabStageDef, LabStageResult } from '@/api/lab'
+import type { LabOption, LabScalar, LabSource, LabStageDef, LabStageResult } from '@/api/lab'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 import {
@@ -18,20 +18,28 @@ interface PipelineStagesProps {
   onChange: (id: string, value: LabScalar) => void
   /** The last run's result of each stage, by stage id. */
   results?: Map<string, LabStageResult>
+  /** The last run's sources, for datasets that cite one the stage does not list. */
+  runSources?: LabSource[]
 }
 
-export function PipelineStages({ stages, values, onChange, results }: PipelineStagesProps) {
+export function PipelineStages({
+  stages,
+  values,
+  onChange,
+  results,
+  runSources,
+}: PipelineStagesProps) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-lg">Pipeline</CardTitle>
       </CardHeader>
       <CardContent>
-        <ol className="space-y-4">
+        <ol className="divide-y divide-border">
           {stages.map((stage, index) => {
             const result = results?.get(stage.id)
             return (
-              <li key={stage.id} className="space-y-4 rounded-2xl border p-4">
+              <li key={stage.id} className="space-y-4 py-6 first:pt-0 last:pb-0">
                 <div>
                   <h3 className="font-medium">
                     {index + 1}. {stage.name}
@@ -53,7 +61,7 @@ export function PipelineStages({ stages, values, onChange, results }: PipelineSt
                     })}
                   </div>
                 )}
-                {result && <StageResultView result={result} />}
+                {result && <StageResultView result={result} runSources={runSources} />}
               </li>
             )
           })}

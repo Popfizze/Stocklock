@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useLabPipelines } from '@/api/lab'
-import { AppLayout } from '@/components/layout'
+import { AppLayout, PageHeader } from '@/components/layout'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { catalogErrorMessage, type LabRunRecord } from './labForm'
 import { LabStepPanel } from './LabStepPanel'
@@ -23,8 +23,11 @@ export function LabPage() {
 
   return (
     <AppLayout>
-      <div className="space-y-6">
-        <h1 className="sr-only">Labo</h1>
+      <div className="space-y-8">
+        <PageHeader
+          title="Labo"
+          description="Régler chaque étape d'un pipeline, l'exécuter, puis lire ses décisions et ses jeux de données complets."
+        />
 
         {isPending && (
           <p role="status" className="text-muted-foreground">
