@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException
@@ -19,6 +20,7 @@ from fastapi import APIRouter, Body, HTTPException
 from app.config import get_settings
 from app.score_pipeline import store as st
 from app.score_pipeline.runs import STAGES, RunParams, new_run_id, now_iso, pending_stage, read_stages, run_key
+from app.services import score_table
 
 router = APIRouter(prefix="/api/pipeline/score", tags=["pipeline de score"])
 RUN_ID = re.compile(r"^[A-Za-z0-9_-]{1,80}$")
@@ -145,7 +147,25 @@ def get_run(run_id: str) -> dict[str, Any]:
         execution = None
     finished = record is not None and record.get("status") in {"succeeded", "failed"}
     stages = record["stages"] if finished else read_stages(store, run_id)
-    return _view(run_id, record, execution, stages)
+    view = _view(run_id, record, execution, stages)
+    if view["status"] == "succeeded":
+        _refresh_score_table(view["started_at"])
+    return view
+
+
+def _instant(value: str | None) -> datetime | None:
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")) if value else None
+    except ValueError:
+        return None
+
+
+def _refresh_score_table(run_started_at: str | None) -> None:
+    """Drop this instance's 10-minute copy of the score table when it predates a finished run."""
+    state = score_table.load()
+    generated, started = _instant(state.get("generated_at")), _instant(run_started_at)
+    if state["status"] != "available" or (generated and started and generated < started):
+        score_table.reset()
 
 
 def _catalog() -> list[dict[str, Any]]:

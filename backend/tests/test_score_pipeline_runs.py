@@ -206,3 +206,17 @@ def test_api_reads_stage_records_while_running_and_the_record_when_done(client, 
     assert listing["configured"] and listing["runs"][0]["run_id"] == "run-a" and "stages" not in listing["runs"][0]
     assert client.get("/api/pipeline/score/runs/nope").status_code == 404
     assert client.get("/api/pipeline/score/runs/bad%20id").status_code == 404
+
+
+def test_a_finished_run_refreshes_the_cached_score_table(client, api, monkeypatch):
+    sfn, store = api
+    from app.services import score_table
+
+    resets = []
+    monkeypatch.setattr(score_table, "load", lambda: {"status": "absent", "generated_at": None})
+    monkeypatch.setattr(score_table, "reset", lambda: resets.append(1))
+    run = stages.handle({"stage": "init", "execution_name": "run-b", "input": {"trigger": "api"}}, store)["run"]
+    sfn.executions.append({"name": "run-b", "status": "SUCCEEDED", "startDate": "2026-11-14T22:00:00Z"})
+    stages.handle({"stage": "finalize", "run": run}, store)
+    body = client.get("/api/pipeline/score/runs/run-b").json()
+    assert body["status"] == "succeeded" and body["summary"] is not None and resets == [1]

@@ -174,6 +174,16 @@ def select(universe_rows: dict[str, dict[str, Any]], screens: dict[str, Any], wa
     seen_symbols: set[str] = set()
     seen_companies: set[str] = set()
     leftovers: list[tuple[str, dict[str, Any], dict[str, Any]]] = []
+    # Share classes of one company (BRK-A / BRK-B, GOOGL / GOOG): the most traded one stands for it.
+    most_traded: dict[str, tuple[float, str]] = {}
+    for screen in screens.values():
+        for quote in (screen or {}).get("quotes") or []:
+            symbol = str(quote.get("symbol") or "").upper()
+            listing = universe_rows.get(symbol)
+            if listing is not None:
+                volume = float(quote.get("averageDailyVolume3Month") or 0)
+                if volume > most_traded.get(listing["company_key"], (-1.0, ""))[0]:
+                    most_traded[listing["company_key"]] = (volume, symbol)
     for screen_id in SCREENS:
         quotes = (screens.get(screen_id) or {}).get("quotes") or []
         taken = 0
@@ -182,6 +192,9 @@ def select(universe_rows: dict[str, dict[str, Any]], screens: dict[str, Any], wa
             listing = universe_rows.get(symbol)
             if listing is None:
                 counts["hors_univers"] += 1
+                continue
+            if most_traded[listing["company_key"]][1] != symbol:
+                counts["doublons_societe"] += 1
                 continue
             if is_cdr(quote):
                 counts["cdr"] += 1
@@ -269,7 +282,7 @@ def silver(ctx: RunContext, store: st.Store, rec: StageRecorder, deadline: float
               "cdr": "Certificats de dépôt canadiens (CDR) écartés",
               "type": "Instruments qui ne sont ni des actions ni des FNB écartés",
               "inactifs": f"Titres inactifs écartés (aucune séance depuis {INACTIVE_DAYS} jours ou volume nul)",
-              "doublons_societe": "Autres catégories d'actions d'une même société écartées (la plus grande gardée)",
+              "doublons_societe": "Autres catégories d'actions d'une même société écartées (la plus échangée gardée)",
               "deja_retenus": "Titres présents dans deux filtres comptés une fois"}
     for key, label in labels.items():
         rec.decide("filter", label, counts[key])
