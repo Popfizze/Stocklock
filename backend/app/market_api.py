@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.data import universe, yf_market
 from app.data.cache import ExternalUnavailable
+from app.personas import get_persona
 from app.services import kpis, score_table, sections, starter_quotes, stocks
 
 router = APIRouter(prefix="/api", tags=["marché"])
@@ -41,17 +42,29 @@ def market_kpis() -> dict[str, Any]:
     return kpis.build()
 
 
+def persona_or_404(persona_id: str | None) -> dict[str, Any] | None:
+    if not persona_id:
+        return None
+    try:
+        return get_persona(persona_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"profil inconnu {persona_id!r}") from exc
+
+
 @router.get("/market/sections")
-def section_catalog() -> list[dict[str, str]]:
-    return sections.catalog()
+def section_catalog(persona: str | None = Query(None, max_length=40)) -> list[dict[str, Any]]:
+    """The general sections; with `?persona=`, the profile's own sections first (`persona_reason`)."""
+    return sections.catalog(persona_or_404(persona))
 
 
 @router.get("/market/sections/{section_id}")
-def section(section_id: str, limit: int = Query(24, ge=1, le=sections.MAX_LIMIT)) -> dict[str, Any]:
+def section(section_id: str, limit: int = Query(24, ge=1, le=sections.MAX_LIMIT),
+            persona: str | None = Query(None, max_length=40)) -> dict[str, Any]:
+    """One section's cards; with `?persona=`, a custom screen leaves out the profile's excluded sectors."""
     if section_id not in sections.BY_ID:
         raise HTTPException(status_code=404, detail=f"section inconnue {section_id!r}")
     try:
-        return sections.build(section_id, limit)
+        return sections.build(section_id, limit, persona_or_404(persona))
     except ExternalUnavailable as exc:
         raise _unavailable(exc) from exc
 

@@ -34,8 +34,9 @@ export interface HypeComponent {
   points: 0 | 1 | 2 | null
   /**
    * `volume`: max(last volume, 10-day average) ÷ 3-month average (2.4 is 2,4×);
-   * `run_up`: 1-month return in units of the title's own 1-month σ (2.1 is 2,1 σ);
-   * `news`: recent coverage ÷ baseline coverage (GDELT), or articles per day (Yahoo).
+   * `run_up`: the stronger of the 1-month and 5-session returns, in units of its own σ (2.1 is 2,1 σ);
+   * `news`: articles per day of the last 7 days ÷ the 83 before (GDELT), or of the last 2 days ÷ the
+   *   rest of Yahoo's latest 50 headlines (fallback).
    */
   ratio: number | null
   /** French sentence with the numbers. */

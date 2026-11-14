@@ -2,8 +2,8 @@
 
 Requests go through yfinance's own session (browser impersonation; cookie and crumb handled by
 yfinance). Results are cached on disk (`app.data.cache`): screeners and quotes 5 min, sparklines and
-daily histories 15 min, company profiles (sector) 7 days. Sparklines and quotes are cached per symbol,
-so a symbol shared by two sections is downloaded once.
+daily histories 15 min, one-year daily closes 6 h, company profiles (sector) 7 days. Sparklines, quotes
+and one-year closes are cached per symbol, so a symbol shared by two sections is downloaded once.
 """
 
 from __future__ import annotations
@@ -23,6 +23,7 @@ QUOTE_URL = "https://query1.finance.yahoo.com/v7/finance/quote"
 SPARK_URL = "https://query1.finance.yahoo.com/v7/finance/spark"
 CHART_URL = "https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
 PROFILE_URL = "https://query2.finance.yahoo.com/v10/finance/quoteSummary/{symbol}"
+SCREENER_URL = "https://query1.finance.yahoo.com/v1/finance/screener"
 TIMEOUT_S = 15
 SPARK_BATCH = 20   # Yahoo refuses more than 20 symbols per spark request
 QUOTE_BATCH = 50
@@ -31,6 +32,7 @@ SCREEN_TTL_S = 5 * 60
 QUOTE_TTL_S = 5 * 60
 SPARK_TTL_S = 15 * 60
 HISTORY_TTL_S = 15 * 60
+CLOSES_TTL_S = 6 * 3600
 PROFILE_TTL_S = 7 * 86400
 
 
@@ -40,7 +42,10 @@ class NotFound(Exception):
 
 @dataclass(frozen=True)
 class Screen:
-    """A Yahoo screener: a predefined one (`most_actives`…) or a custom equity/ETF query."""
+    """A Yahoo screener: a predefined one (`most_actives`…) or a custom equity/ETF query.
+
+    `filters` adds conditions as (operator, field, *values): ("is-in", "sector", "Utilities", ...),
+    ("lt", "beta", 0.8), ("btwn", "esg_score", 0, 20)."""
     key: str
     predefined: str | None = None
     kind: Literal["equity", "etf"] = "equity"
@@ -49,6 +54,7 @@ class Screen:
     min_market_cap: float | None = None
     sort_field: str = "dayvolume"
     sort_asc: bool = False
+    filters: tuple[tuple[Any, ...], ...] = ()
 
 
 # --- Low-level access (patched in tests) -----------------------------------------------------------
@@ -60,6 +66,22 @@ def _get(url: str, params: dict[str, str]) -> tuple[int, Any]:
     try:
         response = YfData().get(url=url, params=params, timeout=TIMEOUT_S)
     except Exception as exc:  # curl_cffi / yfinance raise their own types
+        raise ExternalUnavailable(SOURCE, f"erreur réseau ({type(exc).__name__})") from exc
+    if response.status_code == 429:
+        raise ExternalUnavailable(SOURCE, "limite de débit atteinte (HTTP 429)")
+    try:
+        return response.status_code, response.json()
+    except ValueError as exc:
+        raise ExternalUnavailable(SOURCE, f"réponse non JSON (HTTP {response.status_code})") from exc
+
+
+def _post(url: str, body: dict[str, Any], params: dict[str, str]) -> tuple[int, Any]:
+    """(HTTP status, JSON body) of a POST through yfinance's session (the raw screener)."""
+    from yfinance.data import YfData
+
+    try:
+        response = YfData().post(url, body=body, params=params, timeout=TIMEOUT_S)
+    except Exception as exc:
         raise ExternalUnavailable(SOURCE, f"erreur réseau ({type(exc).__name__})") from exc
     if response.status_code == 429:
         raise ExternalUnavailable(SOURCE, "limite de débit atteinte (HTTP 429)")
@@ -87,6 +109,8 @@ def _run_screen(screen: Screen, size: int) -> list[dict[str, Any]]:
                 parts.append(query_type("is-in", ["exchange", *screen.exchanges]))
             if screen.min_market_cap:
                 parts.append(query_type("gte", ["intradaymarketcap", screen.min_market_cap]))
+            for operator, field, *values in screen.filters:
+                parts.append(query_type(operator, [field, *values]))
             query = parts[0] if len(parts) == 1 else query_type("and", parts)
             result = yf.screen(query, sortField=screen.sort_field, sortAsc=screen.sort_asc, size=size)
     except Exception as exc:
@@ -130,6 +154,8 @@ def normalize_quote(raw: dict[str, Any]) -> dict[str, Any]:
         "market_cap": _num(raw.get("marketCap")),
         "as_of": market_date(raw.get("regularMarketTime"), raw.get("exchangeTimezoneName")),
         "quote_type": raw.get("quoteType"),
+        "avg_volume_3m": _num(raw.get("averageDailyVolume3Month")),
+        "avg_volume_10d": _num(raw.get("averageDailyVolume10Day")),
     }
 
 
@@ -210,6 +236,41 @@ def sparklines(symbols: Iterable[str]) -> dict[str, list[float]]:
         return out
 
     return _per_symbol("yahoo-spark", SPARK_TTL_S, symbols, SPARK_BATCH, fetch_batch)
+
+
+def closes_1y(symbols: Iterable[str]) -> dict[str, list[list[Any]]]:
+    """One year of daily closes by symbol, [[date, close], ...] oldest first (spark, batches of 20, 6 h).
+
+    Enough for a one-year volatility and a one-month return of up to a hundred titles in a few requests."""
+    def fetch_batch(batch: list[str]) -> dict[str, Any]:
+        status, body = _get(SPARK_URL, {"symbols": ",".join(batch), "range": "1y", "interval": "1d"})
+        if status >= 400:
+            raise ExternalUnavailable(SOURCE, f"cours d'un an indisponibles (HTTP {status})")
+        out = {}
+        for item in ((body or {}).get("spark") or {}).get("result") or []:
+            response = (item.get("response") or [{}])[0]
+            tz = (response.get("meta") or {}).get("exchangeTimezoneName")
+            closes = (((response.get("indicators") or {}).get("quote") or [{}])[0]).get("close") or []
+            rows = [[market_date(ts, tz), round(c, 6)]
+                    for ts, c in zip(response.get("timestamp") or [], (_num(v) for v in closes)) if c is not None]
+            if rows:
+                out[str(item.get("symbol")).upper()] = rows
+        return out
+
+    return _per_symbol("yahoo-closes-1y", CLOSES_TTL_S, symbols, SPARK_BATCH, fetch_batch)
+
+
+def screen_raw(query: dict[str, Any], size: int, *, quote_type: str = "EQUITY",
+               sort_field: str = "intradaymarketcap") -> list[dict[str, Any]]:
+    """Raw rows of a screener query given as Yahoo's own JSON (fields yfinance does not allow, as `ticker`)."""
+    body = {"offset": 0, "size": size, "sortField": sort_field, "sortType": "DESC", "quoteType": quote_type,
+            "query": query, "userId": "", "userIdType": "guid"}
+    status, payload = _post(SCREENER_URL, body, {"corsDomain": "finance.yahoo.com", "formatted": "false",
+                                                 "lang": "en-US", "region": "US"})
+    finance = (payload or {}).get("finance") or {}
+    if status >= 400 or finance.get("error"):
+        raise ExternalUnavailable(SOURCE, f"filtre de titres indisponible (HTTP {status})")
+    return list(((finance.get("result") or [{}])[0] or {}).get("quotes") or [])
 
 
 def history(symbol: str) -> dict[str, Any]:

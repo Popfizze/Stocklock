@@ -36,6 +36,7 @@ def offline(monkeypatch, tmp_path):
     monkeypatch.setattr(yf_live, "daily_prices", no_yf)
     monkeypatch.setattr(yf_live, "recent_news", no_yf)
     monkeypatch.setattr(yf_market, "_get", no_yf)
+    monkeypatch.setattr(yf_market, "_post", no_yf)
     monkeypatch.setattr(yf_market, "_run_screen", no_yf)
     monkeypatch.setattr(gdelt, "_cooldown_until", 0.0)
     monkeypatch.setattr(gdelt, "MIN_INTERVAL_S", 0.0)

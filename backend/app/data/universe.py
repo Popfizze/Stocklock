@@ -21,7 +21,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from app.config import get_settings
-from app.data import cache, http
+from app.data import cache, http, yf_market
 from app.data.cache import ExternalUnavailable
 
 SEC_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
@@ -34,6 +34,8 @@ TMX_BOARDS = {"tsx": ("TSX", ".TO"), "tsxv": ("TSXV", ".V")}
 EXCLUDED_SEGMENTS = {"PR", "PF", "DB", "WT", "NT", "CV", "RT"}
 # Exchanges listed first in search results when two matches rank the same.
 MAJOR_EXCHANGES = {"NYSE", "Nasdaq", "TSX", "CBOE"}
+CRYPTO_COUNT = 250
+CRYPTO_RETRY_S = 10 * 60
 
 
 @dataclass(frozen=True)
@@ -124,6 +126,7 @@ def reset() -> None:
     """Forget the in-memory universe (tests, forced refresh)."""
     with _lock:
         _memo.clear()
+        _crypto_memo.clear()
 
 
 def listings() -> dict[str, Listing]:
@@ -183,12 +186,59 @@ def _rank(entry: _Entry, query: str, compact: str) -> int | None:
     return None
 
 
+_crypto_memo: dict[str, Any] = {}
+
+
+def cryptos() -> dict[str, str]:
+    """Yahoo Finance cryptocurrencies {symbol: name}, from its live crypto screener (top 250 by market cap).
+
+    Cached 24 h on disk; after a failure the screener is asked again at most every 10 minutes, and the
+    universe search simply has no crypto meanwhile."""
+    with _lock:
+        if _crypto_memo and time.time() < _crypto_memo["valid_until"]:
+            return _crypto_memo["cryptos"]
+
+    def _fetch() -> list[list[str]]:
+        rows = yf_market.screen(yf_market.Screen("all_cryptos", predefined="all_cryptocurrencies_us"), CRYPTO_COUNT)
+        return [[q["symbol"], q.get("name") or q["symbol"]] for q in rows
+                if q.get("symbol") and q.get("quote_type") == "CRYPTOCURRENCY"]
+
+    try:
+        rows, _ = cache.cached("universe", "crypto", TTL_S, _fetch)
+        found, ttl = {symbol: name for symbol, name in rows}, TTL_S
+    except ExternalUnavailable:
+        found, ttl = {}, CRYPTO_RETRY_S
+    with _lock:
+        _crypto_memo.update(cryptos=found, valid_until=time.time() + ttl)
+    return found
+
+
+def search_crypto(query: str, limit: int = 8) -> list[dict[str, Any]]:
+    """Cryptocurrencies matching `query` on symbol (BTC, BTC-USD) or name (« bitcoin »), best first."""
+    q, compact = _fold(query), _compact(query)
+    ranked = []
+    for position, (symbol, name) in enumerate(cryptos().items()):  # the screener's market-cap order
+        base, folded = _compact(symbol.split("-")[0]), _fold(name)
+        if compact and compact in (base, _compact(symbol)):
+            rank = 0
+        elif compact and base.startswith(compact):
+            rank = 1
+        elif folded.startswith(q) or any(w.startswith(q) for w in folded.split()):
+            rank = 2
+        else:
+            continue
+        ranked.append((rank, position, symbol, name))
+    ranked.sort(key=lambda item: item[:2])
+    return [{"ticker": symbol, "name": name, "exchange": "Crypto", "country": None, "asset_class": "crypto"}
+            for _, _, symbol, name in ranked[:limit]]
+
+
 def search(query: str, limit: int = 20) -> dict[str, Any]:
-    """Listings matching `query` on symbol or name, best matches first."""
+    """Listings matching `query` on symbol or name, best matches first, and the matching cryptocurrencies."""
     q = _fold(query)
     compact = _compact(query)
     if not q:
-        return {"query": query, "total": 0, "results": []}
+        return {"query": query, "total": 0, "results": [], "crypto": []}
     ranked = []
     for entry in _load()["index"]:
         rank = _rank(entry, q, compact)
@@ -197,4 +247,5 @@ def search(query: str, limit: int = 20) -> dict[str, Any]:
     ranked.sort(key=lambda item: item[:4])
     return {"query": query, "total": len(ranked),
             "results": [{"ticker": item[4].symbol, "name": item[4].name, "exchange": item[4].exchange,
-                         "country": item[4].country} for item in ranked[:limit]]}
+                         "country": item[4].country} for item in ranked[:limit]],
+            "crypto": search_crypto(query)}

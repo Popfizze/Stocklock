@@ -17,6 +17,7 @@ from app.market_api import router as market_router
 from app.personas import get_persona, list_public
 from app.pipeline.core import OptionError, PipelineInputError
 from app.pipeline.registry import STEPS, catalog, execute
+from app.profile_api import router as profile_router
 from app.score_pipeline_api import router as score_pipeline_router
 from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabRunRequest, Persona,
                          ScoreRequest, StockBiasRequest, StockMovesRequest, TaxRequest)
@@ -29,6 +30,7 @@ app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_cr
                    allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["*"])
 app.include_router(accounts_router)
 app.include_router(market_router)
+app.include_router(profile_router)
 app.include_router(score_pipeline_router)
 
 

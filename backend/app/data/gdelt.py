@@ -78,7 +78,7 @@ def summarize_tonechart(payload: dict) -> tuple[int, float | None, list[dict]]:
     return total, tone, tops
 
 
-def _throttled_get(params: dict[str, str]) -> dict:
+def _throttled_get(params: dict[str, str], timeout_s: float | None = None) -> dict:
     global _last_call, _cooldown_until
     with _lock:
         remaining = _cooldown_until - time.monotonic()
@@ -89,7 +89,7 @@ def _throttled_get(params: dict[str, str]) -> dict:
         if wait > 0:
             time.sleep(wait)
         try:
-            return get_json(SOURCE, API_URL, params=params, timeout_s=get_settings().gdelt_timeout_s,
+            return get_json(SOURCE, API_URL, params=params, timeout_s=timeout_s or get_settings().gdelt_timeout_s,
                             headers={"User-Agent": "StockLock datathon research"})
         except ExternalUnavailable:
             _cooldown_until = time.monotonic() + COOLDOWN_S
@@ -134,9 +134,14 @@ def parse_timeline(payload: dict) -> list[dict]:
     return points
 
 
-def timeline(ticker: str, name: str, start: date, end: date) -> Timeline:
-    """Daily coverage intensity (% of all monitored articles) with top articles per day."""
-    return timeline_for_query(query_for(ticker, name), start, end)
+def timeline(ticker: str, name: str, start: date, end: date, *, cache_only: bool = False,
+             mode: str = "timelinevolinfo", timeout_s: float | None = None) -> Timeline:
+    """Daily coverage intensity (% of all monitored articles) with top articles per day.
+
+    `mode="timelinevolraw"` gives daily article counts instead (no top articles); `cache_only` answers
+    from the disk cache or raises ExternalUnavailable, never calling GDELT (batches)."""
+    return timeline_for_query(query_for(ticker, name), start, end, cache_only=cache_only, mode=mode,
+                              timeout_s=timeout_s)
 
 
 # World coverage of trade and sanctions policy (not tied to one company): its peaks date the political
@@ -144,15 +149,21 @@ def timeline(ticker: str, name: str, start: date, end: date) -> Timeline:
 POLITICAL_QUERY = '(tariff OR tariffs OR "trade war" OR sanctions OR "export controls") sourcelang:english'
 
 
-def timeline_for_query(query: str, start: date, end: date) -> Timeline:
-    """Daily coverage intensity of any GDELT query, with top articles per day."""
+def timeline_for_query(query: str, start: date, end: date, *, cache_only: bool = False,
+                       mode: str = "timelinevolinfo", timeout_s: float | None = None) -> Timeline:
+    """Daily coverage intensity of any GDELT query, with top articles per day (see `timeline`)."""
     params = {
         "query": query,
-        "mode": "timelinevolinfo",
+        "mode": mode,
         "format": "json",
         "startdatetime": datetime.combine(start, datetime.min.time()).strftime("%Y%m%d%H%M%S"),
         "enddatetime": datetime.combine(end + timedelta(days=1), datetime.min.time()).strftime("%Y%m%d%H%M%S"),
     }
     key = "|".join(f"{k}={params[k]}" for k in sorted(params))
-    payload, hit = cache.cached("gdelt", key, 12 * 3600, lambda: _throttled_get(params))
+    if cache_only:
+        payload, hit = cache.read("gdelt", key, 12 * 3600), True
+        if payload is None:
+            raise ExternalUnavailable(SOURCE, "couverture pas encore calculée pour ce titre")
+    else:
+        payload, hit = cache.cached("gdelt", key, 12 * 3600, lambda: _throttled_get(params, timeout_s))
     return Timeline(query, parse_timeline(payload), hit, API_URL + "?" + urlencode(params))

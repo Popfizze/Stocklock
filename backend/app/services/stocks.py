@@ -1,7 +1,7 @@
 """A stock's page, on live data: identity, last price and day change, closes over a range, key figures.
 
-Any title of the universe (SEC + TMX) can be opened; a symbol outside it that Yahoo Finance knows (the
-starter kit's cryptos, for instance) is served too, flagged `in_universe: false`. The whole daily
+Any title of the universe (SEC + TMX) or of Yahoo's crypto screener can be opened (a crypto has no
+country); another symbol Yahoo Finance knows is served too, flagged `in_universe: false`. The whole daily
 history comes from Yahoo Finance in one request (cached 15 min), so switching the chart's range does
 not hit the network again. The day change compares the last close with the previous one of the same
 symbol, so crypto (24/7) and exchange holidays never mix calendars.
@@ -121,6 +121,7 @@ def stock_detail(ticker: str, range_: Range = "1M") -> dict[str, Any]:
         closes = closes.loc[closes.index >= closes.index[-1] - offset]
     instrument = str(meta.get("instrument_type") or "").upper()
     sector = (yf_market.profile(symbol).get("sector") if instrument == "EQUITY" else None)         or NO_SECTOR.get(instrument, "Non disponible")
+    crypto = instrument == "CRYPTOCURRENCY"
     return {
         "ticker": symbol,
         "name": meta.get("name") or (listing.name if listing else symbol),
@@ -128,7 +129,8 @@ def stock_detail(ticker: str, range_: Range = "1M") -> dict[str, Any]:
         "market": listing.exchange if listing else _market_label(instrument, meta.get("exchange")),
         "currency": meta.get("currency") or ("CAD" if symbol.endswith((".TO", ".V")) else "USD"),
         "sector": sector,
-        "in_universe": listing is not None,
+        "in_universe": listing is not None or (crypto and symbol in universe.cryptos()),
+        "country": None if crypto or listing is None else listing.country,
         "starter_kit": starter.in_starter(symbol),
         **quote,
         "points": [{"date": d.date().isoformat(), "close": _price(c)} for d, c in closes.items()],

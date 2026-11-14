@@ -64,11 +64,12 @@ def daily_prices(symbol: str, start: date, end: date) -> tuple[pd.DataFrame, boo
     return df, hit
 
 
-def recent_news(symbol: str) -> tuple[list[dict], bool]:
-    """Recent headlines (Yahoo keeps only a short recent list; no tone, no history)."""
+def recent_news(symbol: str, count: int | None = None) -> tuple[list[dict], bool]:
+    """Recent headlines (Yahoo keeps only a short recent list; no tone, no history); `count` asks for more."""
     def _fetch() -> list[dict]:
         try:
-            items = _ticker(symbol).news or []
+            ticker = _ticker(symbol)
+            items = (ticker.get_news(count=count) if count else ticker.news) or []
         except Exception as exc:
             raise ExternalUnavailable(SOURCE, f"actualités indisponibles ({type(exc).__name__})") from exc
         out = []
@@ -86,5 +87,5 @@ def recent_news(symbol: str) -> tuple[list[dict], bool]:
                 out.append({"title": title, "date": str(when)[:10], "url": url, "publisher": publisher})
         return out
 
-    value, hit = cache.cached("yfinance", f"news|{symbol}", 3 * 3600, _fetch)
+    value, hit = cache.cached("yfinance", f"news|{symbol}" + (f"|{count}" if count else ""), 3 * 3600, _fetch)
     return value, hit
