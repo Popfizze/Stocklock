@@ -1,5 +1,6 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { apiClient, type ApiError } from './client'
+import { RUNS_QUERY_KEYS } from './runs'
 
 // --- Catalog: GET /api/lab/pipelines ---------------------------------------
 
@@ -159,6 +160,7 @@ export interface LabResult {
 }
 
 export interface LabRunResponse {
+  /** Also the run's id in the registry: GET /api/runs/{run_id}. */
   run_id: string
   step: string
   duration_ms: number
@@ -227,8 +229,9 @@ export interface LabBatchItem {
   warnings: number
   /** Why the title failed or did not finish (French); null otherwise. */
   error: string | null
+  /** The title's stored run (stages, datasets, decisions): GET /api/runs/{run_id} (useRun). */
   run_id: string | null
-  /** POST it to /api/lab/run (useRunLab) to get this title's stages, datasets and decisions. */
+  /** To run this title again alone: POST it to /api/lab/run (useRunLab). */
   run_request: LabRunRequest
 }
 
@@ -249,6 +252,7 @@ export interface LabBatchTable {
 }
 
 export interface LabBatchResponse {
+  /** Also the group run's id in the registry: GET /api/runs/{batch_id}. */
   batch_id: string
   step: string
   persona_id: string
@@ -293,12 +297,15 @@ export function useLabGroups() {
  * group that is too large for the time limit, with the size that would fit.
  */
 export function useRunLabBatch() {
+  const queryClient = useQueryClient()
   return useMutation<LabBatchResponse, ApiError, LabBatchRequest>({
     mutationFn: (body) =>
       apiClient.request<LabBatchResponse>('/api/lab/run-batch', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    // the group run and its titles are now in the registry (GET /api/runs)
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_KEYS.lists() }),
   })
 }
 
@@ -313,11 +320,14 @@ export function useLabPipelines() {
 
 /** Runs one step's pipeline. Each caller keeps its own last result. */
 export function useRunLab() {
+  const queryClient = useQueryClient()
   return useMutation<LabRunResponse, ApiError, LabRunRequest>({
     mutationFn: (body) =>
       apiClient.request<LabRunResponse>('/api/lab/run', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
+    // the run is now in the registry (GET /api/runs/{run_id})
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: RUNS_QUERY_KEYS.lists() }),
   })
 }
