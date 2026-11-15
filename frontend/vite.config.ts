@@ -22,6 +22,9 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     plugins: [react()],
+    // Pre-bundled at start: both arrive with a lazy chunk, and discovering them late makes the dev
+    // server re-optimise and reload the page under the visitor (or under an E2E test).
+    optimizeDeps: { include: ['three', 'recharts'] },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src'),
@@ -44,6 +47,8 @@ export default defineConfig(({ command, mode }) => {
       environment: 'jsdom',
       globals: true,
       setupFiles: ['src/test/setup.ts'],
+      // Page-level tests take a few seconds each when every worker is busy: the default 5 s made them flaky.
+      testTimeout: 20_000,
       include: ['src/**/*.test.{ts,tsx}'],
       // Measured when asked (`npm test -- --coverage`, as CI does), never
       // enforced: no thresholds. Scope is the app's own source.

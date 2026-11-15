@@ -13,7 +13,7 @@ import tseslint from 'typescript-eslint'
 import globals from 'globals'
 
 export default tseslint.config(
-  { ignores: ['dist', 'node_modules', 'coverage'] },
+  { ignores: ['dist', 'node_modules', 'coverage', 'e2e/.results', 'e2e/.report'] },
   // ESLint globs .js, .mjs and .cjs by default, never .jsx: this block is what
   // makes a .jsx file linted at all.
   {

@@ -1,6 +1,11 @@
 import '@testing-library/jest-dom/vitest'
+import { configure } from '@testing-library/react'
 import { afterEach } from 'vitest'
 import { toast } from 'sonner'
+
+// Whole pages are rendered (charts, scenes, several requests in a row): on a busy machine the
+// default second of `findBy…` is not always enough for the last answer to reach the screen.
+configure({ asyncUtilTimeout: 4000 })
 
 // Sonner's toast store is module-level and OUTLIVES Testing Library's unmount:
 // on subscribe it replays every still-active toast to the newly mounted
