@@ -28,6 +28,8 @@ export function conveyorScene(
   nodes: FlowNode[],
   travellers: Traveller[],
   selected: string | null,
+  /** Before the launch: what will run. The stages are named and stand out, the group waits in ink at the entrance under this tag. */
+  preview: { waiting: string } | null = null,
 ): { tiles: SceneTile[]; flows: SceneFlow[] } {
   const tiles: SceneTile[] = []
   const centres: Array<{ x: number; busy: boolean }> = []
@@ -43,6 +45,12 @@ export function conveyorScene(
       const label = `${node.order ? `${node.order}. ` : ''}${node.label} · ${FLOW_STATUS_LABELS[node.status]}`
       // The chosen stage stands on an ink plate.
       if (node.id === selected) tiles.push({ x, z, w: 1.9, d: 1.15, y: -0.02, h: 0.05, tone: 1 })
+      if (preview) {
+        // Not run yet: a full-height block in mid-grey, with the stage's number and name written on it.
+        const name = node.order ? `${node.order}. ${node.label.length > 16 ? `${node.label.slice(0, 15)}…` : node.label}` : undefined
+        tiles.push({ id: node.id, x, z, y: 0.04, h: node.order ? 0.9 : 0.3, w: 1.5, tone: node.order ? 4 : 6, label, tag: name, tagShort: node.order ? String(node.order) : undefined })
+        return
+      }
       for (let level = 0; level < stackHeight(node.rows); level++) {
         tiles.push({ id: node.id, x, z, y: 0.04 + level * 0.5, h: 0.46, w: 1.5, tone: STATUS_TONES[node.status], label })
       }
@@ -55,8 +63,11 @@ export function conveyorScene(
         w: TRAVELLER,
         d: TRAVELLER,
         h: TRAVELLER,
-        tone: traveller.status === 'ok' ? 2 : STATUS_TONES[traveller.status],
+        tone: preview || traveller.status === 'ok' ? 2 : STATUS_TONES[traveller.status],
         label: `${traveller.label} · ${FLOW_STATUS_LABELS[traveller.status]}`,
+        // The whole group is named once, on its first tile.
+        tag: preview && position === 0 ? preview.waiting : undefined,
+        tagFirst: true,
       })
     })
     if (own.length > 0) centres.push({ x, busy: own.some((node) => node.status === 'running' || node.status === 'ok' || node.status === 'warning') })

@@ -97,6 +97,7 @@ export function ScoreLaunch({ portfolio, presetTickers, relaunch = null }: Score
           travellers={travellers}
           summary={`Pipeline de score sur ${size} titre${size > 1 ? 's' : ''} — ${GROUP_KIND_LABELS[draft.kind].toLowerCase()}.`}
           running={false}
+          waiting={`${size} titre${size > 1 ? 's' : ''} en attente`}
         >
           <Button type="button" size="lg" loading={start.isPending} disabled={problem !== null || notDeployed || Boolean(running)} onClick={launch}>
             <Play aria-hidden="true" data-icon="inline-start" />

@@ -5,7 +5,7 @@ import { useLabGroups, useRunLab, useRunLabBatch, type LabInputValue, type LabSt
 import { Button } from '@/components/ui/button'
 import { initialOptionValues, runErrorMessage, type OptionValues } from '../labForm'
 import { runPath } from '../labRoutes'
-import { catalogFlow } from '../run/flowModel'
+import { catalogFlow, type Traveller } from '../run/flowModel'
 import { GroupPicker } from './GroupPicker'
 import { LabInputs, LabOptions } from './LabParams'
 import { lastTwelveMonths } from './relaunch'
@@ -67,7 +67,8 @@ export function LabLaunch({ step, personaId, portfolio, presetTickers, relaunch 
   const fit = fittingSize(batch.error)
   const nodes = useMemo(() => catalogFlow(step.stages, pending ? 'running' : 'idle'), [step.stages, pending])
   const travellers = useMemo(
-    () => (grouped ? previewTravellers(draft, portfolio, limits.cap, pending) : []),
+    // A step without titles runs on one scenario: a single tile waits at the entrance.
+    () => (grouped ? previewTravellers(draft, portfolio, limits.cap, pending) : [{ label: 'Scénario', status: pending ? 'running' : 'pending', column: 'entrees', runId: null } satisfies Traveller]),
     [grouped, draft, portfolio, limits.cap, pending],
   )
   const problem = grouped ? groupProblem(draft, portfolio, limits.cap) : null
@@ -131,6 +132,7 @@ export function LabLaunch({ step, personaId, portfolio, presetTickers, relaunch 
           travellers={travellers}
           summary={grouped ? `${step.label} sur ${size} titre${size > 1 ? 's' : ''}.` : `${step.label} sur ce scénario.`}
           running={pending}
+          waiting={grouped ? `${size} titre${size > 1 ? 's' : ''} en attente` : '1 scénario en attente'}
         >
           <Button type="button" size="lg" loading={pending} loadingText="Exécution…" disabled={problem !== null} onClick={launch}>
             <Play aria-hidden="true" data-icon="inline-start" />

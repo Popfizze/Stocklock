@@ -1,12 +1,12 @@
 /**
  * Pure helpers of the « Exécutions » console: labels, filters, the fallback list built from
- * the score pipeline's own records, and the 3D timeline's tiles.
+ * the score pipeline's own records (the 3D timeline's tiles are in `timelineScene`).
  */
 
 import type { ApiError } from '@/api/client'
 import type { ScoreRunInfo } from '@/api/pipeline'
-import type { RunFilters, RunPipeline, RunStatus, RunSummary, RunTrigger } from '@/api/runs'
-import type { SceneFlow, SceneTile, TileTone } from '@/components/three'
+import type { RunFilters, RunStatus, RunSummary, RunTrigger } from '@/api/runs'
+import type { TileTone } from '@/components/three'
 import { API_BASE_URL } from '@/lib/env'
 
 const LOCALE = 'fr-CA'
@@ -59,9 +59,6 @@ export const PIPELINE_LABELS: Record<PipelineFilter, string> = {
   'lab.tax': 'Labo · Fiscalité',
   'lab.bias': 'Labo · Biais',
 }
-
-/** The timeline's lanes, back to front. */
-const LANES: RunPipeline[] = ['score_pipeline', 'lab.score', 'lab.explain_move', 'lab.tax', 'lab.bias']
 
 export type DateRange = 'all' | 'today' | '7d' | '30d'
 
@@ -190,56 +187,6 @@ export function matchesFilters(run: RunSummary, filters: RunFilters): boolean {
   if (filters.persona && run.persona_id !== filters.persona) return false
   if (filters.status && run.status !== filters.status) return false
   return !filters.trigger || run.trigger === filters.trigger
-}
-
-/** Runs of the same day stand together; a gap separates two days. */
-const DAY_GAP = 0.9
-
-/**
- * The timeline: newest run on the left, one column per run in its pipeline's lane. Height grows
- * with the titles processed (log scale), shade is the status, and small tiles hop over a running run.
- */
-export function timelineScene(runs: RunSummary[]): { tiles: SceneTile[]; flows: SceneFlow[] } {
-  const tiles: SceneTile[] = []
-  const flows: SceneFlow[] = []
-  let x = 0
-  let previousDay: string | null = null
-  let dayStart = 0
-  const closeDay = (end: number) => {
-    // The slab a day's runs stand on.
-    if (previousDay !== null) {
-      tiles.push({ x: (dayStart + end) / 2, z: 2, w: end - dayStart + 1, d: LANES.length + 0.4, y: -0.14, h: 0.12, tone: 8 })
-    }
-  }
-  runs.forEach((run) => {
-    const day = dayKey(run.started_at)
-    if (day !== previousDay) {
-      closeDay(x - 1)
-      if (previousDay !== null) x += DAY_GAP
-      previousDay = day
-      dayStart = x
-    }
-    const z = Math.max(0, LANES.indexOf(run.pipeline))
-    const h = run.status === 'running' ? 0.5 : 0.6 + Math.log2(runSize(run)) * 0.55
-    tiles.push({ id: run.run_id, x, z, h, tone: STATUS_TONES[run.status], label: runSummaryLine(run), tag: formatTime(run.started_at) })
-    if (run.status === 'running') flows.push({ from: [x - 0.45, z], to: [x + 0.45, z], count: 2, tone: 3 })
-    x += 1
-  })
-  closeDay(x - 1)
-  return { tiles, flows }
-}
-
-/** What the timeline shows, in a sentence. */
-export function timelineLabel(runs: RunSummary[]): string {
-  const count = (status: RunStatus) => runs.filter((run) => run.status === status).length
-  const parts = [
-    `${runs.length} exécution${runs.length > 1 ? 's' : ''}`,
-    count('running') > 0 ? `${count('running')} en cours` : null,
-    `${count('succeeded')} réussie${count('succeeded') > 1 ? 's' : ''}`,
-    count('warning') > 0 ? `${count('warning')} avec avertissements` : null,
-    count('failed') > 0 ? `${count('failed')} en échec` : null,
-  ]
-  return `Frise 3D des exécutions, la plus récente à gauche : ${parts.filter(Boolean).join(', ')}. La même liste suit en texte.`
 }
 
 export function feedErrorMessage(error: ApiError): string {

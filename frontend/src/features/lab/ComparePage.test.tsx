@@ -40,7 +40,8 @@ describe('ComparePage', () => {
 
     expect(await screen.findByRole('link', { name: /Exécution A.*SHOP\.TO/ })).toHaveAttribute('href', `/labo/executions/${RUN_DETAIL_LAB.run_id}`)
     expect(screen.getByRole('link', { name: /Exécution B.*fenêtre 1 an/ })).toHaveAttribute('href', '/labo/executions/other-run')
-    expect(screen.getByRole('img', { name: /Comparaison 3D des mesures communes aux deux exécutions \(Durée \(s\), Score\)/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Les deux exécutions en convoyeurs face à face.*2 étapes diffèrent : Paramètres \(1 changé\) ; Résultat \(1 écart\)/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Les mesures communes aux deux exécutions en tours jumelles \(Durée \(s\), Étapes, Titres, Score\)/ })).toBeInTheDocument()
     expect(screen.getByText('2 différences entre ces deux exécutions.')).toBeInTheDocument()
 
     const params = within(screen.getByRole('region', { name: 'Paramètres' }))

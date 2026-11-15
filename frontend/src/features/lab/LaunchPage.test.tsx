@@ -105,7 +105,9 @@ describe('LaunchPage', () => {
 
     const portfolio = within(await screen.findByRole('list', { name: 'Titres du portefeuille' }))
     expect(portfolio.getAllByRole('listitem')).toHaveLength(8)
-    expect(screen.getByRole('img', { name: /Convoyeur 3D du pipeline 1\. Score.*8 titres du groupe/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Convoyeur 3D du pipeline 1\. Score, ce qui va s’exécuter : 8 titres en attente aux entrées, puis 1\. Collecte, 2\. Notation\./ })).toBeInTheDocument()
+    // The same in words: what waits, then the stages in order.
+    expect(within(screen.getByRole('list', { name: 'Étapes qui vont s’exécuter' })).getAllByRole('listitem').map((item) => item.textContent)).toEqual(['8 titres en attente', '1Collecte', '2Notation'])
 
     await user.click(screen.getByRole('radio', { name: '5 ans' }))
     await user.click(screen.getByRole('button', { name: 'Lancer l’exécution' }))

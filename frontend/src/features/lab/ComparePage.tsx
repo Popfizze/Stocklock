@@ -7,10 +7,10 @@ import { RUNS_QUERY_KEYS, type RunStageDetail } from '@/api/runs'
 import { AppLayout, PageHeader } from '@/components/layout'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { Tile3D } from '@/components/three'
 import { cn } from '@/lib/utils'
-import { compareRows, compareScene, compareSide, type CompareRow, type CompareSide } from './compare/compareModel'
+import { comparable, compareRows, compareSide, type CompareRow, type CompareSide } from './compare/compareModel'
+import { samePipeline } from './compare/compareScene'
+import { CompareScenes } from './compare/CompareScenes'
 import { LAB_PATH, runPath } from './labRoutes'
 import type { RunView } from './run/runView'
 import { useRunView } from './run/useRunView'
@@ -31,7 +31,7 @@ function useStageDetails(view: RunView | null): RunStageDetail[] {
   })
 }
 
-/** Two runs side by side: the numbers they share as paired 3D columns, then parameters, results and decisions that differ. */
+/** Two runs side by side: their conveyors face to face and their measures in pairs (3D), then the parameters, stages, results and decisions that differ. */
 export function ComparePage() {
   const [search] = useSearchParams()
   const left = useRunView(search.get('a'))
@@ -69,11 +69,15 @@ export function ComparePage() {
 
 function Comparison({ views, sides }: { views: [RunView, RunView]; sides: readonly [CompareSide, CompareSide] }) {
   const [all, setAll] = useState(false)
-  const scene = useMemo(() => compareScene(sides[0], sides[1]), [sides])
+  const same = samePipeline(views[0], views[1])
+  // Across two pipelines, an entry only one run has is not a difference: it is not comparable.
+  const rowsOf = (left: Record<string, string>, right: Record<string, string>) =>
+    compareRows(left, right).map((row) => (same || comparable(row) ? row : { ...row, differs: false }))
   const sections: Array<[title: string, rows: CompareRow[]]> = [
-    ['Paramètres', compareRows(sides[0].params, sides[1].params)],
-    ['Résultats', compareRows(sides[0].results, sides[1].results)],
-    ['Décisions', compareRows(sides[0].decisions, sides[1].decisions)],
+    ['Paramètres', rowsOf(sides[0].params, sides[1].params)],
+    ['Étapes', rowsOf(sides[0].stages, sides[1].stages)],
+    ['Résultats', rowsOf(sides[0].results, sides[1].results)],
+    ['Décisions', rowsOf(sides[0].decisions, sides[1].decisions)],
   ]
   const differing = sections.reduce((sum, [, rows]) => sum + rows.filter((row) => row.differs).length, 0)
 
@@ -98,19 +102,15 @@ function Comparison({ views, sides }: { views: [RunView, RunView]; sides: readon
         ))}
       </div>
 
-      {scene.shared.length > 0 && (
-        <Card>
-          <CardContent>
-            {/* 3D — the two runs measured against each other: one pair of columns per number they share, A in ink in front, B in grey behind. */}
-            <Tile3D
-              tiles={scene.tiles}
-              view="iso"
-              label={`Comparaison 3D des mesures communes aux deux exécutions (${scene.shared.join(', ')}) : A en encre, B en gris, chaque paire à l'échelle de sa plus grande valeur. Les valeurs sont dans les tableaux qui suivent.`}
-              className="h-56 sm:h-64"
-            />
-          </CardContent>
-        </Card>
+      {!same && (
+        <p role="note" className="rounded-3xl border border-border px-5 py-4 text-sm">
+          <span className="eyebrow mr-2">Pipelines différents</span>
+          {views[0].pipelineLabel} et {views[1].pipelineLabel} : seules les mesures que les deux exécutions ont en commun sont comparées ; le reste est
+          listé sous « Tout afficher ».
+        </p>
       )}
+
+      <CompareScenes views={views} sides={sides} />
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p aria-live="polite" className="tabular-nums">
@@ -129,7 +129,9 @@ function Comparison({ views, sides }: { views: [RunView, RunView]; sides: readon
               {title} <em>{all ? `(${rows.length})` : `qui diffèrent (${shown.length})`}</em>
             </h2>
             {shown.length === 0 ? (
-              <p className="text-muted-foreground">{rows.length === 0 ? 'Rien à comparer.' : 'Identiques dans les deux exécutions.'}</p>
+              <p className="text-muted-foreground">
+                {rows.length === 0 ? 'Rien à comparer.' : same ? 'Identiques dans les deux exécutions.' : 'Rien de commun qui diffère.'}
+              </p>
             ) : (
               <ul className="divide-y divide-border border-y border-border">
                 {shown.map((row) => (

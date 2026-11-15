@@ -1,9 +1,9 @@
 /** Two runs side by side: what each was asked, what it produced, the decisions it took — and what differs. */
 
 import type { RunStageDetail } from '@/api/runs'
-import type { SceneTile } from '@/components/three'
 import { formatValue } from '../labForm'
 import type { RunView } from '../run/runView'
+import { FLOW_STATUS_LABELS } from '../run/flowModel'
 import { formatCount, formatDuration, STATUS_LABELS } from '../runs/runModel'
 
 export interface CompareSide {
@@ -15,6 +15,8 @@ export interface CompareSide {
   numbers: Record<string, number>
   /** « Étape · question » → answer. */
   decisions: Record<string, string>
+  /** « 1. Collecte » → « Terminé · 420 ms ». */
+  stages: Record<string, string>
 }
 
 export interface CompareRow {
@@ -44,6 +46,15 @@ export function compareSide(view: RunView, stages: RunStageDetail[]): CompareSid
     results[name] = formatCount(value)
   }
   if (view.durationMs !== null) numbers['Durée (s)'] = view.durationMs / 1000
+  // What any two runs share, whatever their pipelines: how many stages, how many titles.
+  const steps = view.nodes.filter((node) => node.order !== undefined)
+  number('Étapes', steps.length)
+  const scored = (view.score?.summary ?? view.registry?.summary)?.titles_scored
+  number('Titres', scored ?? Math.max(view.kind === 'score' ? 0 : 1, view.registry?.child_count ?? 0, view.travellers.length))
+  const stageRows: Record<string, string> = {}
+  for (const node of steps) {
+    stageRows[`${node.order}. ${node.label}`] = [FLOW_STATUS_LABELS[node.status], node.durationMs === null ? null : formatDuration(node.durationMs)].filter(Boolean).join(' · ')
+  }
 
   const run = view.registry
   const score = view.score
@@ -74,7 +85,6 @@ export function compareSide(view: RunView, stages: RunStageDetail[]): CompareSid
   }
   const summary = score?.summary ?? run?.summary
   if (summary) {
-    number('Titres notés', summary.titles_scored)
     number('Scores partiels', summary.partial)
     number('Appels Bedrock', summary.bedrock_calls)
     number('Tokens en entrée', summary.bedrock_input_tokens)
@@ -93,7 +103,7 @@ export function compareSide(view: RunView, stages: RunStageDetail[]): CompareSid
       decisions[`${detail.stage.name} · ${decision.question}`] = text(decision.answer)
     }
   }
-  return { id: view.id, title: view.title, params, results, numbers, decisions }
+  return { id: view.id, title: view.title, params, results, numbers, decisions, stages: stageRows }
 }
 
 /** The union of both sides' entries, in first-seen order; a missing one reads « — ». */
@@ -106,27 +116,7 @@ export function compareRows(left: Record<string, string>, right: Record<string, 
   })
 }
 
-/** Measures drawn at most. */
-const MAX_PAIRS = 14
-
-/**
- * The numbers both runs have, as pairs of columns: run A in ink, run B in grey, each pair scaled
- * to its larger value — so a pair of equal heights reads « same », whatever the unit.
- */
-export function compareScene(left: CompareSide, right: CompareSide): { tiles: SceneTile[]; shared: string[] } {
-  const shared = Object.keys(left.numbers)
-    .filter((name) => name in right.numbers)
-    .slice(0, MAX_PAIRS)
-  const tiles: SceneTile[] = []
-  shared.forEach((name, index) => {
-    const a = left.numbers[name]
-    const b = right.numbers[name]
-    const top = Math.max(Math.abs(a), Math.abs(b), 1e-9)
-    const label = `${name} · A : ${formatValue(a)} · B : ${formatValue(b)}`
-    const x = index * 1.6
-    tiles.push({ x, z: 0, w: 1.3, d: 2.3, y: -0.14, h: 0.12, tone: a === b ? 8 : 7, tag: name.length > 18 ? `${name.slice(0, 17)}…` : name, tagAt: 'base' })
-    tiles.push({ x, z: 0.5, w: 0.8, d: 0.8, h: 0.2 + (Math.abs(a) / top) * 2.6, tone: 2, label })
-    tiles.push({ x, z: -0.5, w: 0.8, d: 0.8, h: 0.2 + (Math.abs(b) / top) * 2.6, tone: 5, label })
-  })
-  return { tiles, shared }
+/** True when both runs have the entry: across two different pipelines, only those rows compare. */
+export function comparable(row: CompareRow): boolean {
+  return row.left !== '—' && row.right !== '—'
 }

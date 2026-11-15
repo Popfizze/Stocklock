@@ -91,12 +91,12 @@ export function LabPage() {
                   Frise
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Hauteur : titres traités · teinte : statut · une rangée par pipeline · cliquez une tuile pour ouvrir l’exécution.
+                  Le temps va de gauche à droite · une rangée par pipeline · hauteur : exécutions du jour ou titres traités · teinte : statut.
                 </p>
               </div>
               <Card>
                 <CardContent>
-                  <RunTimeline runs={runs} />
+                  <RunTimeline runs={runs} picked={picked} onPick={pick} />
                 </CardContent>
               </Card>
             </section>
