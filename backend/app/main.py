@@ -6,6 +6,8 @@ Run from backend/: uvicorn app.main:app --reload --port 8000
 from __future__ import annotations
 
 import time
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -17,8 +19,8 @@ from app.config import get_settings
 from app.market_api import router as market_router
 from app.personas import get_persona, list_public
 from app.pipeline import batch
-from app.pipeline.explain_move_fetch import Budget
 from app.pipeline.core import OptionError, PipelineInputError
+from app.pipeline.explain_move_fetch import Budget
 from app.pipeline.registry import STEPS, catalog, execute
 from app.registry import lab as stored_runs
 from app.profile_api import router as profile_router
@@ -30,7 +32,15 @@ from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabB
 from app.services import lab_groups, moves_cache, moves_view, narration
 
 settings = get_settings()
-app = FastAPI(title="StockLock API", version="0.1.0",
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    narration.warm_up()  # a new instance starts its AgentCore session while it boots (no model call)
+    yield
+
+
+app = FastAPI(title="StockLock API", version="0.1.0", lifespan=lifespan,
               description="Assistant d'investissement agentique et auto-explicatif (simulation, données publiques).")
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=False,
                    allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["*"])

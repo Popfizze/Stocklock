@@ -276,6 +276,21 @@ def test_warm_up_starts_a_cold_session_once(agentcore, monkeypatch):
     assert pings == ["ping"]
 
 
+def test_a_booting_instance_starts_its_session(agentcore, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+
+    pings = []
+    monkeypatch.setattr("app.services.narration._call", lambda payload: pings.append(payload["task"]))
+    with TestClient(app):  # runs the app's startup, as uvicorn does when a Lambda instance boots
+        for _ in range(50):
+            if pings:
+                break
+            time.sleep(0.02)
+    assert pings == ["ping"]
+
+
 def test_no_warm_up_without_agentcore():
     assert narration.warm_up() is False
 
