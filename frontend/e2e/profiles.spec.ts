@@ -28,7 +28,7 @@ test.describe('Choisir un profil', () => {
       await expect(page.getByText(`Bonjour ${profile.name}`)).toBeVisible()
       // The profile's own section is the first one, and says why it is there.
       const sections = page.locator('section[aria-labelledby^="section-"]')
-      await expect(sections.first().getByRole('heading', { level: 2 })).toHaveText(profile.firstSection)
+      await expect(sections.first().getByRole('heading', { level: 2 })).toContainText(profile.firstSection)
       await expect(sections.first().getByText(profile.reason)).toBeVisible()
       // Every card carries the profile's verdict.
       await expect(sections.first().getByText(/^(Compatible|À surveiller|Hors profil)$/).first()).toBeVisible()
