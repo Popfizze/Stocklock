@@ -1,18 +1,11 @@
 import { useSyncExternalStore } from 'react'
+import { isMotionReduced, subscribeMotion } from '@/lib/motion'
 
-const QUERY = '(prefers-reduced-motion: reduce)'
-
-function subscribe(onChange: () => void): () => void {
-  const media = window.matchMedia?.(QUERY)
-  media?.addEventListener?.('change', onChange)
-  return () => media?.removeEventListener?.('change', onChange)
-}
-
-/** Whether the visitor asked for less motion (live: follows the system setting). */
+/**
+ * Whether the visitor chose reduced animations in the app (the switch in the sidebar; see
+ * `lib/motion.ts`). Live: a scene on screen follows the switch at once. Motion is on by
+ * default — the system's setting alone does not reduce it.
+ */
 export function usePrefersReducedMotion(): boolean {
-  return useSyncExternalStore(
-    subscribe,
-    () => window.matchMedia?.(QUERY).matches ?? false,
-    () => false,
-  )
+  return useSyncExternalStore(subscribeMotion, isMotionReduced, () => false)
 }

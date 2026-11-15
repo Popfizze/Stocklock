@@ -13,6 +13,7 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/ui/sidebar'
+import { MotionToggle } from './MotionToggle'
 import { ProfileSwitcher } from './ProfileSwitcher'
 import { ThemeToggle } from './ThemeToggle'
 import { SIDEBAR_ID } from './sidebarState'
@@ -92,7 +93,8 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <ThemeToggle withLabel={!isCollapsed} className="group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center" />
+        <MotionToggle withLabel={!isCollapsed} className="group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" />
+        <ThemeToggle withLabel={!isCollapsed} className="group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" />
         <ProfileSwitcher />
       </SidebarFooter>
       <SidebarRail />

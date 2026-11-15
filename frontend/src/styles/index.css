@@ -9,6 +9,9 @@
 @plugin "tailwindcss-animate";
 
 @custom-variant dark (&:is(.dark *));
+/* Motion follows the app's own switch (`data-motion` on <html>, see lib/motion.ts), not the system's setting. */
+@custom-variant motion-reduce (&:where([data-motion='reduced'], [data-motion='reduced'] *));
+@custom-variant motion-safe (&:where(:not([data-motion='reduced'], [data-motion='reduced'] *)));
 
 /* Status tokens: `success` is also the gain green (`destructive` the loss red). */
 :root {
@@ -182,8 +185,8 @@ h3 em {
   }
 }
 
-/* Motion is decoration: none of it for who asked for less. */
-@media (prefers-reduced-motion: reduce) {
+/* Motion is decoration: none of it for who chose « Animations : réduites » (the switch in the sidebar). */
+:root[data-motion='reduced'] {
   .fade-up,
   .flip-in,
   .tile-in,

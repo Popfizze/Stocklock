@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import type { ApiError } from '@/api/client'
 import { usePersonas } from '@/api/personas'
+import { MotionToggle } from '@/components/layout/MotionToggle'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { API_BASE_URL } from '@/lib/env'
 import { useActivePersona } from './activePersona'
@@ -31,7 +32,10 @@ export function ChoosePersonaPage() {
             <p className="font-display text-2xl leading-none font-medium tracking-tight">
               <span className="text-tile-3">Stock</span>Lock
             </p>
-            <ThemeToggle />
+            <div className="flex items-center gap-1">
+              <MotionToggle withLabel />
+              <ThemeToggle />
+            </div>
           </div>
           <div className="space-y-4">
             <p className="eyebrow">Aide à la décision, adaptée à l'investisseur</p>
