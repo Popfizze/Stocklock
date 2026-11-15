@@ -75,7 +75,7 @@ function HoldingRow({ holding, detail, maxPosition, onWeight, onRemove }: Holdin
   }
 
   return (
-    <li className="grid items-center gap-x-6 gap-y-3 py-3 md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_minmax(0,16rem)_auto]">
+    <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-3 py-3 md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_minmax(0,16rem)_auto]">
       <div className="min-w-0">
         <Link to={`/titres/${encodeURIComponent(ticker)}`} className="link font-display text-lg">
           {ticker}
@@ -83,7 +83,7 @@ function HoldingRow({ holding, detail, maxPosition, onWeight, onRemove }: Holdin
         {detail && <span className="block truncate text-xs text-muted-foreground">{detail.name}</span>}
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="col-span-2 flex items-center gap-2 md:col-span-1">
         <button type="button" onClick={() => set(weight - 1)} disabled={weight <= 0} aria-label={`Moins de poids pour ${ticker}`} className={ROUND_BUTTON}>
           <Minus aria-hidden="true" className="size-3.5" />
         </button>
@@ -112,7 +112,7 @@ function HoldingRow({ holding, detail, maxPosition, onWeight, onRemove }: Holdin
         </output>
       </div>
 
-      <dl className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm">
+      <dl className="col-span-2 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-sm md:col-span-1">
         <div>
           <dt className="sr-only">Part</dt>
           <dd className={cn('font-medium', over && 'text-destructive')}>
@@ -142,7 +142,7 @@ function HoldingRow({ holding, detail, maxPosition, onWeight, onRemove }: Holdin
         type="button"
         onClick={onRemove}
         aria-label={`Retirer ${ticker}`}
-        className="inline-flex size-9 items-center justify-center justify-self-end rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex size-9 items-center justify-center col-start-2 row-start-1 justify-self-end rounded-full text-muted-foreground md:col-start-auto md:row-start-auto transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X aria-hidden="true" className="size-4" />
       </button>

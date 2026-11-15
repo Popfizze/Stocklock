@@ -11,8 +11,21 @@ import { STOCK_GRID, StockCard, StockCardSkeleton } from '@/features/stocks/Stoc
 const INITIAL_LIMIT = 24
 const SKELETON_COUNT = 12
 
-/** Cards shown before « Afficher plus » : two rows for a section of the profile, one for a general section. */
-const PREVIEW = { persona: 12, general: 6 }
+/** Rows of cards shown before « Afficher plus » : two for a section of the profile, one for a general section. */
+const PREVIEW_ROWS = { persona: 2, general: 1 }
+/** The grid's columns at each breakpoint (`STOCK_GRID`), widest last, and the class that shows a card from there on. */
+const GRID_STEPS: Array<[columns: number, show: string]> = [
+  [2, ''],
+  [3, 'hidden sm:block'],
+  [4, 'hidden lg:block'],
+  [5, 'hidden xl:block'],
+  [6, 'hidden 2xl:block'],
+]
+
+/** In the preview, a card is only shown where it fits in the first rows of the grid. */
+function previewClass(index: number, rows: number): string {
+  return GRID_STEPS.find(([columns]) => index < columns * rows)?.[1] ?? 'hidden'
+}
 
 interface MarketSectionBlockProps {
   section: MarketSectionInfo
@@ -27,7 +40,8 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
   const [isOpen, setIsOpen] = useState(true)
   // The page stays short: a section opens on its first cards, and shows the rest on demand.
   const [expanded, setExpanded] = useState(false)
-  const preview = section.persona_reason ? PREVIEW.persona : PREVIEW.general
+  const rows = section.persona_reason ? PREVIEW_ROWS.persona : PREVIEW_ROWS.general
+  const preview = rows * GRID_STEPS[GRID_STEPS.length - 1][0]
   const { data, error, isPending, isFetching, refetch } = useMarketSection(section.id, limit)
   const headingId = `section-${section.id}`
   const contentId = `${headingId}-content`
@@ -47,7 +61,9 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
   // The server served as many cards as asked: there may be more.
   const canShowMore = data?.status === 'ok' && items.length >= limit && limit < SECTION_MAX_LIMIT
   const shown = expanded ? items : items.slice(0, preview)
-  const hidden = items.length - shown.length
+  // More cards than the narrowest grid shows in the preview: some may be waiting behind « Afficher plus ».
+  const folds = items.length > rows * GRID_STEPS[0][0]
+  const hidden = !expanded && folds
 
   return (
     <section ref={ref} aria-labelledby={headingId} className="scroll-mt-6 space-y-4">
@@ -100,31 +116,31 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
       ) : (
         <>
           <ul className={STOCK_GRID}>
-            {shown.map((stock) => (
-              <li key={stock.ticker}>
+            {shown.map((stock, index) => (
+              <li key={stock.ticker} className={expanded ? undefined : previewClass(index, rows)}>
                 <StockCard stock={stock} fit={fits[stock.ticker]} />
               </li>
             ))}
           </ul>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              {hidden > 0 ? `${shown.length} titres affichés sur ${items.length}` : `${items.length} titre${items.length > 1 ? 's' : ''}`} · {section.source}
+              {hidden ? `Aperçu des ${items.length} titres` : `${items.length} titre${items.length > 1 ? 's' : ''}`} · {section.source}
               {data.as_of ? ` · au ${formatLongDate(data.as_of)}` : ''}
             </p>
             <div className="flex flex-wrap gap-2">
-              {expanded && items.length > preview && (
+              {expanded && folds && (
                 <Button type="button" variant="ghost" size="sm" onClick={() => setExpanded(false)}>
                   Afficher moins
                 </Button>
               )}
-              {(hidden > 0 || canShowMore) && (
+              {(hidden || canShowMore) && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   disabled={isFetching}
                   // First the cards already loaded, then more from the server.
-                  onClick={() => (hidden > 0 ? setExpanded(true) : setLimit((current) => Math.min(current * 2, SECTION_MAX_LIMIT)))}
+                  onClick={() => (hidden ? setExpanded(true) : setLimit((current) => Math.min(current * 2, SECTION_MAX_LIMIT)))}
                 >
                   {isFetching ? 'Chargement…' : 'Afficher plus'}
                 </Button>

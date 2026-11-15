@@ -195,6 +195,6 @@ test.describe('Mon portefeuille', () => {
     await expect(blocks(page)).toHaveAccessibleName(/plafond à 15\s%/)
     // The excluded sector's title is out of profile for Mateo.
     await table(page).click()
-    await expect(page.getByRole('row', { name: /ENB\.TO/ })).toContainText('Hors profil')
+    await expect(page.getByRole('list', { name: 'Titres du portefeuille' }).getByRole('listitem').filter({ hasText: 'ENB.TO' })).toContainText('Hors profil')
   })
 })

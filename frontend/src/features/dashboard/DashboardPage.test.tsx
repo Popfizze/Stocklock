@@ -226,7 +226,7 @@ describe('DashboardPage', () => {
     // A general section opens on one row of cards, so the page stays short…
     const more = await populaires.findByRole('button', { name: 'Afficher plus' })
     expect(populaires.getAllByRole('link')).toHaveLength(6)
-    expect(populaires.getByText(/6 titres affichés sur 24/)).toBeInTheDocument()
+    expect(populaires.getByText(/Aperçu des 24 titres/)).toBeInTheDocument()
     // … the first « Afficher plus » shows the cards already loaded, the next one asks the server for more.
     await userEvent.click(more)
     expect(populaires.getAllByRole('link')).toHaveLength(24)
