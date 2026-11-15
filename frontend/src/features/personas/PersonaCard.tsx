@@ -9,29 +9,33 @@ interface PersonaCardProps {
   onChoose: () => void
 }
 
-/** One profile. The whole card is clickable: the name's button stretches over it. */
+/** One profile. Clicking the card, its illustration or its arrow selects it. */
 export function PersonaCard({ persona, onChoose }: PersonaCardProps) {
   const scene = personaScene(persona.id)
   return (
     <Card
       variant="interactive"
+      onClick={onChoose}
       className="group relative h-full focus-within:border-foreground focus-within:ring-2 focus-within:ring-ring/40"
     >
       <CardHeader>
         <p className="eyebrow">{persona.age} ans</p>
         <CardTitle className="flex items-center justify-between text-4xl">
+          <span>{persona.name}</span>
           <button
             type="button"
-            onClick={onChoose}
+            onClick={(event) => {
+              event.stopPropagation()
+              onChoose()
+            }}
             aria-label={`Choisir le profil ${persona.name}`}
-            className="text-left after:absolute after:inset-0 after:rounded-3xl focus-visible:outline-none"
+            className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
-            {persona.name}
+            <ArrowRight
+              aria-hidden="true"
+              className="size-5 text-muted-foreground transition-transform duration-300 ease-tile group-hover:translate-x-1 group-hover:text-foreground"
+            />
           </button>
-          <ArrowRight
-            aria-hidden="true"
-            className="size-5 text-muted-foreground transition-transform duration-300 ease-tile group-hover:translate-x-1 group-hover:text-foreground"
-          />
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-5">

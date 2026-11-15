@@ -43,7 +43,7 @@ describe('ChoosePersonaPage', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('remembers the chosen profile and goes to the home page', async () => {
+  it('chooses a profile with its arrow, remembers it and goes to the home page', async () => {
     mockFetch([json(PERSONAS)])
     renderPage()
 
@@ -51,6 +51,16 @@ describe('ChoosePersonaPage', () => {
 
     expect(await screen.findByText('Accueil')).toBeInTheDocument()
     expect(readStoredPersonaId()).toBe('mateo')
+  })
+
+  it('chooses a profile when its illustration is clicked', async () => {
+    mockFetch([json(PERSONAS)])
+    renderPage()
+
+    await userEvent.click(await screen.findByRole('img', { name: /Profil de Robert en tuiles/ }))
+
+    expect(await screen.findByText('Accueil')).toBeInTheDocument()
+    expect(readStoredPersonaId()).toBe('robert')
   })
 
   it('says the server cannot be reached when the API is down', async () => {
