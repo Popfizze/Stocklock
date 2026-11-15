@@ -30,6 +30,12 @@ export default defineConfig(({ command, mode }) => {
     server: {
       port: parseInt(env.VITE_DEV_PORT || '5173', 10),
       host: env.VITE_DEV_HOST || 'localhost',
+      // Opt-in: `VITE_DEV_PROXY_TARGET=https://…` serves the API under this dev server's own `/api`
+      // (same origin, so no CORS), to work on a local frontend against a deployed API. Off by default;
+      // when set, `src/lib/env.ts` points the client at this server instead of `VITE_API_BASE_URL`.
+      proxy: env.VITE_DEV_PROXY_TARGET
+        ? { '/api': { target: env.VITE_DEV_PROXY_TARGET, changeOrigin: true, secure: true } }
+        : undefined,
     },
     test: {
       // jsdom so React component tests can poke at document/window without

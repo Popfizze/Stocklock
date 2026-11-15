@@ -145,14 +145,18 @@ def save_batch(step: StepSpec, persona_id: str, batch: dict[str, Any], started_a
         counts = batch["summary"]
         n = counts["requested"]
         not_ok = counts["error"] + counts["timeout"]
-        status = "failed" if not_ok == n else ("succeeded" if counts["ok"] == n else "warning")
+        skipped = counts.get("skipped", 0)  # nothing to analyse for the title (no quotation in the period)
+        status = "failed" if not_ok + skipped == n else ("succeeded" if counts["ok"] + skipped == n else "warning")
         summary = {
             "run_id": batch["batch_id"], "pipeline": f"lab.{step.id}", "pipeline_label": f"Labo · {step.label}",
             "kind": "batch", "status": status, "trigger": TRIGGER, "persona_id": persona_id,
             "title": f"Groupe · {batch['group']['label']} ({n} titre{'s' if n > 1 else ''})",
             "started_at": started_at, "finished_at": now_iso(), "duration_ms": batch["duration_ms"],
             "key_result": None, "governance_passed": None,
-            "error": f"{not_ok} titre(s) en erreur ou non terminé(s)." if not_ok else None, "parent_id": None,
+            "error": " ".join(filter(None, [
+                f"{not_ok} titre(s) en erreur ou non terminé(s)." if not_ok else None,
+                f"{skipped} titre(s) ignoré(s), sans cotation sur la période." if skipped else None])) or None,
+            "parent_id": None,
             "child_count": n,
         }
         record = {**summary, "inputs": inputs, "options": batch["options_used"], "group": batch["group"],

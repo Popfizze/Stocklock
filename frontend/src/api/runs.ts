@@ -1,12 +1,12 @@
 import { useInfiniteQuery, useQuery, type InfiniteData } from '@tanstack/react-query'
 import { apiClient, type ApiError } from './client'
-import type { LabBatchResponse, LabBatchTable, LabCell, LabResult, LabScalar, LabStageResult } from './lab'
-import type { ScoreRunParams, ScoreRunStage, ScoreRunSummary } from './pipeline'
+import type { LabBatchItemStatus, LabBatchResponse, LabBatchTable, LabCell, LabResult, LabScalar, LabStageResult } from './lab'
+import type { ScoreRunGroup, ScoreRunParams, ScoreRunStage, ScoreRunSummary } from './pipeline'
 
 /*
  * The run registry: every execution of every pipeline, newest first, and everything it generated.
  *
- *   GET /api/runs?pipeline=&persona=&status=&trigger=&limit=&cursor=   runs, paginated
+ *   GET /api/runs?pipeline=&persona=&status=&trigger=&since=&until=&limit=&cursor=   runs, paginated
  *   GET /api/runs/{run_id}                                             one run (stages summarized)
  *   GET /api/runs/{run_id}/stages/{stage_id}                           one stage in full
  *   GET /api/runs/{run_id}/artifacts                                   every generated element
@@ -61,6 +61,10 @@ export interface RunFilters {
   persona?: string
   status?: RunStatus
   trigger?: RunTrigger
+  /** Only the runs started on or after this ISO date (`2026-11-14`, a UTC day) or date-time. */
+  since?: string
+  /** Only the runs started up to this ISO date (the whole day) or before this date-time. */
+  until?: string
   /** 1 to 100 (default 20). */
   limit?: number
 }
@@ -106,10 +110,12 @@ export interface RunDetail extends RunSummary {
   result: LabResult | null
   /** Group run: one summary per title; GET /api/runs/{run_id} of a title gives its detail. */
   children: RunSummary[]
+  /** Group run: the titles that have no run of their own (skipped, not analysable, out of time), with why. */
+  unfinished?: Array<{ ticker: string; name: string | null; status: LabBatchItemStatus; error: string | null }>
   /** Group run: the table across titles. */
   table: LabBatchTable | null
   /** Score pipeline: run parameters and end summary. */
-  params: ScoreRunParams | null
+  params: (ScoreRunParams & { group?: ScoreRunGroup }) | null
   summary: ScoreRunSummary | null
 }
 
@@ -179,7 +185,7 @@ export const RUNS_POLL_MS = 5000
 /** Query string of GET /api/runs (filters that are set, then the cursor). */
 export function runsQuery(filters: RunFilters, cursor: string | null): string {
   const params = new URLSearchParams()
-  for (const key of ['pipeline', 'persona', 'status', 'trigger'] as const) {
+  for (const key of ['pipeline', 'persona', 'status', 'trigger', 'since', 'until'] as const) {
     const value = filters[key]
     if (value) params.set(key, value)
   }

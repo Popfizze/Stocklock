@@ -116,6 +116,10 @@ def test_a_group_run_is_stored_with_one_child_run_per_title(client):
     assert detail["group"]["tickers"] == ["NVDA", "TSLA", "ZZZZZZ"] and detail["table"] == batch["table"]
     children = {c["title"]: c for c in detail["children"]}
     assert set(children) == {i["ticker"] for i in batch["items"] if i["run_id"]} >= {"NVDA", "TSLA"}
+    # A title without a run of its own is kept with its status and its reason.
+    assert [(u["ticker"], u["status"]) for u in detail["unfinished"]] == \
+        [(i["ticker"], i["status"]) for i in batch["items"] if i["run_id"] is None]
+    assert all(u["error"] for u in detail["unfinished"])
     nvda = next(i for i in batch["items"] if i["ticker"] == "NVDA")
     assert children["NVDA"]["run_id"] == nvda["run_id"] and children["NVDA"]["parent_id"] == batch["batch_id"]
     child = client.get(f"/api/runs/{nvda['run_id']}").json()
@@ -147,6 +151,31 @@ def test_filters_and_cursor_pages_newest_first(client):
             break
     assert seen == [r["run_id"] for r in everything]
     assert client.get("/api/runs", params={"cursor": "pas-un-curseur"}).status_code == 422
+
+
+def test_since_and_until_keep_the_runs_started_in_the_period(client):
+    lab_id = _run(client, "tax", TAX_INPUTS)["run_id"]
+    _seed_score_run()
+    runs = {r["run_id"]: r["started_at"] for r in _list(client, limit=100)["runs"]}
+    assert set(runs) == {lab_id, SCORE_RUN}
+    lab_day, score_day = runs[lab_id][:10], runs[SCORE_RUN][:10]  # the seeded score run is the older one
+
+    def ids(**params):
+        return [r["run_id"] for r in _list(client, limit=100, **params)["runs"]]
+
+    # A date is the whole UTC day, both bounds inclusive.
+    assert ids(since=score_day, until=lab_day) == [lab_id, SCORE_RUN]
+    assert SCORE_RUN in ids(until=score_day) and SCORE_RUN in ids(since=score_day, until=score_day)
+    assert ids(since="2026-11-13", until="2026-11-13") == []
+    assert ids(until="2026-11-13") == [] and ids(since="2999-01-01") == []
+    # A date-time: inclusive lower bound, exclusive upper bound.
+    assert ids(since=runs[lab_id]) == [lab_id]
+    assert ids(until=runs[lab_id]) == [SCORE_RUN]
+    assert ids(until=runs[SCORE_RUN]) == []
+    assert ids(since="2026-11-14T06:00:00Z", until="2026-11-14T06:00:01+00:00") == [SCORE_RUN]
+    assert _list(client, since=runs[lab_id])["next_cursor"] is None
+    for bad in ({"since": "hier"}, {"since": "2026-11-15", "until": "2026-11-14"}):
+        assert client.get("/api/runs", params=bad).status_code == 422
 
 
 def test_score_pipeline_runs_are_read_with_their_files(client):

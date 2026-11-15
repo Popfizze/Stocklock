@@ -12,6 +12,28 @@ from app.data.cache import ExternalUnavailable
 SOURCE = "Yahoo Finance (yfinance)"
 
 
+class NoQuotes(LookupError):
+    """Yahoo answered and knows the symbol, but it has no session in the period asked (listed later,
+    or no longer traded): not an outage. `first` is the symbol's first trading day when Yahoo gives it."""
+
+    def __init__(self, symbol: str, start: date, end: date, first: date | None) -> None:
+        super().__init__(f"aucune cotation de {symbol} entre {start} et {end}")
+        self.symbol, self.start, self.end, self.first = symbol, start, end, first
+
+
+def _first_trade_date(ticker) -> date | None:
+    """The symbol's first trading day from the metadata Yahoo sends with any history answer."""
+    try:
+        value = (ticker.history_metadata or {}).get("firstTradeDate")
+        if value is None:
+            return None
+        if isinstance(value, (int, float)):
+            return datetime.fromtimestamp(int(value), tz=timezone.utc).date()
+        return pd.Timestamp(value).date()
+    except Exception:
+        return None
+
+
 def _ticker(symbol: str):
     import yfinance as yf
 
@@ -43,12 +65,17 @@ def info(symbol: str) -> dict:
 def daily_prices(symbol: str, start: date, end: date) -> tuple[pd.DataFrame, bool]:
     """Daily rows (date, close, adj_close, volume) downloaded live, cached 6 h."""
     def _fetch() -> list[dict]:
+        ticker = _ticker(symbol)
         try:
-            frame = _ticker(symbol).history(start=start.isoformat(), end=end.isoformat(),
-                                            auto_adjust=False, actions=False)
+            frame = ticker.history(start=start.isoformat(), end=end.isoformat(),
+                                   auto_adjust=False, actions=False)
         except Exception as exc:
             raise ExternalUnavailable(SOURCE, f"téléchargement des prix impossible ({type(exc).__name__})") from exc
         if frame is None or frame.empty:
+            # Yahoo knows the symbol (it dates its first session): the period is empty, the source is fine.
+            first = _first_trade_date(ticker)
+            if first is not None:
+                raise NoQuotes(symbol, start, end, first)
             raise ExternalUnavailable(SOURCE, f"aucun prix renvoyé pour {symbol}")
         adj_col = "Adj Close" if "Adj Close" in frame.columns else "Close"
         rows = []

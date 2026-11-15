@@ -108,7 +108,7 @@ function RunBody({ view }: { view: RunView }) {
           <div className="flex flex-wrap gap-2">
             <CompareWith view={view} />
             <Button asChild>
-              <Link to={launchPath(view.pipelineId)}>Relancer</Link>
+              <Link to={launchPath(view.pipelineId, view.id)}>Relancer</Link>
             </Button>
           </div>
         }

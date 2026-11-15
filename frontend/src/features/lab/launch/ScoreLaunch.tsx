@@ -20,15 +20,18 @@ import {
 import { LaunchStage, LaunchStep } from './LaunchParts'
 import { ParamSlider } from './ParamSlider'
 import { previewTravellers } from './preview'
+import type { Relaunch } from './relaunch'
 
 interface ScoreLaunchProps {
   portfolio: string[]
   /** Titles to start the custom set with (« relancer ce titre »). */
   presetTickers: string[]
+  /** A past run to start again: its group and settings. */
+  relaunch?: Relaunch | null
 }
 
 /** Launching the AWS score pipeline on a group: the group, its few settings, then the run's live page. */
-export function ScoreLaunch({ portfolio, presetTickers }: ScoreLaunchProps) {
+export function ScoreLaunch({ portfolio, presetTickers, relaunch = null }: ScoreLaunchProps) {
   const navigate = useNavigate()
   const runs = useScoreRuns()
   const start = useStartScoreRun()
@@ -36,9 +39,9 @@ export function ScoreLaunch({ portfolio, presetTickers }: ScoreLaunchProps) {
   const [draft, setDraft] = useState<GroupDraft>(
     presetTickers.length > 0
       ? { kind: 'custom', ref: null, size: limits.defaults.auto, tickers: presetTickers }
-      : { kind: 'auto', ref: null, size: limits.defaults.auto, tickers: [] },
+      : (relaunch?.draft ?? { kind: 'auto', ref: null, size: limits.defaults.auto, tickers: [] }),
   )
-  const [params, setParams] = useState<ScoreRunParams>(SCORE_DEFAULTS)
+  const [params, setParams] = useState<ScoreRunParams>(relaunch?.scoreParams ?? SCORE_DEFAULTS)
 
   const nodes = useMemo(() => scoreFlow(runs.data?.stages ?? [], undefined), [runs.data?.stages])
   const travellers = useMemo(() => previewTravellers(draft, portfolio, limits.cap, false), [draft, portfolio, limits.cap])

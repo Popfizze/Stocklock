@@ -11,7 +11,7 @@ import pandas as pd
 from app.data import edgar, starter, yf_live
 from app.data.cache import ExternalUnavailable
 from app.pipeline import datasets
-from app.pipeline.core import Choice, Context, OptionSpec, PipelineInputError, StageSkipped
+from app.pipeline.core import Choice, Context, NoQuotesInWindow, OptionSpec, PipelineInputError, StageSkipped
 from app.services import governance as gov
 from app.services import narration
 
@@ -152,7 +152,10 @@ def load_history(ctx: Context, ticker: str, start: pd.Timestamp, end: pd.Timesta
         adjusted = int((df.index < starter.CNQ_SPURIOUS_SPLIT_DATE).sum()) \
             if fix and ticker == starter.CNQ_TICKER else 0
     else:
-        raw, hit = yf_live.daily_prices(ticker, start.date(), (end + pd.Timedelta(days=1)).date())
+        try:
+            raw, hit = yf_live.daily_prices(ticker, start.date(), (end + pd.Timedelta(days=1)).date())
+        except yf_live.NoQuotes as exc:  # the source answered: nothing was quoted in the period
+            raise NoQuotesInWindow(ticker, start.date(), end.date(), exc.first) from exc
         df = raw.set_index("date").sort_index()
         adjusted = apply_cnq_fix_frame(df, ticker) if fix else 0
         ctx.source(f"yfinance_history_{ticker}", f"Yahoo Finance via yfinance, historique {ticker}",

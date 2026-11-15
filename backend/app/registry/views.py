@@ -12,7 +12,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterator
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.config import get_settings
@@ -184,12 +184,46 @@ def _summary(store: rs.Store, entry: dict[str, Any]) -> dict[str, Any]:
     return rs.get_json(store, entry["key"])
 
 
+def _instant(value: str | None, end_of_day: bool = False) -> int | None:
+    """An ISO date (`2026-11-14`, the whole UTC day) or date-time (`2026-11-14T05:00:00Z`) as epoch
+    milliseconds; a date given as an upper bound means the end of that day. Raises ValueError otherwise."""
+    if value is None or not value.strip():
+        return None
+    text = value.strip()
+    try:
+        if len(text) == 10:
+            day = datetime.fromisoformat(text).replace(tzinfo=timezone.utc)
+            return int((day + timedelta(days=1 if end_of_day else 0)).timestamp() * 1000)
+        moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValueError(f"Date illisible : « {value} » (attendu AAAA-MM-JJ ou une date-heure ISO).") from exc
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return int(moment.timestamp() * 1000)
+
+
+def _window(entries: Iterator[dict[str, Any]], since: int | None, until: int | None) -> Iterator[dict[str, Any]]:
+    """Entries (newest first) started in [since, until): stops at the first one older than `since`."""
+    for entry in entries:
+        if until is not None and entry["ms"] >= until:
+            continue
+        if since is not None and entry["ms"] < since:
+            return
+        yield entry
+
+
 def list_runs(pipeline: str | None = None, persona: str | None = None, status: str | None = None,
-              trigger: str | None = None, limit: int = 20, cursor: str | None = None) -> dict[str, Any]:
+              trigger: str | None = None, limit: int = 20, cursor: str | None = None,
+              since: str | None = None, until: str | None = None) -> dict[str, Any]:
+    """`since` / `until`: only the runs started in that period (ISO dates, both inclusive, or date-times)."""
     store = rs.get_store()
     after = _parse_cursor(cursor)
+    lo, hi = _instant(since), _instant(until, end_of_day=True)
+    if lo is not None and hi is not None and lo >= hi:
+        raise ValueError("« since » doit précéder « until ».")
     filters = {"pipeline": pipeline, "persona": persona, "status": status, "trigger": trigger}
-    entries = _merge(_lab_candidates(store, after, filters), _score_candidates(store, after, filters), limit + 1)
+    entries = _merge(_window(_lab_candidates(store, after, filters), lo, hi),
+                     _window(_score_candidates(store, after, filters), lo, hi), limit + 1)
     page = entries[:limit]
     with ThreadPoolExecutor(max_workers=16, thread_name_prefix="registry-list") as pool:
         runs = list(pool.map(lambda e: _summary(store, e), page))
@@ -216,12 +250,17 @@ def get_run(run_id: str) -> dict[str, Any]:
     _check(run_id)
     record = lab_record(run_id)
     if record is not None:
-        return {k: v for k, v in record.items() if k not in {"items", "budget"}}
+        out = {k: v for k, v in record.items() if k not in {"items", "budget"}}
+        # A group's titles that have no run of their own (skipped, not analysable, out of time), with why.
+        out["unfinished"] = [{"ticker": i["ticker"], "name": i.get("name"), "status": i["status"], "error": i.get("error")}
+                             for i in record.get("items") or [] if i.get("run_id") is None]
+        return out
     store = rs.get_store()
     score = _score_record(store, run_id)
     stages = _score_stages(store, run_id, score)
     return {**score_summary(run_id, score), "inputs": None, "options": None, "group": None,
             "stages": [_score_stage_info(s) for s in stages], "result": None, "children": [], "table": None,
+            "unfinished": [],
             "params": score.get("params"), "summary": score.get("summary")}
 
 

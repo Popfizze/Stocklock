@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { comparePath, LAUNCH_PATH } from './labRoutes'
 import { RunFilters } from './runs/RunFilters'
 import { RunList } from './runs/RunList'
-import { feedErrorMessage, formatCount, withinRange, type DateRange } from './runs/runModel'
+import { feedErrorMessage, formatCount, sinceOf, withinRange, type DateRange } from './runs/runModel'
 import { RunTimeline } from './runs/RunTimeline'
 import { useRunFeed } from './runs/useRunFeed'
 
@@ -19,7 +19,10 @@ export function LabPage() {
   const [range, setRange] = useState<DateRange>('all')
   const [picked, setPicked] = useState<string[]>([])
   const personas = usePersonas()
-  const feed = useRunFeed(filters)
+  // The date range is the registry's `since`: older runs are not even listed.
+  const since = sinceOf(range, new Date())
+  const dated = useMemo(() => ({ ...filters, since }), [filters, since])
+  const feed = useRunFeed(dated)
 
   const runs = useMemo(() => {
     const now = new Date()

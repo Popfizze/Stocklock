@@ -209,8 +209,11 @@ export interface LabBatchRequest {
   options: Record<string, LabScalar>
 }
 
-/** `timeout`: not finished (or not started) inside the run's time budget. */
-export type LabBatchItemStatus = 'ok' | 'warning' | 'error' | 'timeout'
+/**
+ * `timeout`: not finished (or not started) inside the run's time budget; `skipped`: nothing to analyse
+ * for the title (no quotation in the period asked — listed later), with the reason in `error`.
+ */
+export type LabBatchItemStatus = 'ok' | 'warning' | 'error' | 'timeout' | 'skipped'
 
 /** A deciding branch of one title's run, with the stage it happened in. */
 export interface LabBatchDecision extends LabDecision {
@@ -272,7 +275,7 @@ export interface LabBatchResponse {
   }
   /** The up-front estimate that let the run start, against the time limit. */
   budget: { limit_s: number; estimated_s: number; workers: number; gdelt_calls: number }
-  summary: { requested: number; ok: number; warning: number; error: number; timeout: number }
+  summary: { requested: number; ok: number; warning: number; error: number; timeout: number; skipped?: number }
   items: LabBatchItem[]
   table: LabBatchTable
 }

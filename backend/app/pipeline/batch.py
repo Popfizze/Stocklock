@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from typing import Any
 
 from app.data import gdelt
-from app.pipeline.core import PipelineInputError, RunResult, StepSpec, _cell, resolve_options
+from app.pipeline.core import NoQuotesInWindow, PipelineInputError, RunResult, StepSpec, _cell, resolve_options
 from app.pipeline.registry import STEPS, execute, parse_inputs
 from app.registry import lab as stored_runs
 from app.services.lab_groups import MAX_TITLES, ResolvedGroup
@@ -204,6 +204,9 @@ def _run_title(step: StepSpec, persona: dict[str, Any], ticker: str, name: str |
     started_at = stored_runs.now_iso()
     try:
         result, response = execute(step.id, persona, inputs, options, datasets=True)
+    except NoQuotesInWindow as exc:  # nothing to analyse in the period: skipped with its reason, not an error
+        return _summary_item(step, ticker, name, run_request, "skipped", f"Titre ignoré : {exc}.",
+                             round((time.perf_counter() - t0) * 1000, 1)), {}, None
     except PipelineInputError as exc:
         return _summary_item(step, ticker, name, run_request, "error", f"Titre non analysable : {exc}.",
                              round((time.perf_counter() - t0) * 1000, 1)), {}, None
@@ -286,7 +289,7 @@ def run_batch(step_id: str, persona: dict[str, Any], persona_id: str, group: Res
         values = {"ticker": item["ticker"], "name": item["name"], "status": item["status"], **row}
         rows.append({c["key"]: _cell(values.get(c["key"])) for c in columns})
 
-    counts = {s: sum(1 for i in items if i["status"] == s) for s in ("ok", "warning", "error", "timeout")}
+    counts = {s: sum(1 for i in items if i["status"] == s) for s in ("ok", "warning", "error", "timeout", "skipped")}
     response = {
         "batch_id": batch_id, "step": step_id, "persona_id": persona_id,
         "duration_ms": round((time.monotonic() - started) * 1000, 1), "options_used": resolved,

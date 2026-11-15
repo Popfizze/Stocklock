@@ -8,34 +8,59 @@ import { runPath } from '../labRoutes'
 import { catalogFlow } from '../run/flowModel'
 import { GroupPicker } from './GroupPicker'
 import { LabInputs, LabOptions } from './LabParams'
+import { lastTwelveMonths } from './relaunch'
 import { defaultInputs, draftTickers, fittingSize, groupProblem, groupSize, labGroup, labLimits, type GroupDraft } from './launchModel'
 import { LaunchStage, LaunchStep } from './LaunchParts'
 import { previewTravellers } from './preview'
+import type { Relaunch } from './relaunch'
 
 interface LabLaunchProps {
   step: LabStep
   personaId: string
   portfolio: string[]
   presetTickers: string[]
+  /** A past run to start again: its group, inputs and options. */
+  relaunch?: Relaunch | null
 }
 
 /** Launching a Labo step: on a group of titles when the step runs per title, else on its one scenario. */
-export function LabLaunch({ step, personaId, portfolio, presetTickers }: LabLaunchProps) {
+export function LabLaunch({ step, personaId, portfolio, presetTickers, relaunch = null }: LabLaunchProps) {
   const navigate = useNavigate()
   const groups = useLabGroups()
   const single = useRunLab()
   const batch = useRunLabBatch()
   const limits = labLimits(groups.data?.max_titles ?? 25)
   const grouped = step.group_runnable
-  const [draft, setDraft] = useState<GroupDraft>(
-    presetTickers.length > 0
-      ? { kind: 'custom', ref: null, size: limits.defaults.section, tickers: presetTickers }
-      : { kind: 'portfolio', ref: null, size: limits.defaults.section, tickers: [] },
-  )
+  const [draft, setDraft] = useState<GroupDraft>(() => {
+    if (presetTickers.length > 0) return { kind: 'custom', ref: null, size: limits.defaults.section, tickers: presetTickers }
+    if (relaunch?.draft && relaunch.draft.kind !== 'auto') return relaunch.draft
+    // A run of one title: that title again, as a set of one.
+    const title = step.group_input ? relaunch?.inputs?.[step.group_input] : null
+    if (typeof title === 'string' && title) return { kind: 'custom', ref: null, size: 1, tickers: [title] }
+    return { kind: 'portfolio', ref: null, size: limits.defaults.section, tickers: [] }
+  })
   // The per-title input is set by the group, not by a field.
   const fields = useMemo(() => step.inputs.filter((input) => input.name !== step.group_input), [step])
-  const [inputs, setInputs] = useState<Record<string, LabInputValue>>(() => defaultInputs(fields))
-  const [options, setOptions] = useState<OptionValues>(() => initialOptionValues(step.stages))
+  // The run being started again fills what this pipeline still knows; the rest keeps its default.
+  const [inputs, setInputs] = useState<Record<string, LabInputValue>>(() => {
+    const values = defaultInputs(fields)
+    // A group is made of today's titles (sections, sectors, a portfolio): its period starts on the
+    // last twelve months, not on the catalog's fixed demonstration year, where recent listings have no price.
+    if (grouped) Object.assign(values, lastTwelveMonths(fields, new Date()))
+    for (const field of fields) {
+      const past = relaunch?.inputs?.[field.name]
+      if (past !== undefined) values[field.name] = past
+    }
+    return values
+  })
+  const [options, setOptions] = useState<OptionValues>(() => {
+    const values = initialOptionValues(step.stages)
+    for (const key of Object.keys(values)) {
+      const past = relaunch?.options?.[key]
+      if (past !== undefined) values[key] = past
+    }
+    return values
+  })
 
   const pending = single.isPending || batch.isPending
   const error = single.error ?? batch.error

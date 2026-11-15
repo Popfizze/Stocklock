@@ -99,6 +99,40 @@ def test_full_run_of_one_title_is_reachable_from_its_run_request(client):
     assert any(s["datasets"] for s in run.json()["stages"])
 
 
+def test_a_title_without_quotation_in_the_period_is_skipped_with_its_reason(client, monkeypatch, fake_narrator):
+    """Listed after the window: Yahoo answers, the period is empty. Not « Yahoo indisponible », not an error."""
+    from datetime import date
+
+    from app.data import yf_live
+    from app.pipeline import common
+
+    def daily_prices(symbol, start, end):
+        if symbol == "CRWV":
+            raise yf_live.NoQuotes(symbol, start, end, date(2025, 3, 28))
+        raise yf_live.ExternalUnavailable(yf_live.SOURCE, "erreur réseau (ConnectError)")
+
+    monkeypatch.setattr(common.yf_live, "daily_prices", daily_prices)
+    monkeypatch.setattr(common, "identification_stage", lambda ctx, ticker: {"name": ticker, "sector": None,
+                                                                             "market": "NASDAQ", "currency": "USD",
+                                                                             "asset_class": "equity"})
+    window = {"start": "2022-01-01", "end": "2022-12-31"}
+    body = _batch(client, "explain_move", {"kind": "tickers", "tickers": ["NVDA", "CRWV", "SPCX"]}, window,
+                  {**NO_NARRATION, "prices.source": "yfinance_live"}).json()
+    items = {i["ticker"]: i for i in body["items"]}
+    assert items["CRWV"]["status"] == "skipped" and items["CRWV"]["run_id"] is None
+    assert items["CRWV"]["error"].startswith("Titre ignoré : aucune cotation de CRWV sur la période ")
+    assert items["CRWV"]["error"].endswith("le titre est coté depuis le 2025-03-28.")
+    # A real outage stays an error, and says it is the source.
+    assert items["SPCX"]["status"] == "error" and "ExternalUnavailable" in items["SPCX"]["error"]
+    assert body["summary"]["skipped"] == 1 and body["summary"]["error"] >= 1
+    assert [r["status"] for r in body["table"]["rows"] if r["ticker"] == "CRWV"] == ["skipped"]
+    # A single run of the same title is refused with the same reason (422), not a 5xx.
+    single = client.post("/api/lab/run", json={"step": "explain_move", "persona_id": "amira",
+                                               "inputs": {"ticker": "CRWV", **window},
+                                               "options": {**NO_NARRATION, "prices.source": "yfinance_live"}})
+    assert single.status_code == 422 and "aucune cotation de CRWV" in single.text
+
+
 def test_explain_move_and_bias_tables(client, fake_narrator):
     moves = _batch(client, "explain_move", {"kind": "portfolio", "tickers": ["NVDA", "XOM"]},
                    {"start": "2022-01-01", "end": "2022-12-31"}).json()

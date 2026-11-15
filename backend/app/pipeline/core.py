@@ -103,6 +103,16 @@ class PipelineInputError(ValueError):
     """The inputs cannot be analysed (unknown ticker, no data at all...) (HTTP 422)."""
 
 
+class NoQuotesInWindow(PipelineInputError):
+    """The title has no quotation in the period asked (e.g. listed after it): the source answered, there
+    is nothing to analyse. A group run reports such a title as skipped with this reason, not as an error."""
+
+    def __init__(self, ticker: str, start: Any, end: Any, first: Any = None) -> None:
+        listed = f" : le titre est coté depuis le {first}" if first is not None else ""
+        super().__init__(f"aucune cotation de {ticker} sur la période {start} → {end}{listed}")
+        self.ticker, self.first = ticker, first
+
+
 class StageSkipped(Exception):
     """Raised by a stage that has nothing to do with the current inputs/options."""
 

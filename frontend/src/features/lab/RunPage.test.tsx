@@ -78,7 +78,7 @@ describe('RunPage', () => {
     expect(screen.getByText('Marge')).toBeInTheDocument()
     expect(screen.getByText('Fraîcheur')).toBeInTheDocument()
     expect(screen.getByText('Échouée')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Relancer' })).toHaveAttribute('href', '/labo/lancer?pipeline=score')
+    expect(screen.getByRole('link', { name: 'Relancer' })).toHaveAttribute('href', `/labo/lancer?pipeline=score&depuis=${RUN_LAB.run_id}`)
   })
 
   it('opens a stage on its decisions and outputs, and the run inputs', async () => {

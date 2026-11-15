@@ -178,8 +178,8 @@ export interface ScoreRunInfo {
   /** Date of the data (`YYYY-MM-DD`, Toronto); null until the run's first stage. */
   date: string | null
   /** The run's parameters; for a non-auto group, `max_titles` is the requested size and the shares are 0
-   * when they do not apply. The server also echoes `params.group`. */
-  params: ScoreRunParams
+   * when they do not apply. The server also echoes the group as it was asked (`params.group`). */
+  params: ScoreRunParams & { group?: ScoreRunGroup }
   /** Which titles the run covers and how they were resolved. */
   group?: ScoreRunGroupResolution
   started_at: string | null
@@ -242,10 +242,12 @@ export function useScoreRun(runId: string | null) {
     queryFn: () =>
       apiClient.request<ScoreRun>(`/api/pipeline/score/runs/${encodeURIComponent(runId ?? '')}`),
     enabled: Boolean(runId),
-    refetchInterval: (query) =>
-      query.state.data === undefined || query.state.data.status === 'running'
-        ? SCORE_RUN_POLL_MS
-        : false,
+    // An unknown id (404) is an answer, not a failure to retry: no retry, and no polling after an error.
+    retry: (failures, error) => error.status !== 404 && failures < 1,
+    refetchInterval: (query) => {
+      if (query.state.status === 'error') return false
+      return query.state.data === undefined || query.state.data.status === 'running' ? SCORE_RUN_POLL_MS : false
+    },
   })
 }
 

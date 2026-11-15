@@ -10,6 +10,8 @@ import { catalogErrorMessage } from './labForm'
 import { LAB_PATH } from './labRoutes'
 import { LabLaunch } from './launch/LabLaunch'
 import { SCORE_PIPELINE } from './launch/launchModel'
+import { relaunchOf } from './launch/relaunch'
+import { useRunView } from './run/useRunView'
 import { LaunchStep } from './launch/LaunchParts'
 import { PipelinePicker } from './launch/PipelinePicker'
 import { ScoreLaunch } from './launch/ScoreLaunch'
@@ -32,6 +34,11 @@ export function LaunchPage() {
   // Read when the page opens: the portfolio page is where it changes.
   const portfolio = useMemo(() => (personaId ? readPortfolio(personaId).map((holding) => holding.ticker) : []), [personaId])
   const step = catalog.data?.steps.find((candidate) => candidate.id === pipeline)
+  // « Relancer » : the run to start again hands over its group and its settings.
+  const fromId = search.get('depuis')
+  const from = useRunView(fromId)
+  const relaunch = useMemo(() => (from.view ? relaunchOf(from.view) : null), [from.view])
+  const waiting = fromId !== null && from.isLoading
 
   return (
     <AppLayout>
@@ -52,6 +59,7 @@ export function LaunchPage() {
             steps={catalog.data?.steps ?? []}
             scoreLayers={(scoreRuns.data?.stages ?? []).map((stage) => stage.layer)}
             value={pipeline}
+            // Another pipeline is another run: the one being started again is let go.
             onChange={(next) => setSearch({ pipeline: next }, { replace: true })}
           />
           {catalog.isError && (
@@ -61,11 +69,34 @@ export function LaunchPage() {
           )}
         </LaunchStep>
 
-        {pipeline === SCORE_PIPELINE ? (
-          <ScoreLaunch key={SCORE_PIPELINE} portfolio={portfolio} presetTickers={presetTickers} />
+        {relaunch && (
+          <p role="note" className="rounded-3xl border border-border px-5 py-4 text-sm">
+            Repris de l'exécution « {relaunch.title} » : même groupe, mêmes réglages. Modifiez ce que vous voulez avant de
+            lancer.
+          </p>
+        )}
+        {fromId !== null && !from.isLoading && !from.view && (
+          <p role="alert" className="text-sm text-destructive">
+            L'exécution à relancer est introuvable ({fromId}) : le lanceur part des réglages par défaut.
+          </p>
+        )}
+
+        {waiting ? (
+          <p role="status" className="text-muted-foreground">
+            Chargement des réglages de l'exécution à relancer…
+          </p>
+        ) : pipeline === SCORE_PIPELINE ? (
+          <ScoreLaunch key={`${SCORE_PIPELINE}-${relaunch?.runId ?? ''}`} portfolio={portfolio} presetTickers={presetTickers} relaunch={relaunch} />
         ) : step && personaId ? (
-          // Each pipeline starts from its own defaults.
-          <LabLaunch key={step.id} step={step} personaId={personaId} portfolio={portfolio} presetTickers={presetTickers} />
+          // Each pipeline starts from its own defaults, or from the run being started again.
+          <LabLaunch
+            key={`${step.id}-${relaunch?.runId ?? ''}`}
+            step={step}
+            personaId={personaId}
+            portfolio={portfolio}
+            presetTickers={presetTickers}
+            relaunch={relaunch}
+          />
         ) : catalog.isPending ? (
           <p role="status" className="text-muted-foreground">
             Chargement des pipelines…

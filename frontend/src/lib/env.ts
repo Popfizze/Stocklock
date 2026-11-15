@@ -7,5 +7,12 @@
  * works without an .env.
  *
  * The API client (src/api/client.ts) reads this directly.
+ *
+ * Opt-in dev proxy: with `VITE_DEV_PROXY_TARGET` set, the dev server itself serves `/api` (see
+ * vite.config.ts), so the API is this page's own origin and no CORS rule is involved.
  */
-export const API_BASE_URL: string = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
+const viaDevProxy = import.meta.env.DEV && Boolean(import.meta.env.VITE_DEV_PROXY_TARGET)
+
+export const API_BASE_URL: string = viaDevProxy
+  ? window.location.origin
+  : import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'

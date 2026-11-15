@@ -1,6 +1,6 @@
 """Routes of the run registry: every execution of every pipeline and everything it generated.
 
-    GET /api/runs?pipeline=&persona=&status=&trigger=&limit=&cursor=   newest first, paginated
+    GET /api/runs?pipeline=&persona=&status=&trigger=&since=&until=&limit=&cursor=   newest first, paginated
     GET /api/runs/{run_id}                                             one run, stages summarized
     GET /api/runs/{run_id}/stages/{stage_id}                           one stage in full
     GET /api/runs/{run_id}/artifacts                                   datasets, decisions, files
@@ -36,10 +36,12 @@ def _unavailable(exc: Exception) -> HTTPException:
 @router.get("")
 def list_runs(pipeline: Pipeline | None = None, persona: str | None = Query(None, max_length=40),
               status: Status | None = None, trigger: Trigger | None = None,
-              limit: int = Query(20, ge=1, le=100), cursor: str | None = Query(None, max_length=120)
+              limit: int = Query(20, ge=1, le=100), cursor: str | None = Query(None, max_length=120),
+              since: str | None = Query(None, max_length=40, description="Started on or after (ISO date or date-time)"),
+              until: str | None = Query(None, max_length=40, description="Started on or before (ISO date) / before (date-time)")
               ) -> dict[str, Any]:
     try:
-        return views.list_runs(pipeline, persona, status, trigger, limit, cursor)
+        return views.list_runs(pipeline, persona, status, trigger, limit, cursor, since, until)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
