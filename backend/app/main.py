@@ -8,7 +8,9 @@ from __future__ import annotations
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from threading import Lock, Thread
 from typing import Any
+from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,6 +52,87 @@ app.include_router(market_router)
 app.include_router(profile_router)
 app.include_router(score_pipeline_router)
 app.include_router(runs_router)
+
+
+# The stock-page analysis reports real stage completions while it runs. Results are kept briefly
+# in process memory because this prototype has neither authentication nor a durable job queue.
+_BIAS_RUNS: dict[str, dict[str, Any]] = {}
+_BIAS_RUNS_LOCK = Lock()
+_BIAS_RUN_TTL_SECONDS = 30 * 60
+
+
+def _stock_bias_body(result: Any, response: AnalysisResponse) -> dict[str, Any]:
+    ctx = result.context
+    return {
+        "analysis": response.model_dump(),
+        "signals": ctx.state.get("signals", []),
+        "profile_flags": ctx.report.profile_flags,
+        "history": ctx.state.get("market_history"),
+        "hype": ctx.state.get("hype"),
+        "simulation": ctx.state.get("simulation_data"),
+        "warnings": [warning for stage in result.stages for warning in stage["warnings"]],
+    }
+
+
+def _bias_run_view(run: dict[str, Any]) -> dict[str, Any]:
+    view = {"run_id": run["run_id"], "status": run["status"], "stages": run["stages"]}
+    if run.get("error"):
+        view["error"] = run["error"]
+    if run.get("result"):
+        view["result"] = run["result"]
+    return view
+
+
+def _prune_bias_runs() -> None:
+    cutoff = time.monotonic() - _BIAS_RUN_TTL_SECONDS
+    for run_id, run in list(_BIAS_RUNS.items()):
+        if run["created_at"] < cutoff:
+            del _BIAS_RUNS[run_id]
+
+
+def _run_stock_bias(run_id: str, persona: dict[str, Any], request: StockBiasRequest) -> None:
+    def on_stage(event: str, record: Any) -> None:
+        with _BIAS_RUNS_LOCK:
+            run = _BIAS_RUNS.get(run_id)
+            if not run:
+                return
+            stage = next(item for item in run["stages"] if item["id"] == record.id)
+            if event == "started":
+                run["status"] = "running"
+                stage["status"] = "active"
+            else:
+                stage["status"] = "done" if record.status in {"ok", "warning", "skipped"} else "error"
+
+    try:
+        result, response = execute(
+            "bias", persona, request.model_dump(exclude={"persona_id"}),
+            {"simulation_2022.portfolio": "ticker"}, on_stage=on_stage,
+        )
+        if result.failed:
+            failed = next(stage for stage in result.stages if stage["status"] == "error")
+            with _BIAS_RUNS_LOCK:
+                run = _BIAS_RUNS.get(run_id)
+                if run:
+                    run["status"] = "failed"
+                    run["error"] = f"Étape « {failed['name']} » indisponible."
+            return
+        with _BIAS_RUNS_LOCK:
+            run = _BIAS_RUNS.get(run_id)
+            if run:
+                run["status"] = "completed"
+                run["result"] = _stock_bias_body(result, response)
+    except PipelineInputError as exc:
+        with _BIAS_RUNS_LOCK:
+            run = _BIAS_RUNS.get(run_id)
+            if run:
+                run["status"] = "failed"
+                run["error"] = str(exc)
+    except Exception:
+        with _BIAS_RUNS_LOCK:
+            run = _BIAS_RUNS.get(run_id)
+            if run:
+                run["status"] = "failed"
+                run["error"] = "Impossible de terminer l’analyse."
 
 
 @app.get("/api/health")
@@ -140,16 +223,35 @@ def stock_bias(request: StockBiasRequest) -> dict[str, Any]:
     if result.failed:
         failed = next(s for s in result.stages if s["status"] == "error")
         raise HTTPException(status_code=503, detail=f"Étape « {failed['name']} » indisponible.")
-    ctx = result.context
-    return {
-        "analysis": response.model_dump(),
-        "signals": ctx.state.get("signals", []),
-        "profile_flags": ctx.report.profile_flags,
-        "history": ctx.state.get("market_history"),
-        "hype": ctx.state.get("hype"),
-        "simulation": ctx.state.get("simulation_data"),
-        "warnings": [w for stage in result.stages for w in stage["warnings"]],
+    return _stock_bias_body(result, response)
+
+
+@app.post("/api/bias/stock/runs")
+def start_stock_bias_run(request: StockBiasRequest) -> dict[str, Any]:
+    """Starts a stock-page bias analysis and returns a status resource to poll."""
+    persona = get_persona(request.persona_id)
+    run_id = uuid4().hex
+    run = {
+        "run_id": run_id,
+        "status": "queued",
+        "created_at": time.monotonic(),
+        "stages": [{"id": stage.id, "name": stage.name, "status": "pending"} for stage in STEPS["bias"].stages],
     }
+    with _BIAS_RUNS_LOCK:
+        _prune_bias_runs()
+        _BIAS_RUNS[run_id] = run
+    Thread(target=_run_stock_bias, args=(run_id, persona, request), daemon=True).start()
+    return _bias_run_view(run)
+
+
+@app.get("/api/bias/stock/runs/{run_id}")
+def stock_bias_run(run_id: str) -> dict[str, Any]:
+    """Returns the latest completed stage and the result once every stage is done."""
+    with _BIAS_RUNS_LOCK:
+        run = _BIAS_RUNS.get(run_id)
+        if not run:
+            raise HTTPException(status_code=404, detail="Analyse introuvable ou expirée.")
+        return _bias_run_view(run)
 
 
 # --- Lab ----------------------------------------------------------------------------------------

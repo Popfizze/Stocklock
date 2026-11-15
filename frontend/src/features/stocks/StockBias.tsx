@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
-import { useStockBias, type BiasIntent } from '@/api/bias'
+import { Check, Circle, CircleAlert, Loader2 } from 'lucide-react'
+import { useStockBias, type BiasIntent, type BiasRunProgress, type BiasRunStageStatus } from '@/api/bias'
 import type { HypeComponentId, HypeSignal } from '@/api/persona'
 import type { Persona } from '@/api/personas'
 import { Button } from '@/components/ui/button'
@@ -27,16 +28,19 @@ function BiasForm({ ticker, persona, prefill, pickedLabel }: BiasFormProps) {
   // `null` until the user touches a field: the proposal shows meanwhile, whenever the signal arrives.
   const [typed, setTyped] = useState<string | null>(null)
   const [chosen, setChosen] = useState<BiasIntent | null>(null)
-  const mutation = useStockBias()
+  const [progress, setProgress] = useState<BiasRunProgress | null>(null)
+  const mutation = useStockBias(setProgress)
   const message = typed ?? prefill?.message ?? ''
   const intent = chosen ?? prefill?.intent ?? null
 
   const resetResult = () => {
+    setProgress(null)
     if (mutation.isSuccess || mutation.isError) mutation.reset()
   }
   function submit(event: FormEvent) {
     event.preventDefault()
     if (message.trim() && intent) {
+      setProgress(null)
       mutation.mutate({ ticker, persona_id: persona.id, message: message.trim(), intent })
     }
   }
@@ -126,17 +130,8 @@ function BiasForm({ ticker, persona, prefill, pickedLabel }: BiasFormProps) {
         </Button>
       </form>
 
-      {mutation.isPending && (
-        <div role="status" className="rounded-2xl border border-border p-5 text-sm">
-          <p className="font-medium">Analyse en cours…</p>
-          <p className="mt-1 text-muted-foreground">L’analyse comprend les étapes suivantes :</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
-            <li>Analyse de votre message et de votre profil</li>
-            <li>Examen des données historiques et recherche de contexte médiatique sur le web, si disponible</li>
-            <li>Simulation historique et préparation de la réponse</li>
-          </ul>
-        </div>
-      )}
+      {mutation.isPending && !progress && <BiasProgress />}
+      {progress && <BiasProgress progress={progress} />}
       {mutation.isError && (
         <p role="alert" className="text-sm text-destructive">
           Impossible de terminer l’analyse.{' '}
@@ -146,6 +141,43 @@ function BiasForm({ ticker, persona, prefill, pickedLabel }: BiasFormProps) {
       {mutation.data && <BiasDetails result={mutation.data} persona={persona} ticker={ticker} />}
     </section>
   )
+}
+
+function BiasProgress({ progress }: { progress?: BiasRunProgress }) {
+  const completed = progress?.status === 'completed'
+  const active = progress?.stages.find((stage) => stage.status === 'active')
+  const title = completed ? 'Analyse terminée' : active ? `En cours : ${active.name}` : 'Préparation de l’analyse…'
+  const stages = progress?.stages ?? []
+  return (
+    <div role="status" aria-live="polite" className="rounded-2xl border border-border p-5 text-sm">
+      <p className="font-medium">{title}</p>
+      <p className="mt-1 text-muted-foreground">
+        {completed ? 'Chaque étape ci-dessous est terminée.' : 'Les coches apparaissent dès qu’une étape est réellement terminée.'}
+      </p>
+      {stages.length > 0 ? (
+        <ol className="mt-3 space-y-2">
+          {stages.map((stage) => (
+            <li key={stage.id} className="flex items-center gap-2">
+              <StageIcon status={stage.status} />
+              <span className={stage.status === 'pending' ? 'text-muted-foreground' : undefined}>{stage.name}</span>
+              {stage.status === 'active' && <span className="text-muted-foreground">en cours</span>}
+              {stage.status === 'done' && <span className="text-muted-foreground">terminée</span>}
+              {stage.status === 'error' && <span className="text-destructive">indisponible</span>}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="mt-3 flex items-center gap-2 text-muted-foreground"><Loader2 className="size-4 animate-spin" />Connexion au pipeline…</div>
+      )}
+    </div>
+  )
+}
+
+function StageIcon({ status }: { status: BiasRunStageStatus }) {
+  if (status === 'done') return <Check aria-label="Terminée" className="size-4 text-success" />
+  if (status === 'active') return <Loader2 aria-label="En cours" className="size-4 animate-spin" />
+  if (status === 'error') return <CircleAlert aria-label="Indisponible" className="size-4 text-destructive" />
+  return <Circle aria-hidden="true" className="size-4 text-muted-foreground" />
 }
 
 interface StockBiasProps {

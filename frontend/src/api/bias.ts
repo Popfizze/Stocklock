@@ -22,10 +22,45 @@ export interface BiasResult {
 
 export type BiasIntent = 'buy' | 'sell' | 'undecided'
 
-export function useStockBias() {
+export type BiasRunStageStatus = 'pending' | 'active' | 'done' | 'error'
+
+export interface BiasRunProgress {
+  run_id: string
+  status: 'queued' | 'running' | 'completed' | 'failed'
+  stages: { id: string; name: string; status: BiasRunStageStatus }[]
+  result?: BiasResult
+  error?: string
+}
+
+type BiasInput = { persona_id: string; ticker: string; message: string; intent: BiasIntent }
+
+const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
+
+function isBiasResult(value: BiasRunProgress | BiasResult): value is BiasResult {
+  return 'analysis' in value
+}
+
+async function runStockBias(input: BiasInput, onProgress?: (progress: BiasRunProgress) => void): Promise<BiasResult> {
+  // The temporary fallback keeps older API deployments and isolated UI tests working during rollout.
+  const started = await apiClient.request<BiasRunProgress | BiasResult>('/api/bias/stock/runs', {
+    method: 'POST', body: JSON.stringify(input),
+  })
+  if (isBiasResult(started)) return started
+  onProgress?.(started)
+
+  while (true) {
+    await wait(300)
+    const progress = await apiClient.request<BiasRunProgress>(`/api/bias/stock/runs/${started.run_id}`)
+    onProgress?.(progress)
+    if (progress.status === 'completed' && progress.result) return progress.result
+    if (progress.status === 'failed') {
+      throw { message: progress.error ?? 'Impossible de terminer l’analyse.', status: 503 } satisfies ApiError
+    }
+  }
+}
+
+export function useStockBias(onProgress?: (progress: BiasRunProgress) => void) {
   return useMutation<BiasResult, ApiError, { persona_id: string; ticker: string; message: string; intent: BiasIntent }>({
-    mutationFn: (input) => apiClient.request('/api/bias/stock', {
-      method: 'POST', body: JSON.stringify(input),
-    }),
+    mutationFn: (input) => runStockBias(input, onProgress),
   })
 }

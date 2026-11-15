@@ -39,10 +39,7 @@ it('sends the selected title, active profile and message and shows a limited res
   expect(await screen.findByText('Yahoo Finance — cours historiques NVDA')).toBeInTheDocument()
   expect(screen.getByText('un signal').tagName).toBe('STRONG')
   expect(screen.queryByText(/bedrock_classifier|Analyse pour Robert|\*\*/)).not.toBeInTheDocument()
-  const helpful = screen.getByRole('button', { name: 'Cette analyse était pertinente' })
-  await userEvent.click(helpful)
-  expect(helpful).toHaveAttribute('aria-pressed', 'true')
-  expect(screen.getByText(/conservé uniquement sur cet appareil/)).toBeInTheDocument()
+  expect(screen.queryByText(/Cette analyse vous a-t-elle aidé à prendre du recul/)).not.toBeInTheDocument()
   const request = calls.find((call) => call.url.includes('/api/bias/stock'))
   expect(JSON.parse(String(request?.init.body))).toEqual({ persona_id: 'robert', ticker: 'NVDA', message: 'Je veux tout vendre', intent: 'sell' })
   await userEvent.click(screen.getByRole('radio', { name: 'Acheter' }))
@@ -59,11 +56,44 @@ it('shows the operations included while the analysis is pending', async () => {
   await userEvent.type(await screen.findByLabelText('Pourquoi envisagez-vous cette décision ?'), 'Je réfléchis')
   await userEvent.click(screen.getByRole('radio', { name: 'Je ne sais pas encore' }))
   await userEvent.click(screen.getByRole('button', { name: 'Analyser ma décision' }))
-  expect(screen.getByRole('status')).toHaveTextContent('Analyse en cours')
-  expect(screen.getByText(/recherche de contexte médiatique sur le web/)).toBeInTheDocument()
+  expect(screen.getByRole('status')).toHaveTextContent('Préparation de l’analyse')
+  expect(screen.getByText(/Connexion au pipeline/)).toBeInTheDocument()
   finish?.(new Response(JSON.stringify({ detail: 'Test terminé' }), { status: 503 }))
   expect(await screen.findByRole('alert')).toHaveTextContent('Test terminé')
   expect(screen.queryByRole('status')).not.toBeInTheDocument()
+})
+
+it('shows the real pipeline stage and a check once each stage is completed', async () => {
+  const result = {
+    analysis: { answer: 'Simulation éducative.', sources: [], assumptions: [], limits: [], governance: { passed: true, checks: [] } },
+    signals: [], profile_flags: [], history: null, hype: null, simulation: null, warnings: [],
+  }
+  const stages = [
+    { id: 'message_analysis', name: 'Analyse du message', status: 'done' },
+    { id: 'hype_signal', name: 'Signal de battage', status: 'active' },
+    { id: 'profile_check', name: 'Confrontation au profil', status: 'pending' },
+  ] as const
+  mockFetchByUrl([
+    { match: '/api/personas', responses: [json(PERSONAS)] },
+    { match: /\/api\/bias\/stock\/runs$/, responses: [json({ run_id: 'bias-1', status: 'running', stages })] },
+    {
+      match: /\/api\/bias\/stock\/runs\/bias-1$/,
+      responses: [json({
+        run_id: 'bias-1', status: 'completed',
+        stages: stages.map((stage) => ({ ...stage, status: 'done' })), result,
+      })],
+    },
+  ])
+  renderWithProviders(<StockBias ticker="NVDA" />, { personaId: 'robert' })
+  await userEvent.type(await screen.findByLabelText('Pourquoi envisagez-vous cette décision ?'), 'Je réfléchis')
+  await userEvent.click(screen.getByRole('radio', { name: 'Acheter' }))
+  await userEvent.click(screen.getByRole('button', { name: 'Analyser ma décision' }))
+
+  expect(await screen.findByText('En cours : Signal de battage')).toBeInTheDocument()
+  expect(screen.getByLabelText('Terminée')).toBeInTheDocument()
+  expect(screen.getByLabelText('En cours')).toBeInTheDocument()
+  expect(await screen.findByText('Analyse terminée')).toBeInTheDocument()
+  expect(screen.getAllByLabelText('Terminée')).toHaveLength(3)
 })
 
 it('proposes the tempted buyer’s case while the hype is high, and lets the user write their own', async () => {

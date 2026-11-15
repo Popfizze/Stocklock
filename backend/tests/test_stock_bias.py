@@ -1,5 +1,7 @@
 """Stock-page bias analysis uses the selected asset and makes uncertainty explicit."""
 
+import time
+
 import pandas as pd
 import pytest
 
@@ -24,6 +26,30 @@ def test_stock_bias_uses_selected_ticker_and_exposes_history(client):
 def test_stock_bias_validates_blank_message_and_intent(client):
     assert client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'AAPL', 'message': '   '}).status_code == 422
     assert client.post('/api/bias/stock', json={'persona_id': 'robert', 'ticker': 'AAPL', 'message': 'réfléchir', 'intent': 'invalid'}).status_code == 422
+
+
+def test_stock_bias_run_exposes_each_real_stage(client):
+    started = client.post('/api/bias/stock/runs', json={
+        'persona_id': 'robert', 'ticker': 'AAPL', 'message': 'Je réfléchis.', 'intent': 'buy',
+    })
+    assert started.status_code == 200, started.text
+    run = started.json()
+    assert [stage['name'] for stage in run['stages']] == [
+        'Analyse du message', 'Signal de battage', 'Confrontation au profil',
+        'Simulation 2022', 'Narration', 'Gouvernance',
+    ]
+
+    deadline = time.monotonic() + 5
+    while time.monotonic() < deadline:
+        status = client.get(f"/api/bias/stock/runs/{run['run_id']}")
+        assert status.status_code == 200, status.text
+        body = status.json()
+        if body['status'] in {'completed', 'failed'}:
+            break
+        time.sleep(0.01)
+    assert body['status'] == 'completed', body
+    assert all(stage['status'] == 'done' for stage in body['stages'])
+    assert body['result']['simulation']['ticker'] == 'AAPL'
 
 
 def _external_history(monkeypatch, start='2022-01-03', currency='CAD'):

@@ -346,7 +346,8 @@ def resolve_options(step: StepSpec, partial: dict[str, Any] | None) -> dict[str,
 
 def run(step: StepSpec, persona: dict[str, Any], inputs: BaseModel,
         options: dict[str, Any] | None = None, collect_datasets: bool = False,
-        state: dict[str, Any] | None = None) -> RunResult:
+        state: dict[str, Any] | None = None,
+        on_stage: Callable[[str, StageRecord], None] | None = None) -> RunResult:
     """`state` seeds the context's state (e.g. the stock page's time budget, see explain_move_fetch)."""
     resolved = resolve_options(step, options)
     ctx = Context(step=step, persona=persona, inputs=inputs, options=resolved,
@@ -358,6 +359,8 @@ def run(step: StepSpec, persona: dict[str, Any], inputs: BaseModel,
                           options_used={f"{spec.id}.{o.key}": resolved[f"{spec.id}.{o.key}"]
                                         for o in spec.options})
         ctx.records.append(rec)
+        if on_stage:
+            on_stage("started", rec)
         if aborted:
             rec.status = "skipped"
             rec.warnings.append("Étape non exécutée : une étape précédente a échoué.")
@@ -394,6 +397,8 @@ def run(step: StepSpec, persona: dict[str, Any], inputs: BaseModel,
                            "étape critique (non dégradable) : la suite ne peut pas s'exécuter sans elle")
         finally:
             rec.duration_ms = (time.perf_counter() - t0) * 1000
+            if on_stage:
+                on_stage("finished", rec)
         ctx.report.trace.append(_trace_line(rec))
     ctx._current = None
     total_ms = (time.perf_counter() - started) * 1000

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -67,13 +68,14 @@ def build_response(result: RunResult) -> AnalysisResponse:
 
 def execute(step_id: str, persona: dict[str, Any], inputs: dict[str, Any] | BaseModel,
             options: dict[str, Any] | None = None, datasets: bool = False,
-            state: dict[str, Any] | None = None) -> tuple[RunResult, AnalysisResponse]:
+            state: dict[str, Any] | None = None,
+            on_stage: Callable[[str, Any], None] | None = None) -> tuple[RunResult, AnalysisResponse]:
     """Runs one step. Raises KeyError (unknown step), ValidationError (inputs), OptionError,
     PipelineInputError (unanalysable inputs). `datasets` collects each stage's complete tables (Lab);
     `state` seeds the run's state (the stock page passes its time budget)."""
     step = STEPS[step_id]
     parsed = parse_inputs(step, inputs)
-    result = run(step, persona, parsed, options, collect_datasets=datasets, state=state)
+    result = run(step, persona, parsed, options, collect_datasets=datasets, state=state, on_stage=on_stage)
     return result, build_response(result)
 
 

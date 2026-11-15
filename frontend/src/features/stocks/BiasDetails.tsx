@@ -1,7 +1,6 @@
 import type { BiasResult } from '@/api/bias'
 import type { Persona } from '@/api/personas'
 import { BiasNarrative } from './BiasNarrative'
-import { BiasFeedback } from './BiasFeedback'
 import { BiasSimulation } from './BiasSimulation'
 import { DataSourceHint } from './DataSourceHint'
 
@@ -161,8 +160,6 @@ export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
       </section>
 
       <BiasSimulation simulation={result.simulation} />
-
-      <BiasFeedback personaId={persona.id} ticker={ticker} />
 
       <details id="bias-sources" className="text-sm">
         <summary className="cursor-pointer font-medium">Sources, hypothèses et limites</summary>
