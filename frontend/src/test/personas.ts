@@ -10,6 +10,7 @@ export const PERSONAS: Persona[] = [
     horizon: 'Long terme',
     preferences: ['Premier logement'],
     summary: 'Résumé du profil Amira.',
+    limits: { max_volatility: 0.8, max_single_position: 0.25, allow_crypto: true, excluded_sectors: [] },
   },
   {
     id: 'mateo',
@@ -28,5 +29,6 @@ export const PERSONAS: Persona[] = [
     horizon: 'Court terme',
     preferences: ['Revenu stable', 'Faible volatilité'],
     summary: 'Résumé du profil Robert.',
+    limits: { max_volatility: 0.25, max_single_position: 0.1, allow_crypto: false, excluded_sectors: [] },
   },
 ]

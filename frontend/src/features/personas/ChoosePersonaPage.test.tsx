@@ -58,7 +58,9 @@ describe('ChoosePersonaPage', () => {
     renderPage()
 
     // The sculpture says the profile's figures, and stays a way to choose it.
-    await userEvent.click(await screen.findByRole('img', { name: /Profil de Robert en tuiles.*\(risque faible, horizon court terme\)/ }))
+    await userEvent.click(
+      await screen.findByRole('img', { name: /Profil de Robert en tuiles.*\(risque faible, horizon court terme, volatilité max 25\s?%\)/ }),
+    )
 
     expect(await screen.findByText('Accueil')).toBeInTheDocument()
     expect(readStoredPersonaId()).toBe('robert')

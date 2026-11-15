@@ -29,6 +29,41 @@ MACRO_SERIES = (
     ("UNRATE", "Chômage États-Unis"),
 )
 EVENT_LOOKBACK_DAYS = ev.EVENT_LOOKBACK_DAYS
+# Market model: enough sessions to estimate beta, a recent listing's first sessions left out, and an
+# implied expected return that must stay plausible next to the index (else the simple difference is used).
+MIN_EST_SESSIONS = 120
+IPO_SKIP_SESSIONS = 20
+MAX_IMPLIED_GAP = 0.5
+
+
+def fit_market_model(est: pd.DataFrame, win: pd.DataFrame, first_price: pd.Timestamp | None,
+                     r_bench: float) -> dict:
+    """Beta and alpha of the market model from the year before the window, or why the simple difference is used.
+
+    `est` / `win`: aligned daily returns (`asset`, `bench`) before and inside the window. A title first priced
+    during the estimation year loses its first sessions (IPO pop); too few sessions, or an implied expected
+    return implausibly far from the index, fall back to the simple difference.
+    """
+    if len(est) and first_price is not None and not pd.isna(first_price) \
+            and first_price > est.index.min() - pd.Timedelta(days=7):
+        est = est.iloc[IPO_SKIP_SESSIONS:]
+    if len(est) < MIN_EST_SESSIONS:
+        return {"method": "simple_diff", "est": est, "inputs": {"séances utilisables": len(est)},
+                "warning": f"Estimation du bêta sur {len(est)} séances seulement (moins de {MIN_EST_SESSIONS}) : "
+                           "repli sur la différence simple.",
+                "reason": f"Seulement {len(est)} séances utilisables avant la fenêtre pour estimer le bêta."}
+    beta = float(est["asset"].cov(est["bench"]) / est["bench"].var())
+    alpha = float(est["asset"].mean() - beta * est["bench"].mean())
+    r2 = float(est["asset"].corr(est["bench"]) ** 2)
+    implied = float(np.prod(1 + alpha + beta * win["bench"]) - 1)
+    if abs(implied - r_bench) > max(MAX_IMPLIED_GAP, 3 * abs(r_bench)):
+        return {"method": "simple_diff", "est": est, "inputs": {"bêta": beta, "alpha quotidien": alpha, "R²": r2},
+                "warning": f"Modèle de marché écarté : il prévoit {implied:+.0%} quand l'indice fait "
+                           f"{r_bench:+.0%} (alpha estimé sur une période atypique) ; repli sur la différence simple.",
+                "reason": f"Rendement attendu du modèle peu plausible ({implied:+.1%} contre {r_bench:+.1%} "
+                          "pour l'indice)."}
+    return {"method": "market_model", "est": est, "alpha": alpha, "beta": beta, "r2": r2,
+            "reason": f"Bêta {beta:.3f} et alpha estimés sur {len(est)} séances avant la fenêtre."}
 
 
 def _win(ctx: Context) -> tuple[pd.Timestamp, pd.Timestamp]:
@@ -108,20 +143,20 @@ def benchmark(ctx: Context) -> None:
                "Séances communes au titre et à l'indice (les calendriers TSX, US et crypto diffèrent) ; "
                "les 12 mois avant la fenêtre servent à l'estimation.",
                inputs={"rendements alignés": len(rets)})
-    question, rule = "Comment calculer le rendement attendu ?", f"option method = {method} ; bêta : 60 séances minimum"
+    question = "Comment calculer le rendement attendu ?"
+    rule = (f"option method = {method} ; bêta : {MIN_EST_SESSIONS} séances minimum, sans les "
+            f"{IPO_SKIP_SESSIONS} premières séances d'un titre récemment coté")
     if method == "market_model":
-        if len(est) < 60:
-            ctx.warn(f"Estimation du bêta sur {len(est)} séances seulement (moins de 60) : repli sur "
-                     "la différence simple.")
-            method = "simple_diff"
-            ctx.decide(question, "différence simple (repli)", f"Seulement {len(est)} séances avant la fenêtre "
-                       "pour estimer le bêta.", rule)
+        fit = fit_market_model(est, win, asset_px.dropna().index.min(), r_bench)
+        est = fit["est"]
+        if fit["method"] == "market_model":
+            alpha, beta, r2 = fit["alpha"], fit["beta"], fit["r2"]
+            ctx.decide(question, "modèle de marché", fit["reason"], rule,
+                       {"bêta": beta, "alpha quotidien": alpha, "R²": r2})
         else:
-            beta = float(est["asset"].cov(est["bench"]) / est["bench"].var())
-            alpha = float(est["asset"].mean() - beta * est["bench"].mean())
-            r2 = float(est["asset"].corr(est["bench"]) ** 2)
-            ctx.decide(question, "modèle de marché", f"Bêta {beta:.3f} et alpha estimés sur {len(est)} séances "
-                       "avant la fenêtre.", rule, {"bêta": beta, "alpha quotidien": alpha, "R²": r2})
+            method = "simple_diff"
+            ctx.warn(fit["warning"])
+            ctx.decide(question, "différence simple (repli)", fit["reason"], rule, fit["inputs"])
     else:
         ctx.decide(question, "différence simple", "Rendement attendu = rendement de l'indice.", rule)
     if method == "market_model":

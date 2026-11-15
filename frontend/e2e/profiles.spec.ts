@@ -18,10 +18,14 @@ test.describe('Choisir un profil', () => {
       await expect(scene(page, new RegExp(`Profil de ${name} en tuiles`))).toBeVisible()
     }
     // The sculptures carry their figures: the risk level on the tallest tile, the horizon at the foot.
-    const amira = scene(page, /Profil de Amira en tuiles.*risque élevée, horizon long terme/)
+    const amira = scene(page, /Profil de Amira en tuiles.*risque élevée, horizon long terme, volatilité max 80/)
     await expect(sceneTag(amira, 'Risque : élevée')).toBeVisible()
     await expect(sceneTag(amira, 'Horizon : long terme')).toBeVisible()
-    await expect(sceneTag(scene(page, /Profil de Robert en tuiles/), 'Risque : faible')).toBeVisible()
+    const robert = scene(page, /Profil de Robert en tuiles/)
+    await expect(sceneTag(robert, 'Risque : faible')).toBeVisible()
+    await expect(sceneTag(robert, /Volatilité max : 25/)).toBeVisible()
+    // Mateo's fixture has no limits (an older API): no volatility tag, nothing breaks.
+    await expect(sceneTag(scene(page, /Profil de Mateo en tuiles/), /Volatilité max/)).toHaveCount(0)
   })
 
   for (const profile of PROFILES) {

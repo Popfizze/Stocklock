@@ -58,7 +58,11 @@ const SCENES: Record<string, { tiles: () => SceneTile[]; reading: string }> = {
 export interface PersonaFigures {
   risk_tolerance: string
   horizon: string
+  /** The profile's limits, when the API gives them: the highest volatility it accepts is tagged too. */
+  limits?: { max_volatility: number }
 }
+
+const PERCENT = new Intl.NumberFormat('fr-CA', { style: 'percent', maximumFractionDigits: 0 })
 
 /**
  * The tile composition that embodies an investor profile, and how to read it. With the profile's
@@ -72,12 +76,21 @@ export function personaScene(personaId: string, figures?: PersonaFigures): { til
     const top = (tile: SceneTile) => (tile.y ?? 0) + tile.h
     const tallest = tiles.reduce((best, tile) => (top(tile) > top(best) ? tile : best))
     const front = tiles.reduce((best, tile) => (tile.z - tile.x > best.z - best.x ? tile : best))
+    // The right-most tile (other than the two already tagged) carries the volatility ceiling.
+    const others = tiles.filter((tile) => tile !== tallest && tile !== front)
+    const side = others.length > 0 ? others.reduce((best, tile) => (tile.x > best.x ? tile : best)) : null
+    const volatility = figures.limits ? PERCENT.format(figures.limits.max_volatility) : null
     const tagged = tiles.map((tile) => {
       if (tile === tallest) return { ...tile, tag: `Risque : ${figures.risk_tolerance.toLowerCase()}`, tagFirst: true }
       if (tile === front) return { ...tile, tag: `Horizon : ${figures.horizon.toLowerCase()}`, tagAt: 'base' as const }
+      if (tile === side && volatility) return { ...tile, tag: `Volatilité max : ${volatility}` }
       return tile
     })
-    return { tiles: tagged, reading: `${reading} (risque ${figures.risk_tolerance.toLowerCase()}, horizon ${figures.horizon.toLowerCase()})` }
+    const limit = volatility ? `, volatilité max ${volatility}` : ''
+    return {
+      tiles: tagged,
+      reading: `${reading} (risque ${figures.risk_tolerance.toLowerCase()}, horizon ${figures.horizon.toLowerCase()}${limit})`,
+    }
   }
   return { tiles, reading }
 }
