@@ -301,6 +301,7 @@ export const PROFILE_QUERY_KEYS = {
   fitBatch: (personaId: string, tickers: string[]) =>
     [...PROFILE_QUERY_KEYS.all, 'fit-batch', personaId, tickers.join(',')] as const,
   hype: (ticker: string) => [...PROFILE_QUERY_KEYS.all, 'hype', ticker] as const,
+  hypeMedia: (ticker: string) => [...PROFILE_QUERY_KEYS.all, 'hype-media', ticker] as const,
   hypeBatch: (tickers: string[]) => [...PROFILE_QUERY_KEYS.all, 'hype-batch', tickers.join(',')] as const,
   esg: (ticker: string) => [...PROFILE_QUERY_KEYS.all, 'esg', ticker] as const,
   portfolio: (body: PortfolioAnalyzeRequest) =>
@@ -348,13 +349,24 @@ export function fitByTicker(batch: FitBatch | undefined): Record<string, FitResu
   return Object.fromEntries((batch?.items ?? []).map((item) => [item.ticker, item]))
 }
 
-/** Hype signal of one title, with news attention (GDELT, or Yahoo headlines as a fallback). */
+/** Fast trend signal of one title: price and volume first, media attention follows separately. */
 export function useHype(ticker: string) {
   return useQuery<HypeSignal, ApiError>({
     queryKey: PROFILE_QUERY_KEYS.hype(ticker),
     queryFn: () => apiClient.request<HypeSignal>(`/api/hype/${encodeURIComponent(ticker)}`),
     enabled: Boolean(ticker),
     staleTime: 10 * MINUTE,
+  })
+}
+
+/** Slow media component of a title's trend, deliberately fetched after prices and volumes render. */
+export function useHypeMedia(ticker: string, enabled: boolean) {
+  return useQuery<HypeSignal, ApiError>({
+    queryKey: PROFILE_QUERY_KEYS.hypeMedia(ticker),
+    queryFn: () => apiClient.request<HypeSignal>(`/api/hype/${encodeURIComponent(ticker)}/media`),
+    enabled: Boolean(ticker) && enabled,
+    staleTime: 10 * MINUTE,
+    retry: false,
   })
 }
 

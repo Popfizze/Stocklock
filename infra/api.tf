@@ -111,6 +111,25 @@ resource "aws_cloudwatch_log_group" "api" {
   retention_in_days = 14
 }
 
+# The API emits one JSON `http_request` log per response. This filter preserves endpoint-level
+# latency in CloudWatch Metrics without adding telemetry work to the user-facing request.
+resource "aws_cloudwatch_log_metric_filter" "api_request_duration" {
+  name           = "${local.api_function_name}-request-duration"
+  log_group_name = aws_cloudwatch_log_group.api.name
+  pattern        = "{ $.event = \"http_request\" && $.duration_ms = * }"
+
+  metric_transformation {
+    name      = "RequestDurationMs"
+    namespace = "StockLock/API"
+    value     = "$.duration_ms"
+    unit      = "Milliseconds"
+    dimensions = {
+      Endpoint = "$.endpoint"
+      Status   = "$.status"
+    }
+  }
+}
+
 resource "aws_lambda_function" "api" {
   function_name = local.api_function_name
   description   = "StockLock FastAPI backend"

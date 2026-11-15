@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useHype, type FitResult, type HypeComponentId } from '@/api/persona'
+import { useHype, useHypeMedia, type FitResult, type HypeComponentId } from '@/api/persona'
 import { HYPE_RULES, reasonsFor } from './fitMeta'
 import { StockBias } from './StockBias'
 import { StockHype } from './StockHype'
@@ -19,6 +19,9 @@ interface StockReculProps {
  */
 export function StockRecul({ ticker, personaName, fit }: StockReculProps) {
   const hype = useHype(ticker)
+  // The fast endpoint deliberately leaves media empty.  This guard also lets cached/full fixtures
+  // keep working without an unnecessary second request.
+  const media = useHypeMedia(ticker, hype.data?.news_source === null)
   // What the investor points at in the hype field: it words the intention examined below.
   const [picked, setPicked] = useState<HypeComponentId | null>(null)
 
@@ -31,9 +34,10 @@ export function StockRecul({ ticker, personaName, fit }: StockReculProps) {
       description="Le titre est-il emporté par un engouement, et votre envie d’agir tient-elle à l’émotion du moment ? Le signal d’abord, votre décision ensuite."
     >
       <StockHype
-        hype={hype.data}
+        hype={media.data ?? hype.data}
         error={hype.error}
         isPending={hype.isPending}
+        isMediaPending={media.isPending}
         onRetry={() => hype.refetch()}
         personaName={personaName}
         reasons={reasonsFor(fit, HYPE_RULES)}

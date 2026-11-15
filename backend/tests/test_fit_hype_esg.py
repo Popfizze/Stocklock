@@ -48,7 +48,8 @@ def test_fit_of_one_title_for_robert_is_out_of_profile_with_its_numbers(market, 
                      "value": body["volatility_1y"], "limit": 0.25}
     assert body["esg"]["risk_label"] == "Risque ESG faible (10 à 15)"
     assert body["esg"]["controversy_level"] == 2
-    assert body["hype"]["news_source"] == "gdelt" and body["hype"]["level"] == "faible"
+    assert body["hype"]["news_source"] is None and body["hype"]["level"] == "faible"
+    assert body["hype"]["components"][2]["message"] == "Couverture médiatique en cours de vérification."
 
 
 def test_the_same_title_is_compatible_for_amira(market, client):
@@ -71,15 +72,15 @@ def test_robert_tempted_by_a_hyped_stock_gets_a_high_hype_warning(market, client
     market(gdelt_counts={"HYPD": [5.0] * 83 + [20.0] * 7})
     body = client.get("/api/fit/HYPD", params={"persona": "robert"}).json()
     signal = body["hype"]
-    assert signal["level"] == "eleve" and signal["points"] == 6
-    assert [c["points"] for c in signal["components"]] == [2, 2, 2]
+    assert signal["level"] == "eleve" and signal["points"] == 4
+    assert [c["points"] for c in signal["components"]] == [2, 2, None]
     assert signal["components"][0]["ratio"] == pytest.approx(5.2 / 1.5)
     assert "5 séances" in signal["components"][1]["message"]
-    assert signal["components"][2]["ratio"] == pytest.approx(4.0)
-    assert len(signal["reasons"]) == 3
+    assert signal["components"][2]["ratio"] is None
+    assert len(signal["reasons"]) == 2
     hype_reason = next(r for r in body["reasons"] if r["rule"] == "hype")
     assert hype_reason["severity"] == "attention" and "3 à 5 ans" in hype_reason["message"]
-    assert "battage élevé" in body["summary"]
+    assert "tendance élevée" in body["summary"]
 
 
 def test_batch_keeps_the_order_reports_missing_symbols_and_costs_few_requests(market, client):
@@ -130,6 +131,25 @@ def test_fit_errors(market, client):
                                          "tickers": [f"T{i}" for i in range(101)]}).status_code == 422
 
 
+def test_fit_and_fast_hype_share_one_market_snapshot(market, client, monkeypatch):
+    """The two stock-page requests can start together without duplicating quote/history work."""
+    market()
+    calls = 0
+    original = hype.market_data
+
+    def counted(symbols):
+        nonlocal calls
+        calls += 1
+        return original(symbols)
+
+    monkeypatch.setattr(hype, "market_data", counted)
+    assert client.get("/api/fit/NVDA", params={"persona": "amira"}).status_code == 200
+    fast = client.get("/api/hype/NVDA")
+    assert fast.status_code == 200
+    assert fast.json()["news_source"] is None
+    assert calls == 1
+
+
 def test_quotes_down_is_503(monkeypatch, client):
     fakes.install(monkeypatch)
     monkeypatch.setattr(yf_market, "_get", lambda url, params: (_ for _ in ()).throw(
@@ -140,9 +160,17 @@ def test_quotes_down_is_503(monkeypatch, client):
 
 # --- Hype ---------------------------------------------------------------------------------------------
 
+def test_fast_hype_defers_media_lookup(market, client):
+    calls = market(gdelt_counts={"AAPL": [30.0] * 90})
+    body = client.get("/api/hype/AAPL").json()
+    assert body["news_source"] is None
+    assert body["components"][2]["message"] == "Couverture médiatique en cours de vérification."
+    assert not [call for call in calls if call[0] == "gdelt"]
+
+
 def test_a_quiet_title_has_a_low_hype(market, client):
     market(gdelt_counts={"AAPL": [30.0] * 90})
-    body = client.get("/api/hype/AAPL").json()
+    body = client.get("/api/hype/AAPL/media").json()
     assert body["level"] == "faible" and body["points"] == 0 and body["reasons"] == []
     assert body["volume_avg_3m"] == 1e6 and body["return_1m"] is not None
     assert body["components"][2]["message"].startswith("Articles GDELT des 7 derniers jours")
@@ -150,7 +178,7 @@ def test_a_quiet_title_has_a_low_hype(market, client):
 
 def test_yahoo_headlines_replace_gdelt_when_it_refuses(market, client):
     market(news={"AAPL": fakes.headlines({0: 6, 1: 6, 3: 1, 5: 1, 8: 1, 10: 1})})
-    news = client.get("/api/hype/AAPL").json()["components"][2]
+    news = client.get("/api/hype/AAPL/media").json()["components"][2]
     assert news["points"] == 1  # at most one point from Yahoo
     assert news["ratio"] == pytest.approx(6 / (4 / 9))
     assert "GDELT : limite de débit atteinte" in news["message"]
@@ -158,7 +186,7 @@ def test_yahoo_headlines_replace_gdelt_when_it_refuses(market, client):
 
 def test_a_dense_yahoo_list_is_reported_without_points(market, client):
     market(news={"NVDA": fakes.headlines({0: 30, 1: 20})})
-    body = client.get("/api/hype/NVDA").json()
+    body = client.get("/api/hype/NVDA/media").json()
     news = body["components"][2]
     assert news["points"] is None and "50 articles en 2 jour(s)" in news["message"]
     assert body["news_source"] == "yahoo"

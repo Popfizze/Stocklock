@@ -5,7 +5,7 @@ hundred dashboard cards cost a handful of requests:
 - identity and volumes: Yahoo v7 quotes (50 per request, cached 5 min);
 - one-year volatility and one-month return: one year of daily closes (spark, 20 per request, 6 h);
 - sector, ESG risk band and controversy level: Yahoo's screener facts (app.data.yf_facts, 7 days);
-- hype: app.services.hype (news attention live for one title, from the GDELT cache in a batch).
+- hype: app.services.hype (price/volume trend immediately; media attention is completed separately for one title).
 """
 
 from __future__ import annotations
@@ -38,9 +38,15 @@ def screener_facts(symbols: list[str]) -> dict[str, dict[str, Any]]:
 def evaluate(persona: dict[str, Any], symbols: list[str], *, single: bool = False) -> dict[str, Any]:
     """{"persona_id", "items": [FitResult...] in the requested order, "missing": [...]}.
 
-    `single`: one stock page; news attention is fetched live and the sector falls back on Yahoo's profile.
+    `single`: one stock page; media attention is deferred and the sector falls back on Yahoo's profile.
     Raises ExternalUnavailable when Yahoo's quotes cannot be reached at all."""
-    quotes, metrics = hype.market_data(symbols)
+    if single:
+        snapshot = hype.market_data_one(symbols[0])
+        quotes, metrics = (
+            ({symbols[0]: snapshot[0]}, {symbols[0]: snapshot[1]}) if snapshot else ({}, {})
+        )
+    else:
+        quotes, metrics = hype.market_data(symbols)
     present = [s for s in symbols if s in quotes]
     facts = screener_facts([s for s in present if asset_class(quotes[s]) == "equity"])
     c = persona["constraints"]
@@ -52,7 +58,10 @@ def evaluate(persona: dict[str, Any], symbols: list[str], *, single: bool = Fals
         if sector is None and single and kind == "equity":
             sector = yf_market.profile(symbol).get("sector")  # one title: Yahoo's profile (cached 7 days)
         scores = esg.scores_from_facts(facts.get(symbol))
-        signal = hype.build(symbol, quote, m, hype.news_attention(symbol, quote.get("name") or symbol, live=single))
+        signal = hype.build(
+            symbol, quote, m,
+            hype.deferred_news() if single else hype.news_attention(symbol, quote.get("name") or symbol, live=False),
+        )
         reasons = profile.checks(persona, {"ticker": symbol, "asset_class": kind, "sector": sector},
                                  m["volatility_1y"], scores, signal)
         items.append({"ticker": symbol, "name": quote.get("name") or symbol, "persona_id": persona["id"],

@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.config import get_settings
 from app.data import crawler, gdelt, http, universe, yf_fundamentals, yf_live, yf_market
 from app.data.cache import ExternalUnavailable
-from app.services import moves_cache, narration, score_table
+from app.services import hype, moves_cache, narration, score_table
 
 
 @pytest.fixture(autouse=True)
@@ -20,6 +20,7 @@ def offline(monkeypatch, tmp_path):
     universe.reset()
     score_table.reset()
     moves_cache.reset()
+    hype.reset_market_snapshots()
     narration.reset_session()
     monkeypatch.setattr(moves_cache, "enabled", False)  # every request computes, unless a test turns it on
 
@@ -53,6 +54,7 @@ def offline(monkeypatch, tmp_path):
     get_settings.cache_clear()
     universe.reset()
     score_table.reset()
+    hype.reset_market_snapshots()
 
 
 @pytest.fixture

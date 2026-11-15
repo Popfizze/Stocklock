@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import math
 import re
+import time
 from datetime import datetime, timedelta, timezone
+from threading import Lock
 from typing import Any
 
 import numpy as np
@@ -41,9 +43,16 @@ GDELT_TIMEOUT_S = 3.5
 YAHOO_COUNT = 50
 YAHOO_RECENT_DAYS = 2
 YAHOO_MIN_SPAN = 4
+MARKET_SNAPSHOT_TTL_S = 5 * 60
 LABELS = {"volume": "Volume échangé", "run_up": "Hausse sur un mois", "news": "Attention médiatique"}
 SUFFIXES = re.compile(r"[,.]?\s+(inc|incorporated|corp|corporation|co|company|ltd|limited|plc|holdings?|group|"
                       r"sa|ag|nv|se|usd|class [a-z]|cl [a-z])\.?$", re.IGNORECASE)
+
+# One stock page asks both for the profile verdict and the detailed trend. Keep their Yahoo
+# price/volume computation shared within a warm API instance, including concurrent requests.
+_market_snapshots: dict[str, tuple[float, dict[str, Any], dict[str, Any]]] = {}
+_market_snapshot_locks: dict[str, Lock] = {}
+_market_snapshot_guard = Lock()
 
 
 def fr(value: float, digits: int = 1) -> str:
@@ -216,6 +225,12 @@ def news_attention(symbol: str, name: str, *, live: bool) -> dict[str, Any]:
                 "message": f"Attention médiatique non évaluée : GDELT ({reason}) et Yahoo ({exc.reason}) indisponibles."}
 
 
+def deferred_news() -> dict[str, Any]:
+    """Price and volume are ready; the UI asks the separate media endpoint to complete this component."""
+    return {"source": None, "ratio": None, "points": None, "coverage": None,
+            "message": "Couverture médiatique en cours de vérification."}
+
+
 def build(symbol: str, quote: dict[str, Any], metrics: dict[str, Any], news: dict[str, Any]) -> dict[str, Any]:
     news_component = {"id": "news", "label": LABELS["news"], "points": news["points"], "ratio": news["ratio"],
                       "message": news["message"]}
@@ -241,9 +256,55 @@ def market_data(symbols: list[str]) -> tuple[dict[str, dict[str, Any]], dict[str
     return quotes, {s: price_metrics(closes.get(s)) for s in quotes}
 
 
-def for_symbols(symbols: list[str], *, live_news: bool) -> dict[str, Any]:
+def market_data_one(symbol: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """One title's quote and metrics, shared by the profile and trend endpoints for five minutes."""
+    now = time.monotonic()
+    with _market_snapshot_guard:
+        cached = _market_snapshots.get(symbol)
+        if cached and cached[0] > now:
+            return cached[1], cached[2]
+        lock = _market_snapshot_locks.setdefault(symbol, Lock())
+    with lock:
+        now = time.monotonic()
+        with _market_snapshot_guard:
+            cached = _market_snapshots.get(symbol)
+            if cached and cached[0] > now:
+                return cached[1], cached[2]
+        quotes, metrics = market_data([symbol])
+        if symbol not in quotes:
+            return None
+        snapshot = (quotes[symbol], metrics[symbol])
+        with _market_snapshot_guard:
+            _market_snapshots[symbol] = (now + MARKET_SNAPSHOT_TTL_S, *snapshot)
+        return snapshot
+
+
+def reset_market_snapshots() -> None:
+    """Test helper: external-data fakes must never leak through the process cache."""
+    with _market_snapshot_guard:
+        _market_snapshots.clear()
+        _market_snapshot_locks.clear()
+
+
+def for_symbols(symbols: list[str], *, live_news: bool, defer_news: bool = False) -> dict[str, Any]:
     """{"items": [signal, ...] in the requested order, "missing": [...]}."""
-    quotes, metrics = market_data(symbols)
-    items = [build(s, quotes[s], metrics[s], news_attention(s, quotes[s].get("name") or s, live=live_news))
+    if len(symbols) == 1:
+        snapshot = market_data_one(symbols[0])
+        if snapshot is None:
+            return {"items": [], "missing": symbols}
+        quotes, metrics = {symbols[0]: snapshot[0]}, {symbols[0]: snapshot[1]}
+    else:
+        quotes, metrics = market_data(symbols)
+    items = [build(s, quotes[s], metrics[s], deferred_news() if defer_news else
+                   news_attention(s, quotes[s].get("name") or s, live=live_news))
              for s in symbols if s in quotes]
     return {"items": items, "missing": [s for s in symbols if s not in quotes]}
+
+
+def media_signal(symbol: str) -> dict[str, Any] | None:
+    """Completes one already-rendered trend with live media; this is intentionally allowed to wait."""
+    snapshot = market_data_one(symbol)
+    if snapshot is None:
+        return None
+    quote, metrics = snapshot
+    return build(symbol, quote, metrics, news_attention(symbol, quote.get("name") or symbol, live=True))

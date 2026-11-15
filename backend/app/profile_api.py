@@ -76,7 +76,7 @@ class PortfolioRequest(_Persona, ScoringChoice):
 
 @router.get("/fit/{ticker}")
 def fit_one(ticker: str, persona: str = Query(..., min_length=1, max_length=40)) -> dict[str, Any]:
-    """Verdict of one title for a profile, with its reasons, hype (news live) and ESG."""
+    """Verdict of one title for a profile; its media trend is completed separately after first paint."""
     symbol = _symbol(ticker)
     try:
         result = fit.evaluate(_persona(persona), [symbol], single=True)
@@ -97,11 +97,25 @@ def fit_batch(request: FitBatchRequest) -> dict[str, Any]:
         raise _unavailable(exc) from exc
 
 
-@router.get("/hype/{ticker}")
-def hype_one(ticker: str) -> dict[str, Any]:
+@router.get("/hype/{ticker}/media")
+def hype_media(ticker: str) -> dict[str, Any]:
+    """The slow media component of a trend, requested only after prices and volumes are on screen."""
     symbol = _symbol(ticker)
     try:
-        result = hype.for_symbols([symbol], live_news=True)
+        result = hype.media_signal(symbol)
+    except ExternalUnavailable as exc:
+        raise _unavailable(exc) from exc
+    if result is None:
+        raise HTTPException(status_code=404, detail=f"Aucun cours pour {symbol} chez Yahoo Finance.")
+    return result
+
+
+@router.get("/hype/{ticker}")
+def hype_one(ticker: str) -> dict[str, Any]:
+    """Fast trend from prices and volumes; media is loaded by /media after first paint."""
+    symbol = _symbol(ticker)
+    try:
+        result = hype.for_symbols([symbol], live_news=False, defer_news=True)
     except ExternalUnavailable as exc:
         raise _unavailable(exc) from exc
     if not result["items"]:

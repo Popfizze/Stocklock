@@ -5,6 +5,8 @@ Run from backend/: uvicorn app.main:app --reload --port 8000
 
 from __future__ import annotations
 
+import json
+import logging
 import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -34,6 +36,8 @@ from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabB
 from app.services import lab_groups, moves_cache, moves_view, narration
 
 settings = get_settings()
+log = logging.getLogger("stocklock.http")
+log.setLevel(logging.INFO)  # Lambda's default root logger is often WARNING; latency logs must reach CloudWatch.
 
 
 @asynccontextmanager
@@ -46,6 +50,28 @@ app = FastAPI(title="StockLock API", version="0.1.0", lifespan=lifespan,
               description="Assistant d'investissement agentique et auto-explicatif (simulation, données publiques).")
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_credentials=False,
                    allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def endpoint_timing(request: Any, call_next: Any) -> Any:
+    """One structured CloudWatch log per API call, with the matched endpoint and its duration."""
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = round((time.perf_counter() - started) * 1000, 1)
+        log.exception(json.dumps({"event": "http_request", "endpoint": request.url.path,
+                                  "method": request.method, "status": 500, "duration_ms": duration_ms}))
+        raise
+    duration_ms = round((time.perf_counter() - started) * 1000, 1)
+    route = request.scope.get("route")
+    endpoint = getattr(route, "path", request.url.path)
+    log.info(json.dumps({"event": "http_request", "endpoint": endpoint, "method": request.method,
+                         "status": response.status_code, "duration_ms": duration_ms}))
+    response.headers["Server-Timing"] = f"app;dur={duration_ms}"
+    return response
+
+
 app.include_router(accounts_router)
 app.include_router(scoring_router)  # POST /api/scores/reweight before the market's /api/scores/{ticker}
 app.include_router(market_router)

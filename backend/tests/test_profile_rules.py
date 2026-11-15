@@ -91,7 +91,7 @@ def test_high_hype_is_to_watch_with_a_horizon_warning_for_a_short_horizon():
     assert reason["severity"] == "attention" and reason["value"] == 4
     assert "volume échangé, hausse sur un mois" in reason["message"]
     assert "3 à 5 ans" in reason["message"]
-    assert profile.summary(ROBERT, robert) == "À surveiller pour Robert : battage élevé."
+    assert profile.summary(ROBERT, robert) == "À surveiller pour Robert : tendance élevée."
     amira = profile.checks(AMIRA, EQUITY, 0.2, None, hype("eleve", 4))
     assert "horizon" not in next(r for r in amira if r["rule"] == "hype")["message"]
     assert next(r for r in profile.checks(AMIRA, EQUITY, 0.2, None, hype("modere", 2))
@@ -105,5 +105,5 @@ def test_reasons_are_ordered_blocking_first_and_public_reasons_drop_the_short_la
     severities = [r["severity"] for r in reasons]
     assert severities == sorted(severities, key=profile.SEVERITY_ORDER.get)
     assert profile.summary(MATEO, reasons) == ("Hors profil pour Mateo : volatilité trop élevée ; secteur « Energy » "
-                                               "exclu ; controverse élevée ; risque ESG élevé ; battage élevé.")
+                                               "exclu ; controverse élevée ; risque ESG élevé ; tendance élevée.")
     assert set(profile.public(reasons)[0]) == {"rule", "severity", "message", "value", "limit"}

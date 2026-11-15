@@ -10,7 +10,7 @@ import { signedRatio } from './movesMeta'
 import { BlockError } from './StockSection'
 
 const LEVELS: HypeLevel[] = ['faible', 'modere', 'eleve']
-const LEVEL_NAMES: Record<HypeLevel, string> = { faible: 'faible', modere: 'modéré', eleve: 'élevé' }
+const LEVEL_NAMES: Record<HypeLevel, string> = { faible: 'faible', modere: 'modérée', eleve: 'élevée' }
 const NEWS_SOURCES: Record<NonNullable<HypeSignal['news_source']>, string> = {
   gdelt: 'couverture mondiale GDELT',
   yahoo: 'manchettes Yahoo Finance',
@@ -24,6 +24,8 @@ interface StockHypeProps {
   hype: HypeSignal | undefined
   error: ApiError | null
   isPending: boolean
+  /** Media starts only after price and volume have rendered, so it never blocks the signal. */
+  isMediaPending?: boolean
   onRetry: () => void
   personaName: string
   /** What the profile's verdict says about the hype, if anything. */
@@ -40,7 +42,7 @@ interface StockHypeProps {
  * profile. Pointing at a component (in the field, or with its button) hands
  * it to the bias analysis.
  */
-export function StockHype({ hype, error, isPending, onRetry, ...details }: StockHypeProps) {
+export function StockHype({ hype, error, isPending, isMediaPending = false, onRetry, ...details }: StockHypeProps) {
   return (
     <div className="space-y-4">
       <h3 className="text-xl">Signal de tendance</h3>
@@ -52,15 +54,15 @@ export function StockHype({ hype, error, isPending, onRetry, ...details }: Stock
       ) : error || !hype ? (
         error && <BlockError error={error} subject="Signal de tendance" onRetry={onRetry} />
       ) : (
-        <HypeDetails hype={hype} {...details} />
+        <HypeDetails hype={hype} isMediaPending={isMediaPending} {...details} />
       )}
     </div>
   )
 }
 
-type HypeDetailsProps = Pick<StockHypeProps, 'personaName' | 'reasons' | 'picked' | 'onPick'> & { hype: HypeSignal }
+type HypeDetailsProps = Pick<StockHypeProps, 'personaName' | 'reasons' | 'picked' | 'onPick' | 'isMediaPending'> & { hype: HypeSignal }
 
-function HypeDetails({ hype, personaName, reasons, picked, onPick }: HypeDetailsProps) {
+function HypeDetails({ hype, personaName, reasons, picked, onPick, isMediaPending = false }: HypeDetailsProps) {
   const reached = LEVELS.indexOf(hype.level)
   const figures: Array<{ label: string; value: string; tone?: string }> = [
     {
@@ -139,7 +141,7 @@ function HypeDetails({ hype, personaName, reasons, picked, onPick }: HypeDetails
         </div>
       )}
 
-      <MediaCoverage hype={hype} />
+      <MediaCoverage hype={hype} isMediaPending={isMediaPending} />
       <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
         La tendance décrit un contexte de marché observé. Elle ne permet pas de conclure que votre décision est
         impulsive : seul le message que vous choisissez d’analyser plus bas est examiné à cette fin.
@@ -148,14 +150,18 @@ function HypeDetails({ hype, personaName, reasons, picked, onPick }: HypeDetails
   )
 }
 
-function MediaCoverage({ hype }: { hype: HypeSignal }) {
+function MediaCoverage({ hype, isMediaPending }: { hype: HypeSignal; isMediaPending: boolean }) {
   const coverage = hype.news_coverage
   if (!coverage) {
     return (
       <p className="text-xs text-muted-foreground">
         {hype.as_of && `Données au ${formatLongDate(hype.as_of)} · `}
-        Attention médiatique : {hype.news_source ? NEWS_SOURCES[hype.news_source] : 'non évaluée'}. Le signal mesure
-        un emballement possible, pas la qualité de l’entreprise.
+        Attention médiatique : {isMediaPending
+          ? 'analyse en cours'
+          : hype.news_source
+            ? NEWS_SOURCES[hype.news_source]
+            : 'non évaluée'}.
+        {' '}Le signal mesure un emballement possible, pas la qualité de l’entreprise.
       </p>
     )
   }
