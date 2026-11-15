@@ -1,6 +1,7 @@
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from 'recharts'
 import type { BiasResult } from '@/api/bias'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
+import { DataSourceHint } from './DataSourceHint'
 
 const config: ChartConfig = {
   hold: { label: 'Conservation', color: 'var(--chart-1)' },
@@ -16,9 +17,15 @@ export function BiasSimulation({ simulation }: { simulation: BiasResult['simulat
   }
   return (
     <section className="space-y-3" aria-labelledby="simulation-heading">
-      <h4 id="simulation-heading" className="font-display text-lg font-medium">
-        Exemple historique : vendre ou conserver en 2022
-      </h4>
+      <div className="flex items-center gap-1.5">
+        <h4 id="simulation-heading" className="font-display text-lg font-medium">
+          Exemple historique : vendre ou conserver en 2022
+        </h4>
+        <DataSourceHint label="simulation historique" sourceTarget="bias-sources">
+          <p><strong>Cours :</strong> AlphaForge starter kit, <em>prices_daily.csv</em>.</p>
+          <p><strong>Après la vente :</strong> produit placé dans ZST.TO, avec le taux de change du jeu de données lorsque nécessaire.</p>
+        </DataSourceHint>
+      </div>
       <p className="text-sm text-muted-foreground">
         Simulation fictive, indépendante de votre intention actuelle. Pour {simulation.ticker},{' '}
         {money(simulation.initial)} investis le {simulation.start} ;

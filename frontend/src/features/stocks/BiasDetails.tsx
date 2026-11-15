@@ -3,6 +3,7 @@ import type { Persona } from '@/api/personas'
 import { BiasNarrative } from './BiasNarrative'
 import { BiasFeedback } from './BiasFeedback'
 import { BiasSimulation } from './BiasSimulation'
+import { DataSourceHint } from './DataSourceHint'
 
 const LABELS: Record<string, string> = {
   fomo: 'Peur de manquer',
@@ -33,6 +34,10 @@ interface BiasDetailsProps {
  */
 export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
   const { history } = result
+  const mediaWarning = result.warnings.find((warning) => warning.includes('GDELT'))
+  const priceSource = history?.source === 'yfinance'
+    ? 'Yahoo Finance, historique quotidien du titre.'
+    : 'AlphaForge starter kit, prices_daily.csv (données Yahoo Finance via yfinance).'
   return (
     <div className="space-y-6 border-t border-border pt-6" aria-live="polite">
       {result.warnings.length > 0 && (
@@ -68,7 +73,12 @@ export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
       </section>
 
       <section className="space-y-2">
-        <h4 className="font-display text-lg font-medium">Contexte du titre</h4>
+        <SectionHeading title="Contexte du titre" sources={result.analysis.sources}>
+          <p>
+            <strong>Prix et volumes de {ticker} :</strong> {history ? priceSource : 'historique insuffisant ou indisponible.'}
+          </p>
+          {mediaWarning && <p><strong>Couverture média :</strong> {mediaWarning}</p>}
+        </SectionHeading>
         {history ? (
           <div className="space-y-1 text-sm">
             <p>
@@ -101,7 +111,13 @@ export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
       </section>
 
       <section className="space-y-2">
-        <h4 className="font-display text-lg font-medium">Lien avec le profil de {persona.name}</h4>
+        <SectionHeading title={`Lien avec le profil de ${persona.name}`} sources={result.analysis.sources}>
+          <p>
+            <strong>Profil de démonstration :</strong> {persona.name} · horizon {persona.horizon.toLowerCase()} · tolérance au risque{' '}
+            {persona.risk_tolerance.toLowerCase()}.
+          </p>
+          <p>Les contraintes citées dans l’analyse proviennent de ce profil de démonstration, pas d’une situation financière réelle.</p>
+        </SectionHeading>
         <p className="text-sm">
           Horizon : <strong>{persona.horizon}</strong> · Tolérance au risque :{' '}
           <strong>{persona.risk_tolerance}</strong>.
@@ -129,7 +145,13 @@ export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
       </section>
 
       <section className="space-y-2">
-        <h4 className="font-display text-lg font-medium">Selon ton profil</h4>
+        <SectionHeading title="Selon ton profil" sources={result.analysis.sources}>
+          <p>
+            <strong>Faits utilisés :</strong> message saisi, historique de {ticker}, profil de démonstration et, si elle apparaît,
+            simulation historique.
+          </p>
+          <p>Les identifiants et liens complets sont disponibles dans « Sources, hypothèses et limites ».</p>
+        </SectionHeading>
         <BiasNarrative answer={result.analysis.answer} />
         {!result.analysis.governance.passed && (
           <p role="alert" className="text-sm text-destructive">
@@ -142,7 +164,7 @@ export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
 
       <BiasFeedback personaId={persona.id} ticker={ticker} />
 
-      <details className="text-sm">
+      <details id="bias-sources" className="text-sm">
         <summary className="cursor-pointer font-medium">Sources, hypothèses et limites</summary>
         <div className="mt-3 space-y-3">
           <div>
@@ -180,6 +202,28 @@ export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
           </div>
         </div>
       </details>
+    </div>
+  )
+}
+
+function SectionHeading({
+  title,
+  sources,
+  children,
+}: {
+  title: string
+  sources: BiasResult['analysis']['sources']
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-1.5">
+      <h4 className="font-display text-lg font-medium">{title}</h4>
+      <DataSourceHint label={title} sourceTarget="bias-sources">
+        {children}
+        {sources.length > 0 && (
+          <p><strong>Sources :</strong> {sources.slice(0, 3).map((source) => source.title).join(' · ')}.</p>
+        )}
+      </DataSourceHint>
     </div>
   )
 }

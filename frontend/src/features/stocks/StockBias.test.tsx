@@ -14,7 +14,11 @@ it('sends the selected title, active profile and message and shows a limited res
   const calls = mockFetchByUrl([
     { match: '/api/personas', responses: [json(PERSONAS)] },
     { match: '/api/bias/stock', responses: [json({
-      analysis: { answer: 'Analyse pour Robert\n\nVoici **un signal** [bedrock_classifier].\nSimulation éducative.', sources: [], assumptions: [], limits: [], governance: { passed: true, checks: [] } },
+      analysis: {
+        answer: 'Analyse pour Robert\n\nVoici **un signal** [bedrock_classifier].\nSimulation éducative.',
+        sources: [{ id: 'yfinance_history', title: 'Yahoo Finance — cours historiques NVDA', url: 'https://finance.yahoo.com/', as_of: '2026-11-12' }],
+        assumptions: [], limits: [], governance: { passed: true, checks: [] },
+      },
       signals: [{ category: 'panique', excerpt: 'tout vendre', method: 'lexique' }],
       profile_flags: [], history: null, hype: null, simulation: null, warnings: [],
     })] },
@@ -31,6 +35,8 @@ it('sends the selected title, active profile and message and shows a limited res
   expect(screen.getByRole('heading', { name: 'Lien avec le profil de Robert' })).toBeInTheDocument()
   expect(screen.getByText(/Préférences : Revenu stable/)).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Selon ton profil' })).toBeInTheDocument()
+  await userEvent.click(screen.getByRole('button', { name: 'Voir la source des données : Contexte du titre' }))
+  expect(await screen.findByText('Yahoo Finance — cours historiques NVDA')).toBeInTheDocument()
   expect(screen.getByText('un signal').tagName).toBe('STRONG')
   expect(screen.queryByText(/bedrock_classifier|Analyse pour Robert|\*\*/)).not.toBeInTheDocument()
   const helpful = screen.getByRole('button', { name: 'Cette analyse était pertinente' })
