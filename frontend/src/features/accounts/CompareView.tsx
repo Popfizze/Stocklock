@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { AccountId, TaxProfile, TaxRules } from '@/api/accounts'
 import { Skeleton } from '@/components/ui/skeleton'
+import { FeatureRelief } from './AccountScenes'
 import { FeatureMatrix } from './FeatureMatrix'
 import { IncomeTaxChart } from './IncomeTaxChart'
 import { IncomeTreatmentGrid } from './IncomeTreatmentGrid'
@@ -27,6 +28,7 @@ export function CompareView({ rules, level, accounts, profile }: CompareViewProp
           title="Ce que chaque compte permet"
           lead="Oui, non ou en partie : chaque ligne décrit une règle, pas une préférence."
         />
+        <FeatureRelief accounts={accounts} />
         <FeatureMatrix level={level} accounts={accounts} />
       </section>
 

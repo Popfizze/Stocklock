@@ -1,7 +1,9 @@
+import { useRef, useState } from 'react'
 import type { AccountId, TaxProfile, TaxRules } from '@/api/accounts'
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
 import { AccountDetail } from './AccountDetail'
 import { AccountLabel } from './AccountLabel'
+import { AccountBuildings } from './AccountScenes'
 import { accountGuides } from './content'
 import { FlowLanes } from './FlowLanes'
 import { didYouKnow, KEY_FACTS } from './learn'
@@ -19,6 +21,13 @@ interface JourneyViewProps {
 export function JourneyView({ rules, level, accounts, profile }: JourneyViewProps) {
   const guides = accountGuides(rules).filter((guide) => accounts.includes(guide.id))
   const sourceUrl = (id: string) => rules.sources.find((source) => source.id === id)?.url
+  // A building clicked on the scene opens that account's detail and brings it into view.
+  const [open, setOpen] = useState<string[]>([])
+  const detail = useRef<HTMLElement>(null)
+  const openAccount = (account: AccountId) => {
+    setOpen((current) => (current.includes(account) ? current : [...current, account]))
+    detail.current?.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+  }
 
   return (
     <div className="space-y-10">
@@ -28,6 +37,7 @@ export function JourneyView({ rules, level, accounts, profile }: JourneyViewProp
           title="Le parcours de l'argent"
           lead="Les comptes se distinguent par le moment où l'impôt s'applique : à l'entrée, pendant la croissance ou au retrait."
         />
+        <AccountBuildings rules={rules} level={level} accounts={accounts} profile={profile} onSelect={openAccount} />
         <FlowLanes rules={rules} level={level} accounts={accounts} profile={profile} />
       </section>
 
@@ -42,13 +52,13 @@ export function JourneyView({ rules, level, accounts, profile }: JourneyViewProp
         </ul>
       </section>
 
-      <section className="space-y-3" aria-labelledby="parcours-detail">
+      <section ref={detail} className="scroll-mt-40 space-y-3" aria-labelledby="parcours-detail">
         <SectionHeading
           id="parcours-detail"
           title="Chaque compte en détail"
           lead="Cliquez sur un compte pour voir comment il fonctionne."
         />
-        <Accordion type="multiple">
+        <Accordion type="multiple" value={open} onValueChange={setOpen}>
           {guides.map((guide) => (
             <AccordionItem key={guide.id} value={guide.id}>
               <AccordionTrigger>

@@ -63,6 +63,24 @@ describe('AccountsPage', () => {
     expect(screen.queryByText('Chaque retrait est imposé comme un salaire.')).not.toBeInTheDocument()
   })
 
+  it('draws each reading view in 3D too, with the same facts in its label', async () => {
+    renderAccounts()
+    // Le parcours: a building per account; the ceiling's figure stays out of the Simple level.
+    const buildings = await screen.findByRole('img', { name: /Les comptes en immeubles de trois étages/ })
+    expect(buildings).toHaveAccessibleName(/REER : quand on verse, réduit l'impôt \(avantage fiscal\).*quand on retire, imposé \(impôt ou perte\) ; plafond de cotisation/)
+    expect(buildings).toHaveAccessibleName(/Non enregistré : .*aucun plafond/)
+    expect(buildings.textContent).not.toMatch(/\$/)
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Côte à côte' }))
+    expect(await screen.findByRole('img', { name: /Ce que chaque compte permet, en relief.*CELI : 5 oui, 0 en partie ; REER : 4 oui, 1 en partie/ })).toBeInTheDocument()
+
+    // Par objectif: the scene follows the goal opened in the list, and never ranks the accounts.
+    await userEvent.click(screen.getByRole('radio', { name: 'Par objectif' }))
+    const paths = await screen.findByRole('img', { name: /Le chemin d'un objectif vers les comptes.*sans ordre de préférence : « Garder de l'argent disponible » mène à CELI/ })
+    await userEvent.click(screen.getByRole('button', { name: /Réduire l'impôt de l'année/ }))
+    expect(paths).toHaveAccessibleName(/« Réduire l'impôt de l'année » mène à CELI \(aucune déduction\), REER \(cotisation déductible\), CELIAPP/)
+  })
+
   it('adds explanations, then figures and sources, as the level of detail goes up', async () => {
     renderAccounts()
     await screen.findByRole('heading', { name: "Le parcours de l'argent" })

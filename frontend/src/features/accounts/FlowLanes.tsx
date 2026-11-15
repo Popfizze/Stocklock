@@ -2,6 +2,7 @@ import { ArrowDown, ChevronRight } from 'lucide-react'
 import type { AccountId, TaxProfile, TaxRules } from '@/api/accounts'
 import { cn } from '@/lib/utils'
 import { AccountLabel } from './AccountLabel'
+import { canOpen } from './sceneModel'
 import { FLOW_STEPS, journey, type FlowNode } from './comparison'
 import { ToneLegend } from './ToneLegend'
 import { TONES } from './tones'
@@ -82,13 +83,6 @@ function Step({ node, index, level }: { node: FlowNode; index: number; level: Le
       </div>
     </div>
   )
-}
-
-function canOpen(account: AccountId, profile: TaxProfile, rules: TaxRules): boolean {
-  if (account === 'CELIAPP') return profile.fhsa_eligible
-  if (account === 'CELI') return profile.age >= rules.tfsa.eligibility_age
-  if (account === 'REER') return profile.income > 0
-  return true
 }
 
 /** « Amira : admissible » — a fact about the active profile, not a suggestion. */
