@@ -30,7 +30,7 @@ CRAWL_BUDGET_S = 3.0   # 8-K exhibit indexes and pages, read side by side
 TOTAL_BUDGET_S = 15.0  # what the stock page waits for a first answer at most
 RETRY_S = 6.0          # a second narration (governance retry) with Haiku on a warm session
 POOL_WORKERS = 6
-MODEL_WORKERS = 6
+MODEL_WORKERS = 8
 
 SOURCES = {"edgar": "SEC EDGAR", "federal_register": "Federal Register", "news": "Yahoo Finance",
            "gdelt_title": gdelt.SOURCE, "gdelt_political": gdelt.SOURCE}
@@ -171,11 +171,14 @@ def parallel(fn: Callable[[T], R], chunks: Sequence[T]) -> list[tuple[R | None, 
     return [f.result() for f in [_MODEL_POOL.submit(one, c) for c in chunks]]
 
 
-def chunked(items: Sequence[T], size: int) -> list[list[T]]:
-    """`items` in consecutive chunks of at most `size`, balanced (10 by 4 → 4, 3, 3)."""
+def chunked(items: Sequence[T], size: int, most: int | None = None) -> list[list[T]]:
+    """`items` in consecutive chunks of at most `size`, balanced (10 by 4 → 4, 3, 3); with `most`, larger
+    chunks rather than more than `most` of them (one wave of parallel calls, not two)."""
     if not items:
         return []
     n = -(-len(items) // size)
+    if most:
+        n = min(n, most)
     base, extra = divmod(len(items), n)
     out, i = [], 0
     for k in range(n):

@@ -478,7 +478,7 @@ def digest(ctx: Context) -> None:
             for e in chunk]}
 
     model_id = narration.model_id_for(choice)
-    chunks = fetch.chunked(to_read, DIGEST_CHUNK)
+    chunks = fetch.chunked(to_read, DIGEST_CHUNK, fetch.MODEL_WORKERS)
     answers = fetch.parallel(lambda chunk: narration.digest_events(facts(chunk), choice), chunks)
     errors = [exc for _, exc in answers if exc is not None]
     items = [item for got, exc in answers if exc is None for item in got or []]

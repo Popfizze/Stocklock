@@ -180,6 +180,8 @@ def test_chunks_are_balanced_and_run_side_by_side():
     assert [len(c) for c in fetch.chunked(list(range(10)), 4)] == [4, 3, 3]
     assert [len(c) for c in fetch.chunked(list(range(3)), 4)] == [3]
     assert fetch.chunked([], 4) == []
+    assert [len(c) for c in fetch.chunked(list(range(22)), 3, most=8)] == [3, 3, 3, 3, 3, 3, 2, 2]
+    assert [len(c) for c in fetch.chunked(list(range(30)), 3, most=8)] == [4, 4, 4, 4, 4, 4, 3, 3]  # one wave
     t0 = time.perf_counter()
     out = fetch.parallel(lambda c: time.sleep(0.3) or (1 / c), [1, 2, 0])
     assert time.perf_counter() - t0 < 0.6
