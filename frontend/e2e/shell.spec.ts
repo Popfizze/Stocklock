@@ -146,8 +146,8 @@ test.describe('Sans WebGL', () => {
     await expect(blocks.locator('canvas')).toHaveCount(0)
     await expect(blocks.locator('svg text').filter({ hasText: 'PLTR' })).toBeVisible()
     // The information never lives in the scene alone.
-    await page.getByText('Tableau des titres : lire et modifier les poids au clavier').click()
-    await expect(page.getByLabel('Poids de PLTR')).toHaveValue('12')
+    await page.getByText('Liste des titres : lire et régler les poids au clavier').click()
+    await expect(page.getByRole('slider', { name: 'Poids de PLTR' })).toHaveAttribute('aria-valuenow', '12')
   })
 })
 
@@ -252,7 +252,7 @@ test.describe('Quand une partie de l’API échoue', () => {
     fail = true
     await openAs(page, 'robert', '/portefeuille')
     await expect(page.getByRole('alert')).toContainText('Analyse du portefeuille indisponible', { timeout: 15_000 })
-    await page.getByText('Tableau des titres : lire et modifier les poids au clavier').click()
-    await expect(page.getByLabel('Poids de PLTR')).toHaveValue('12')
+    await page.getByText('Liste des titres : lire et régler les poids au clavier').click()
+    await expect(page.getByRole('slider', { name: 'Poids de PLTR' })).toHaveAttribute('aria-valuenow', '12')
   })
 })

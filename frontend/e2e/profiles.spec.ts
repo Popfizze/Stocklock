@@ -1,4 +1,4 @@
-import { expect, nav, openAs, scene, test, type PersonaId } from './support/app'
+import { expect, nav, openAs, scene, test, type PersonaId, sceneTag } from './support/app'
 
 /** What each profile must find first on its dashboard: its own sections, read with its own limits. */
 const PROFILES: Array<{ id: PersonaId; name: string; firstSection: string; reason: RegExp; maxPosition: string }> = [
@@ -17,6 +17,11 @@ test.describe('Choisir un profil', () => {
       await expect(page.getByRole('button', { name: `Choisir le profil ${name}` })).toBeVisible()
       await expect(scene(page, new RegExp(`Profil de ${name} en tuiles`))).toBeVisible()
     }
+    // The sculptures carry their figures: the risk level on the tallest tile, the horizon at the foot.
+    const amira = scene(page, /Profil de Amira en tuiles.*risque élevée, horizon long terme/)
+    await expect(sceneTag(amira, 'Risque : élevée')).toBeVisible()
+    await expect(sceneTag(amira, 'Horizon : long terme')).toBeVisible()
+    await expect(sceneTag(scene(page, /Profil de Robert en tuiles/), 'Risque : faible')).toBeVisible()
   })
 
   for (const profile of PROFILES) {

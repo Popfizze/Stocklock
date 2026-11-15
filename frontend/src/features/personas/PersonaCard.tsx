@@ -11,7 +11,7 @@ interface PersonaCardProps {
 
 /** One profile. Clicking the card, its illustration or its arrow selects it. */
 export function PersonaCard({ persona, onChoose }: PersonaCardProps) {
-  const scene = personaScene(persona.id)
+  const scene = personaScene(persona.id, persona)
   return (
     <Card
       variant="interactive"
@@ -39,7 +39,7 @@ export function PersonaCard({ persona, onChoose }: PersonaCardProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-1 flex-col gap-5">
-        {/* 3D — the profile embodied: how tall, how even and how protected its tiles are tells its risk at a glance. */}
+        {/* 3D — the profile embodied: how tall, how even and how protected its tiles are tells its risk at a glance; its risk level and horizon are written on it. */}
         <Tile3D
           tiles={scene.tiles}
           motion="wave"

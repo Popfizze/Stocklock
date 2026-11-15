@@ -57,7 +57,8 @@ describe('ChoosePersonaPage', () => {
     mockFetch([json(PERSONAS)])
     renderPage()
 
-    await userEvent.click(await screen.findByRole('img', { name: /Profil de Robert en tuiles/ }))
+    // The sculpture says the profile's figures, and stays a way to choose it.
+    await userEvent.click(await screen.findByRole('img', { name: /Profil de Robert en tuiles.*\(risque faible, horizon court terme\)/ }))
 
     expect(await screen.findByText('Accueil')).toBeInTheDocument()
     expect(readStoredPersonaId()).toBe('robert')

@@ -2,7 +2,7 @@ import type { Locator, Page } from '@playwright/test'
 import { expect, openAs, scene, sceneTag, test } from './support/app'
 
 const blocks = (page: Page) => scene(page, /Le portefeuille en blocs/)
-const table = (page: Page) => page.getByText('Tableau des titres : lire et modifier les poids au clavier')
+const table = (page: Page) => page.getByText('Liste des titres : lire et régler les poids au clavier')
 const desk = (page: Page) => page.getByRole('region', { name: /Votre score, vos pondérations/ })
 
 /** The centre of a tile, found from the tag the engine writes just above it. */
@@ -41,11 +41,19 @@ test.describe('Mon portefeuille', () => {
     await expect(sceneTag(blocks(page), 'PLTR')).toBeVisible()
     await expect(page.getByRole('region', { name: 'Constats' })).toContainText('PLTR dépasse la position maximale du profil.')
 
-    // Keyboard equivalent of the drag: the table of holdings.
+    // Keyboard equivalent of the drag: the list of holdings.
     await table(page).click()
-    const weight = page.getByLabel('Poids de PLTR')
-    await expect(weight).toHaveValue('12')
-    await weight.fill('8')
+    // No number field: each title has a gauge of tiles that is a slider (arrow keys, − and +).
+    const weight = page.getByRole('slider', { name: 'Poids de PLTR' })
+    await expect(weight).toHaveAttribute('aria-valuenow', '12')
+    await expect(weight).toHaveAttribute('aria-valuetext', /^12, soit .* du portefeuille$/)
+    await weight.focus()
+    await page.keyboard.press('ArrowLeft')
+    await page.keyboard.press('ArrowLeft')
+    await page.getByRole('button', { name: 'Moins de poids pour PLTR' }).click()
+    await page.getByRole('button', { name: 'Moins de poids pour PLTR' }).click()
+    await expect(weight).toHaveAttribute('aria-valuenow', '8')
+    await expect(page.getByRole('spinbutton')).toHaveCount(0)
     await expect(page.getByText(/Total des poids saisis : 96/)).toBeVisible()
     // PLTR is back under the ceiling (the shares are renormalised: 8 of 96).
     await expect(blocks(page)).not.toHaveAccessibleName(/PLTR/)
@@ -100,15 +108,15 @@ test.describe('Mon portefeuille', () => {
     })
     await expect(page.getByRole('heading', { level: 2, name: 'Titres (3)' })).toBeVisible()
     await table(page).click()
-    const nvda = page.getByLabel('Poids de NVDA')
-    await expect(nvda).toHaveValue('20')
+    const nvda = page.getByRole('slider', { name: 'Poids de NVDA' })
+    await expect(nvda).toHaveAttribute('aria-valuenow', '20')
 
     // Up: the block grows and its weight follows.
     // (Retried: the scene is drawn in software here, and a drag started before its first frame is lost.)
     await expect(async () => {
       const start = await tileUnder(sceneTag(blocks(page), 'NVDA'))
       await drag(page, start, { x: start.x, y: start.y - 60 })
-      expect(Number(await nvda.inputValue())).toBeGreaterThan(22)
+      expect(Number(await nvda.getAttribute('aria-valuenow'))).toBeGreaterThan(22)
     }).toPass({ timeout: 25_000 })
 
     // A suggestion waiting at the edge, dragged a little: it joins the portfolio.

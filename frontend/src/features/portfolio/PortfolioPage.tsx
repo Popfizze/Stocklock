@@ -11,7 +11,7 @@ import { useDebouncedValue } from '@/hooks/use-debounced-value'
 import { cn } from '@/lib/utils'
 import { AddHolding } from './AddHolding'
 import { DiversificationView } from './DiversificationView'
-import { HoldingsTable } from './HoldingsTable'
+import { HoldingsList } from './HoldingsList'
 import { ScoreMixer } from './ScoreMixer'
 import {
   explainChange,
@@ -52,7 +52,7 @@ interface PortfolioViewProps {
 
 function PortfolioView({ personaId, persona }: PortfolioViewProps) {
   const [holdings, setHoldings] = useState<PortfolioHolding[]>(() => readPortfolio(personaId))
-  // The analysis waits for the typing to pause; the table itself follows every keystroke.
+  // The analysis waits for the changes to pause; the list itself follows every step.
   const settled = useDebouncedValue(holdings, 400)
   // The user's own score: six weights and the indicators switched off, kept per profile.
   const [setup, setSetup] = useState<ScoreSetup>(() => readScoreSetup(personaId))
@@ -137,13 +137,13 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
               onRemove={(ticker) => update(holdings.filter((holding) => holding.ticker !== ticker))}
               onAdd={handleAdd}
             />
-            {/* The same holdings as a table: the keyboard and screen-reader way to read and edit them. */}
+            {/* The same holdings as a list of tile sliders: the keyboard and screen-reader way to read and set them. */}
             <details className="rounded-3xl border border-border px-5 py-4">
               <summary className="cursor-pointer text-sm font-medium">
-                Tableau des titres : lire et modifier les poids au clavier
+                Liste des titres : lire et régler les poids au clavier
               </summary>
               <div className="pt-4">
-                <HoldingsTable
+                <HoldingsList
                   holdings={holdings}
                   analyzed={analyzed}
                   maxPosition={data?.diversification.max_position ?? null}

@@ -54,10 +54,30 @@ const SCENES: Record<string, { tiles: () => SceneTile[]; reading: string }> = {
   robert: { tiles: robert, reading: 'un socle large et des tuiles basses : préserver avant de faire croître' },
 }
 
-/** The tile composition that embodies an investor profile, and how to read it. */
-export function personaScene(personaId: string): { tiles: SceneTile[]; reading: string } {
+/** The figures a profile's sculpture carries, when the profile is known. */
+export interface PersonaFigures {
+  risk_tolerance: string
+  horizon: string
+}
+
+/**
+ * The tile composition that embodies an investor profile, and how to read it. With the profile's
+ * figures, two discreet tags are written on it: the risk level on its tallest tile, the horizon at its foot.
+ */
+export function personaScene(personaId: string, figures?: PersonaFigures): { tiles: SceneTile[]; reading: string } {
   const scene = SCENES[personaId]
-  return scene
-    ? { tiles: scene.tiles(), reading: scene.reading }
-    : { tiles: generic(personaId), reading: 'un bloc de tuiles propre à ce profil' }
+  const tiles = scene ? scene.tiles() : generic(personaId)
+  const reading = scene ? scene.reading : 'un bloc de tuiles propre à ce profil'
+  if (figures && tiles.length > 0) {
+    const top = (tile: SceneTile) => (tile.y ?? 0) + tile.h
+    const tallest = tiles.reduce((best, tile) => (top(tile) > top(best) ? tile : best))
+    const front = tiles.reduce((best, tile) => (tile.z - tile.x > best.z - best.x ? tile : best))
+    const tagged = tiles.map((tile) => {
+      if (tile === tallest) return { ...tile, tag: `Risque : ${figures.risk_tolerance.toLowerCase()}`, tagFirst: true }
+      if (tile === front) return { ...tile, tag: `Horizon : ${figures.horizon.toLowerCase()}`, tagAt: 'base' as const }
+      return tile
+    })
+    return { tiles: tagged, reading: `${reading} (risque ${figures.risk_tolerance.toLowerCase()}, horizon ${figures.horizon.toLowerCase()})` }
+  }
+  return { tiles, reading }
 }

@@ -39,7 +39,7 @@ describe('PortfolioPage', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Mon portefeuille' })).toBeInTheDocument()
     expect(await screen.findByText('Profil de Robert')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Titres (11)' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Poids de PLTR')).toHaveValue(12)
+    expect(screen.getByRole('slider', { name: 'Poids de PLTR' })).toHaveAttribute('aria-valuenow', '12')
     expect(screen.getByText(/Total des poids saisis : 100/)).toBeInTheDocument()
 
     // Findings, blocking first.
@@ -56,7 +56,8 @@ describe('PortfolioPage', () => {
     expect(screen.getByText(/Glissez un bloc vers le haut ou le bas/)).toBeInTheDocument()
 
     // Each holding: its share, volatility and fit for the profile.
-    const pltr = screen.getByRole('row', { name: /PLTR/ })
+    const holding = (ticker: string) => screen.getByRole('slider', { name: `Poids de ${ticker}` }).closest('li') as HTMLElement
+    const pltr = holding('PLTR')
     expect(pltr).toHaveTextContent('Palantir Technologies Inc.')
     expect(pltr).toHaveTextContent('12 %')
     expect(pltr).toHaveTextContent('max. 10 %')
@@ -65,7 +66,7 @@ describe('PortfolioPage', () => {
       'title',
       'Hors profil pour Robert : volatilité trop élevée ; battage médiatique élevé.',
     )
-    expect(within(screen.getByRole('row', { name: /RY\.TO/ })).getByText('Compatible')).toBeInTheDocument()
+    expect(within(holding('RY.TO')).getByText('Compatible')).toBeInTheDocument()
     expect(within(pltr).getByRole('link', { name: 'PLTR' })).toHaveAttribute('href', '/titres/PLTR')
   })
 
@@ -107,7 +108,7 @@ describe('PortfolioPage', () => {
 
     await userEvent.click(within(wm).getByRole('button', { name: 'Ajouter WM au portefeuille' }))
     expect(screen.getByRole('heading', { level: 2, name: 'Titres (12)' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Poids de WM')).toHaveValue(5)
+    expect(screen.getByRole('slider', { name: 'Poids de WM' })).toHaveAttribute('aria-valuenow', '5')
     expect(readPortfolio('robert').some((holding) => holding.ticker === 'WM')).toBe(true)
   })
 
@@ -115,9 +116,14 @@ describe('PortfolioPage', () => {
     const calls = renderPortfolio()
     await screen.findByRole('region', { name: 'Constats' })
 
-    const weight = screen.getByLabelText('Poids de PLTR')
-    await userEvent.clear(weight)
-    await userEvent.type(weight, '4')
+    // No field to type in: a gauge of tiles that is a slider — arrow keys, Page keys, − and +.
+    const weight = screen.getByRole('slider', { name: 'Poids de PLTR' })
+    weight.focus()
+    await userEvent.keyboard('{PageDown}{ArrowLeft}{ArrowLeft}')
+    expect(weight).toHaveAttribute('aria-valuenow', '5')
+    await userEvent.click(screen.getByRole('button', { name: 'Moins de poids pour PLTR' }))
+    expect(weight).toHaveAttribute('aria-valuenow', '4')
+    expect(screen.queryByRole('spinbutton')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Retirer KO' }))
 
     expect(screen.getByRole('heading', { level: 2, name: 'Titres (10)' })).toBeInTheDocument()
@@ -138,7 +144,7 @@ describe('PortfolioPage', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /Revenir à l'exemple/ }))
     expect(screen.getByRole('heading', { level: 2, name: 'Titres (11)' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Poids de PLTR')).toHaveValue(12)
+    expect(screen.getByRole('slider', { name: 'Poids de PLTR' })).toHaveAttribute('aria-valuenow', '12')
   })
 
   it('adds a title from the search, leaving out the ones already held', async () => {
@@ -151,7 +157,7 @@ describe('PortfolioPage', () => {
     expect(results.queryByRole('button', { name: 'Ajouter RY.TO' })).not.toBeInTheDocument()
     await userEvent.click(results.getByRole('button', { name: 'Ajouter RYN' }))
 
-    expect(screen.getByLabelText('Poids de RYN')).toHaveValue(5)
+    expect(screen.getByRole('slider', { name: 'Poids de RYN' })).toHaveAttribute('aria-valuenow', '5')
     expect(screen.getByRole('searchbox', { name: 'Ajouter un titre au portefeuille' })).toHaveValue('')
   })
 
@@ -225,7 +231,7 @@ describe('PortfolioPage', () => {
 
     expect(await screen.findByText('Profil de Amira')).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Titres (2)' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Poids de BTC-USD')).toHaveValue(40)
+    expect(screen.getByRole('slider', { name: 'Poids de BTC-USD' })).toHaveAttribute('aria-valuenow', '40')
     await screen.findByRole('region', { name: 'Constats' })
     expect(analyzeBodies(calls)[0].persona_id).toBe('amira')
   })
@@ -236,6 +242,6 @@ describe('PortfolioPage', () => {
     expect(await screen.findByRole('alert', undefined, { timeout: 4000 })).toHaveTextContent(
       'Analyse du portefeuille indisponible : Yahoo Finance indisponible : limite de débit',
     )
-    expect(screen.getByLabelText('Poids de PLTR')).toHaveValue(12)
+    expect(screen.getByRole('slider', { name: 'Poids de PLTR' })).toHaveAttribute('aria-valuenow', '12')
   })
 })
