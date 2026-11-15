@@ -78,7 +78,7 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
           </ul>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              {items.length} titres · {section.source}
+              {items.length} titre{items.length > 1 ? 's' : ''} · {section.source}
               {data.as_of ? ` · au ${formatLongDate(data.as_of)}` : ''}
             </p>
             {canShowMore && (

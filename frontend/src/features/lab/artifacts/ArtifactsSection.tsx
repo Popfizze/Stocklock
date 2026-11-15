@@ -16,11 +16,13 @@ interface ArtifactsSectionProps {
   /** The stage whose elements are shown (`null`: all of them). */
   stage: string | null
   onStage: (stageId: string | null) => void
+  /** The run is still going: its elements keep arriving. */
+  live?: boolean
 }
 
 /** « Éléments générés » : everything the run wrote, each one summarized, then opened as a paginated grid. */
-export function ArtifactsSection({ runId, stageNames, stage, onStage }: ArtifactsSectionProps) {
-  const artifacts = useRunArtifacts(runId)
+export function ArtifactsSection({ runId, stageNames, stage, onStage, live = false }: ArtifactsSectionProps) {
+  const artifacts = useRunArtifacts(runId, live)
   const [openId, setOpenId] = useState<string | null>(null)
 
   if (artifacts.isPending) {
@@ -38,13 +40,19 @@ export function ArtifactsSection({ runId, stageNames, stage, onStage }: Artifact
     )
   }
   const all = artifacts.data.artifacts
-  if (all.length === 0) return <p className="text-muted-foreground">Ce run n'a encore rien écrit.</p>
+  if (all.length === 0) {
+    return (
+      <p className="text-muted-foreground">
+        {live ? "L'exécution n'a encore rien écrit : ses éléments apparaîtront ici au fil des étapes." : "Cette exécution n'a rien écrit."}
+      </p>
+    )
+  }
 
   const stages = artifactStages(all)
   const key = (stageId: string | null) => stageId ?? RUN_LEVEL
   const shown = stage === null ? all : all.filter((artifact) => key(artifact.stage_id) === stage)
   const opened = shown.find((artifact) => artifact.id === openId)
-  const name = (stageId: string | null) => (stageId === null ? 'Run' : (stageNames[stageId] ?? stageId))
+  const name = (stageId: string | null) => (stageId === null ? 'Exécution' : (stageNames[stageId] ?? stageId))
 
   return (
     <div className="space-y-5">
@@ -73,7 +81,7 @@ export function ArtifactsSection({ runId, stageNames, stage, onStage }: Artifact
 
       <ul aria-label="Éléments générés" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {shown.map((artifact) => (
-          <li key={artifact.id}>
+          <li key={artifact.id} className="min-w-0">
             <ArtifactCard
               runId={runId}
               artifact={artifact}

@@ -70,6 +70,7 @@ export function overviewTiles(row: ScoreRow, personal?: ReweightedRow): SceneTil
       h: missing ? FLAT : Math.max(FLAT, (subScore.score ?? 0) * UNIT),
       tone: missing ? 7 : toneOf(index),
       tag: `${SUB_SCORE_SHORT[subScore.id] ?? subScore.label}\n${missing ? 'n. d.' : formatScore(subScore.score ?? 0)}`,
+      tagShort: missing ? 'n. d.' : formatScore(subScore.score ?? 0),
       label: missing
         ? `${subScore.label} · non disponible`
         : `${subScore.label} · ${formatScore(subScore.score ?? 0)} / 100 · poids ${formatWeight(subScore.effective_weight)} · +${formatPoints(subScore.contribution)} pts`,

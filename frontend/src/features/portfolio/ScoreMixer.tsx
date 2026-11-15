@@ -58,6 +58,7 @@ export function ScoreMixer({ setup, settled, onChange, explanation, scored }: Sc
     label: `${SUB_SCORE_LABELS[id]} · ${WEIGHT.format(weights[id])} %`,
     // Each column carries its own name and weight: nothing to line up with the list below.
     tag: `${SUB_SCORE_SHORT[id]}\n${WEIGHT.format(weights[id])} %`,
+    tagShort: `${WEIGHT.format(weights[id])} %`,
   }))
 
   const change = (id: SubScoreId, value: number) => {

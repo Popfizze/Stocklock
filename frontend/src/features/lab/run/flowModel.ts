@@ -20,11 +20,11 @@ export const COLUMN_LABELS: Record<FlowColumn, string> = {
 }
 
 export const COLUMN_HINTS: Record<FlowColumn, string> = {
-  entrees: 'Paramètres du run',
+  entrees: 'Paramètres de l’exécution',
   bronze: 'Données brutes',
   silver: 'Données nettoyées',
   gold: 'Résultat calculé',
-  sortie: 'Ce que le run produit',
+  sortie: 'Ce que l’exécution produit',
 }
 
 export type FlowStatus = 'idle' | 'pending' | 'running' | 'ok' | 'warning' | 'error' | 'skipped'

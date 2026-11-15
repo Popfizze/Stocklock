@@ -38,17 +38,17 @@ describe('ComparePage', () => {
     const user = userEvent.setup()
     renderCompare(`/labo/comparer?a=${RUN_DETAIL_LAB.run_id}&b=other-run`)
 
-    expect(await screen.findByRole('link', { name: /Run A.*SHOP\.TO/ })).toHaveAttribute('href', `/labo/executions/${RUN_DETAIL_LAB.run_id}`)
-    expect(screen.getByRole('link', { name: /Run B.*fenêtre 1 an/ })).toHaveAttribute('href', '/labo/executions/other-run')
-    expect(screen.getByRole('img', { name: /Comparaison 3D des mesures communes aux deux runs \(Durée \(s\), Score\)/ })).toBeInTheDocument()
-    expect(screen.getByText('2 différences entre ces deux runs.')).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /Exécution A.*SHOP\.TO/ })).toHaveAttribute('href', `/labo/executions/${RUN_DETAIL_LAB.run_id}`)
+    expect(screen.getByRole('link', { name: /Exécution B.*fenêtre 1 an/ })).toHaveAttribute('href', '/labo/executions/other-run')
+    expect(screen.getByRole('img', { name: /Comparaison 3D des mesures communes aux deux exécutions \(Durée \(s\), Score\)/ })).toBeInTheDocument()
+    expect(screen.getByText('2 différences entre ces deux exécutions.')).toBeInTheDocument()
 
     const params = within(screen.getByRole('region', { name: 'Paramètres' }))
     expect(params.getAllByRole('listitem')).toHaveLength(1)
     expect(params.getByRole('listitem')).toHaveTextContent('option fetch.windowA5yB1y')
     const results = within(screen.getByRole('region', { name: 'Résultats' }))
     expect(results.getByRole('listitem')).toHaveTextContent('ScoreA72B64')
-    expect(await within(screen.getByRole('region', { name: 'Décisions' })).findByText('Identiques dans les deux runs.')).toBeInTheDocument()
+    expect(await within(screen.getByRole('region', { name: 'Décisions' })).findByText('Identiques dans les deux exécutions.')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Tout afficher' }))
     expect(params.getAllByRole('listitem').length).toBeGreaterThan(1)
@@ -57,6 +57,6 @@ describe('ComparePage', () => {
   it('asks for two existing runs', async () => {
     renderCompare('/labo/comparer?a=missing')
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Il faut deux runs existants pour comparer')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Il faut deux exécutions existantes pour comparer')
   })
 })

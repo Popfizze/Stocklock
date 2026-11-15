@@ -12,7 +12,7 @@ import { LaunchPage } from './LaunchPage'
 const ORIGINAL_FETCH = globalThis.fetch
 
 function Landed() {
-  return <p>Page du run {useParams().runId}</p>
+  return <p>Page de l’exécution {useParams().runId}</p>
 }
 
 interface Mocks {
@@ -76,9 +76,9 @@ describe('LaunchPage', () => {
     fireEvent.change(screen.getByRole('slider', { name: 'Articles par titre' }), { target: { value: '3' } })
     expect(screen.getByText('Modifié')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Lancer le run' }))
+    await user.click(screen.getByRole('button', { name: 'Lancer l’exécution' }))
 
-    expect(await screen.findByText(`Page du run ${SCORE_RUN_RUNNING.run_id}`)).toBeInTheDocument()
+    expect(await screen.findByText(`Page de l’exécution ${SCORE_RUN_RUNNING.run_id}`)).toBeInTheDocument()
     expect(bodyOf(calls, '/api/pipeline/score/runs')).toMatchObject({
       news_per_title: 3,
       group: { kind: 'section', id: 'canada-populaires', limit: 30 },
@@ -89,14 +89,14 @@ describe('LaunchPage', () => {
     renderLaunch('/labo/lancer', { scoreRuns: json(SCORE_RUN_LIST_RUNNING) })
 
     expect(await screen.findByRole('link', { name: "l'ouvrir" })).toHaveAttribute('href', '/labo/executions/20261115T110000Z-cc22dd')
-    expect(screen.getByRole('button', { name: 'Lancer le run' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Lancer l’exécution' })).toBeDisabled()
   })
 
   it('says when the score pipeline is not deployed', async () => {
     renderLaunch('/labo/lancer', { scoreRuns: json(SCORE_RUN_LIST_UNCONFIGURED) })
 
     expect(await screen.findByRole('note')).toHaveTextContent("n'est pas déployé sur ce serveur")
-    expect(screen.getByRole('button', { name: 'Lancer le run' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Lancer l’exécution' })).toBeDisabled()
   })
 
   it('runs a Labo step on the profile portfolio as a group, with the options chosen', async () => {
@@ -108,9 +108,9 @@ describe('LaunchPage', () => {
     expect(screen.getByRole('img', { name: /Convoyeur 3D du pipeline 1\. Score.*8 titres du groupe/ })).toBeInTheDocument()
 
     await user.click(screen.getByRole('radio', { name: '5 ans' }))
-    await user.click(screen.getByRole('button', { name: 'Lancer le run' }))
+    await user.click(screen.getByRole('button', { name: 'Lancer l’exécution' }))
 
-    expect(await screen.findByText('Page du run batch-1')).toBeInTheDocument()
+    expect(await screen.findByText('Page de l’exécution batch-1')).toBeInTheDocument()
     const body = bodyOf(calls, '/api/lab/run-batch')
     expect(body).toMatchObject({
       step: 'score',
@@ -133,9 +133,9 @@ describe('LaunchPage', () => {
     await user.click(await screen.findByRole('button', { name: 'Ajouter NVDA, NVIDIA Corporation' }))
     expect(screen.getByRole('button', { name: 'Retirer NVDA' })).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Lancer le run' }))
+    await user.click(screen.getByRole('button', { name: 'Lancer l’exécution' }))
 
-    expect(await screen.findByText('Page du run run-1')).toBeInTheDocument()
+    expect(await screen.findByText('Page de l’exécution run-1')).toBeInTheDocument()
     expect(bodyOf(calls, '/api/lab/run')).toMatchObject({ step: 'score', inputs: { ticker: 'NVDA' } })
   })
 
@@ -144,13 +144,13 @@ describe('LaunchPage', () => {
     const tooLarge = json({ detail: 'Groupe trop grand pour une exécution : environ 400 s estimées pour 8 titres, limite 240 s. Lancez 4 titres au plus avec ces options.' }, 422)
     const calls = renderLaunch('/labo/lancer?pipeline=score', { batch: [tooLarge, json(LAB_BATCH_RUN)] })
 
-    await user.click(await screen.findByRole('button', { name: 'Lancer le run' }))
+    await user.click(await screen.findByRole('button', { name: 'Lancer l’exécution' }))
     expect(await screen.findByRole('alert')).toHaveTextContent('Groupe trop grand')
     await user.click(screen.getByRole('button', { name: 'Réduire le groupe à 4 titres' }))
     expect(screen.getByText('4 titres')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Lancer le run' }))
-    await screen.findByText('Page du run batch-1')
+    await user.click(screen.getByRole('button', { name: 'Lancer l’exécution' }))
+    await screen.findByText('Page de l’exécution batch-1')
     const posts = calls.filter((call) => call.url.endsWith('/api/lab/run-batch'))
     expect((JSON.parse(String(posts[1].init.body)) as { group: { tickers: string[] } }).group.tickers).toHaveLength(4)
   })
@@ -161,7 +161,7 @@ describe('LaunchPage', () => {
 
     expect(await screen.findByRole('textbox', { name: 'Question' })).toHaveValue('Pourquoi ?')
     expect(screen.queryByRole('radiogroup', { name: 'Type de groupe' })).not.toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Lancer le run' }))
+    await user.click(screen.getByRole('button', { name: 'Lancer l’exécution' }))
 
     await waitFor(() => expect(bodyOf(calls, '/api/lab/run')).toMatchObject({ step: 'fluctuations', inputs: { question: 'Pourquoi ?' } }))
   })

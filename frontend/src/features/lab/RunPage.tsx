@@ -38,13 +38,13 @@ export function RunPage() {
           <RunBody key={view.id} view={view} />
         ) : isLoading ? (
           <p role="status" className="text-muted-foreground">
-            Chargement du run…
+            Chargement de l’exécution…
           </p>
         ) : (
           <p role="alert" className="text-destructive">
             {error?.status === 0
               ? 'Impossible de joindre le serveur. Vérifiez que le backend est démarré, puis rechargez la page.'
-              : `Ce run est introuvable (${runId}).`}
+              : `Cette exécution est introuvable (${runId}).`}
           </p>
         )}
       </div>
@@ -56,7 +56,7 @@ function Outcome({ view }: { view: RunView }) {
   if (view.kind === 'score') return <ScoreOutcome view={view} />
   if (view.kind === 'batch') return <GroupOutcome view={view} />
   if (view.registry?.result) return <LabOutcome result={view.registry.result} keyResult={view.registry.key_result} />
-  return <p className="text-muted-foreground">Ce run n'a pas produit de résultat.</p>
+  return <p className="text-muted-foreground">Cette exécution n'a pas produit de résultat.</p>
 }
 
 function RunBody({ view }: { view: RunView }) {
@@ -91,7 +91,7 @@ function RunBody({ view }: { view: RunView }) {
             </p>
             {view.parentId && (
               <p>
-                Titre d'un run de groupe —{' '}
+                Titre d’une exécution de groupe —{' '}
                 <Link to={runPath(view.parentId)} className="link">
                   ouvrir le groupe
                 </Link>
@@ -126,7 +126,7 @@ function RunBody({ view }: { view: RunView }) {
               selected={selected}
               onSelect={setSelected}
               onTraveller={(traveller) => traveller.runId && navigate(runPath(traveller.runId))}
-              name={`du run ${view.title}`}
+              name={`de l’exécution ${view.title}`}
             />
             <FlowBoard nodes={view.nodes} selected={selected} onSelect={setSelected} />
           </CardContent>
@@ -148,7 +148,13 @@ function RunBody({ view }: { view: RunView }) {
         <h2 id="elements" className="text-2xl">
           Éléments <em>générés</em>
         </h2>
-        <ArtifactsSection runId={view.id} stageNames={stageNames} stage={artifactStage} onStage={setArtifactStage} />
+        <ArtifactsSection
+          runId={view.id}
+          stageNames={stageNames}
+          stage={artifactStage}
+          onStage={setArtifactStage}
+          live={view.status === 'running'}
+        />
       </section>
     </>
   )

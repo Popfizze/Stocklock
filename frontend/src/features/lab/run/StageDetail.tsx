@@ -32,7 +32,7 @@ export function StageDetail({ view, stageId, onShowArtifacts }: StageDetailProps
       <div className="space-y-2">
         <h3 className="text-xl">{node?.label}</h3>
         <p className="text-muted-foreground">
-          Dans un run de groupe, chaque titre passe par cette étape dans son propre run : ouvrez un titre (une petite
+          Dans une exécution de groupe, chaque titre passe par cette étape dans son propre run : ouvrez un titre (une petite
           tuile du convoyeur, ou une ligne du résultat) pour voir ses décisions et ses données.
         </p>
       </div>

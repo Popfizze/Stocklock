@@ -100,7 +100,7 @@ export function LabLaunch({ step, personaId, portfolio, presetTickers, relaunch 
   return (
     <>
       {grouped ? (
-        <LaunchStep number={2} title="Le groupe de titres" hint="Le pipeline s'exécute sur chaque titre ; un seul titre donne un run simple.">
+        <LaunchStep number={2} title="Le groupe de titres" hint="Le pipeline s'exécute sur chaque titre ; un seul titre donne une exécution simple.">
           <GroupPicker
             kinds={['portfolio', 'section', 'sector', 'custom']}
             draft={draft}
@@ -134,7 +134,7 @@ export function LabLaunch({ step, personaId, portfolio, presetTickers, relaunch 
         >
           <Button type="button" size="lg" loading={pending} loadingText="Exécution…" disabled={problem !== null} onClick={launch}>
             <Play aria-hidden="true" data-icon="inline-start" />
-            Lancer le run
+            Lancer l’exécution
           </Button>
           {problem && <p className="text-sm text-muted-foreground">{problem}</p>}
           {pending && grouped && size > 1 && (

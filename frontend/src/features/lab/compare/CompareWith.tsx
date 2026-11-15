@@ -27,7 +27,7 @@ export function CompareWith({ view }: { view: RunView }) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="max-h-80 w-80 overflow-y-auto">
-        <DropdownMenuLabel>Runs récents du même pipeline</DropdownMenuLabel>
+        <DropdownMenuLabel>Exécutions récentes du même pipeline</DropdownMenuLabel>
         {others.map((run) => (
           <DropdownMenuItem key={run.run_id} asChild>
             <Link to={comparePath(view.id, run.run_id)} className="flex flex-col items-start gap-0.5">

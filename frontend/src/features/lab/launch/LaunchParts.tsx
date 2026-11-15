@@ -38,7 +38,7 @@ export function LaunchStage({ name, nodes, travellers, summary, running, childre
       <CardContent className="space-y-5">
         <RunConveyor nodes={nodes} travellers={travellers} name={name} className="h-44 sm:h-56" />
         <p className="font-display text-xl" aria-live="polite">
-          {running ? 'Run en cours — les titres traversent les étapes. Le résultat s’ouvrira dès la fin.' : summary}
+          {running ? 'Exécution en cours — les titres traversent les étapes. Le résultat s’ouvrira dès la fin.' : summary}
         </p>
         <div className="flex flex-wrap items-center gap-4">{children}</div>
       </CardContent>

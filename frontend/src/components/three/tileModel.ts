@@ -26,6 +26,10 @@ export interface SceneTile {
    * scene readable without pointing. A tag that would cover an earlier one is left out, in tile order.
    */
   tag?: string
+  /** A shorter tag for narrow scenes (a phone), where the full one would not fit next to its neighbours. */
+  tagShort?: string
+  /** Places this tag before the others, so it is the one kept when tags would overlap (the tile to notice). */
+  tagFirst?: boolean
   /** Where the tag sits: above the tile (default) or under its front edge. */
   tagAt?: 'top' | 'base'
   /** Opaque key handed back by `onSelect`. */
@@ -67,9 +71,9 @@ export interface TileSceneProps {
   onAdjust?: (tile: SceneTile, delta: number) => void
   /**
    * Called when a dragged tile is let go: `outside` when the pointer left the scene (the tile
-   * was dragged out), `distance` in pixels from where the drag started.
+   * was dragged out) and `side` by which edge, `distance` in pixels from where the drag started.
    */
-  onDrop?: (tile: SceneTile, drop: { outside: boolean; distance: number }) => void
+  onDrop?: (tile: SceneTile, drop: { outside: boolean; side: 'top' | 'bottom' | 'left' | 'right' | null; distance: number }) => void
 }
 
 /** The CSS variable each tone is painted with (resolved at run time, so dark mode follows). */

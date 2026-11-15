@@ -50,7 +50,7 @@ export function LaunchPage() {
         <PageHeader
           eyebrow="Labo"
           title="Lancer"
-          accent="un run"
+          accent="une exécution"
           description={`Sur un groupe de titres, pas titre par titre. Profil actif : ${persona?.name ?? '…'}.`}
         />
 

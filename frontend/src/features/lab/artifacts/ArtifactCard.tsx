@@ -34,14 +34,14 @@ export function ArtifactCard({ runId, artifact, stageName, open, onToggle }: Art
       aria-expanded={open}
       onClick={onToggle}
       className={cn(
-        'flex h-full w-full flex-col gap-3 rounded-3xl border border-border p-5 text-left outline-none transition-colors hover:border-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50',
+        'flex h-full w-full min-w-0 flex-col gap-3 overflow-hidden rounded-3xl border border-border p-5 text-left outline-none transition-colors hover:border-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50',
         open && 'border-foreground bg-secondary',
       )}
     >
       <span className="flex items-start justify-between gap-3">
         <span className="min-w-0">
-          <span className="eyebrow block truncate">{stageName ?? 'Run'}</span>
-          <span className="block font-display text-lg leading-tight break-words">{artifact.title}</span>
+          <span className="eyebrow block truncate">{stageName ?? 'Exécution'}</span>
+          <span className="block font-display text-lg leading-tight wrap-anywhere">{artifact.title}</span>
         </span>
         <svg
           aria-hidden="true"

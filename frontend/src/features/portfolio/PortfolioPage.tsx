@@ -115,6 +115,12 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
             parts sont ramenées à 100 %.
           </p>
         </div>
+        {/* Above the blocks: a result is dragged down onto them, both in view. */}
+        <AddHolding
+          held={holdings.map((holding) => holding.ticker)}
+          onAdd={handleAdd}
+          disabled={holdings.length >= MAX_HOLDINGS}
+        />
         {holdings.length === 0 ? (
           <p className="rounded-3xl border border-dashed border-border p-5 text-sm text-muted-foreground">
             Aucun titre : ajoutez-en un par la recherche, ou revenez à l'exemple du profil.
@@ -148,11 +154,6 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
             </details>
           </>
         )}
-        <AddHolding
-          held={holdings.map((holding) => holding.ticker)}
-          onAdd={handleAdd}
-          disabled={holdings.length >= MAX_HOLDINGS}
-        />
         {data && data.missing.length > 0 && (
           <p className="text-sm text-warning">
             Sans données chez Yahoo Finance, laissés hors de l'analyse : {data.missing.join(', ')}.

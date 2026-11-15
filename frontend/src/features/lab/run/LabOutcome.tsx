@@ -18,7 +18,7 @@ export function LabOutcome({ result, keyResult }: LabOutcomeProps) {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-xl">Résultat du run</h3>
+      <h3 className="text-xl">Résultat de l’exécution</h3>
       {keyResult && keyResult.value !== null && (
         <p>
           <span className="eyebrow block">{keyResult.label}</span>

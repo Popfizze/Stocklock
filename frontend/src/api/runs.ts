@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery, type InfiniteData } from '@tanstack/react-query'
+import { keepPreviousData, useInfiniteQuery, useQuery, type InfiniteData } from '@tanstack/react-query'
 import { apiClient, type ApiError } from './client'
 import type { LabBatchItemStatus, LabBatchResponse, LabBatchTable, LabCell, LabResult, LabScalar, LabStageResult } from './lab'
 import type { ScoreRunGroup, ScoreRunParams, ScoreRunStage, ScoreRunSummary } from './pipeline'
@@ -237,12 +237,16 @@ export function useRunStage(runId: string | null, stageId: string | null) {
 }
 
 /** Everything a run generated (Labo datasets and decisions, score pipeline files). */
-export function useRunArtifacts(runId: string | null) {
+export function useRunArtifacts(runId: string | null, live = false) {
   return useQuery<RunArtifactList, ApiError>({
-    queryKey: RUNS_QUERY_KEYS.artifacts(runId ?? ''),
+    // A run still going writes more files: its list is asked again while it runs, and once more when it
+    // ends (the key changes), so the page of a run followed live does not stay on « rien écrit ».
+    queryKey: [...RUNS_QUERY_KEYS.artifacts(runId ?? ''), live ? 'live' : 'final'],
     queryFn: () =>
       apiClient.request<RunArtifactList>(`/api/runs/${encodeURIComponent(runId ?? '')}/artifacts`),
     enabled: Boolean(runId),
+    placeholderData: keepPreviousData,
+    refetchInterval: live ? RUNS_POLL_MS : false,
   })
 }
 

@@ -23,6 +23,14 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: s
   )
 }
 
+/** Where the title's prices come from, as the analysis' own sources say: Yahoo's history, or the datathon's files. */
+function priceSource(result: StockMovesResult): string {
+  const live = result.analysis.sources.some((source) => source.id.startsWith('yfinance_history_'))
+  return live
+    ? 'cours quotidiens de Yahoo Finance (différés)'
+    : 'données du jeu du datathon, pas des cours en direct'
+}
+
 const ratioOrDash = (value: number | null) => (value === null ? '—' : signedRatio(value))
 const toneOf = (value: number | null) => (value === null ? undefined : TREND_TEXT[trendOf(value)])
 
@@ -40,7 +48,7 @@ function MovesResult({ result, persona }: { result: StockMovesResult; persona: P
         </dl>
         <p className="text-xs text-muted-foreground">
           Du {formatLongDate(result.window.start)} au {formatLongDate(result.window.end)} · écart calculé par{' '}
-          {METHODS[result.method ?? ''] ?? 'comparaison avec l’indice'} · données du jeu du datathon, pas des cours en direct.
+          {METHODS[result.method ?? ''] ?? 'comparaison avec l’indice'} · {priceSource(result)}.
         </p>
       </div>
 

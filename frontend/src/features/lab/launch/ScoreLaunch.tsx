@@ -59,7 +59,7 @@ export function ScoreLaunch({ portfolio, presetTickers, relaunch = null }: Score
 
   return (
     <>
-      <LaunchStep number={2} title="Le groupe de titres" hint="Le run note ces titres et les fusionne dans la table des scores.">
+      <LaunchStep number={2} title="Le groupe de titres" hint="L’exécution note ces titres et les fusionne dans la table des scores.">
         <GroupPicker
           kinds={['auto', 'section', 'sector', 'portfolio', 'custom']}
           draft={draft}
@@ -100,7 +100,7 @@ export function ScoreLaunch({ portfolio, presetTickers, relaunch = null }: Score
         >
           <Button type="button" size="lg" loading={start.isPending} disabled={problem !== null || notDeployed || Boolean(running)} onClick={launch}>
             <Play aria-hidden="true" data-icon="inline-start" />
-            Lancer le run
+            Lancer l’exécution
           </Button>
           {problem && <p className="text-sm text-muted-foreground">{problem}</p>}
           {notDeployed && (
@@ -110,7 +110,7 @@ export function ScoreLaunch({ portfolio, presetTickers, relaunch = null }: Score
           )}
           {running && (
             <p className="text-sm">
-              Un run est déjà en cours —{' '}
+              Une exécution est déjà en cours —{' '}
               <Link to={runPath(running.run_id)} className="link">
                 l'ouvrir
               </Link>

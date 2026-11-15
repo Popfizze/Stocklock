@@ -67,9 +67,9 @@ describe('RunPage', () => {
     renderRun(RUN_LAB.run_id, [{ match: new RegExp(`/api/runs/${RUN_LAB.run_id}$`), responses: [json(RUN_DETAIL_LAB)] }])
 
     expect(await screen.findByRole('heading', { level: 1, name: 'SHOP.TO' })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: /Convoyeur 3D du run SHOP\.TO.*2 étapes, 2 terminées/ })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /Convoyeur 3D de l’exécution SHOP\.TO.*2 étapes, 2 terminées/ })).toBeInTheDocument()
 
-    const stages = within(screen.getByRole('list', { name: 'Étapes du run' }))
+    const stages = within(screen.getByRole('list', { name: 'Étapes de l’exécution' }))
     expect(stages.getByRole('button', { name: /1\. Collecte/ })).toHaveTextContent('Terminé · 420 ms · 3 lignes')
     expect(stages.getByRole('button', { name: /2\. Notation/ })).toHaveTextContent('Avertissement')
     // The result is what the page opens on.
@@ -137,7 +137,7 @@ describe('RunPage', () => {
       { match: `/api/pipeline/score/runs/${id}`, responses: [json(SCORE_RUN_TICKERS)] },
     ])
 
-    expect(await screen.findByRole('heading', { level: 3, name: 'Résultat du run' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 3, name: 'Résultat de l’exécution' })).toBeInTheDocument()
     expect(screen.getByRole('img', { name: /Convoyeur 3D.*9 étapes, 9 terminées, 4 titres du groupe/ })).toBeInTheDocument()
     expect(screen.getByText('Appels Bedrock')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /SHOP\.TO/ })).toHaveAttribute('href', '/titres/SHOP.TO')
@@ -166,6 +166,6 @@ describe('RunPage', () => {
       { match: '/api/pipeline/score/runs/nope', responses: [json({ detail: 'introuvable' }, 404)] },
     ])
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Ce run est introuvable (nope).')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cette exécution est introuvable (nope).')
   })
 })

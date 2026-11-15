@@ -17,16 +17,16 @@ export function ScoreOutcome({ view }: { view: RunView }) {
     const current = view.nodes.find((node) => node.status === 'running')
     return (
       <div className="space-y-2">
-        <h3 className="text-xl">Run en cours</h3>
+        <h3 className="text-xl">Exécution en cours</h3>
         <p role="status" className="text-muted-foreground">
-          {current ? `Étape en cours : ${current.label} (${FLOW_STATUS_LABELS.running.toLowerCase()}).` : 'Le run démarre.'} Cette
+          {current ? `Étape en cours : ${current.label} (${FLOW_STATUS_LABELS.running.toLowerCase()}).` : 'L’exécution démarre.'} Cette
           page se met à jour toute seule ; le résultat s'affichera ici.
         </p>
       </div>
     )
   }
   if (!summary) {
-    return <p className="text-muted-foreground">Ce run n'a pas produit de résultat.</p>
+    return <p className="text-muted-foreground">Cette exécution n'a pas produit de résultat.</p>
   }
 
   const figures: Array<[string, string]> = [
@@ -41,10 +41,10 @@ export function ScoreOutcome({ view }: { view: RunView }) {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-xl">Résultat du run</h3>
+      <h3 className="text-xl">Résultat de l’exécution</h3>
       <Figures entries={figures} />
       {summary.top && summary.top.length > 0 && (
-        <PanelBlock title="Meilleurs scores du run">
+        <PanelBlock title="Meilleurs scores de l’exécution">
           <ol className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {summary.top.map((title) => (
               <li key={title.symbol}>

@@ -43,12 +43,12 @@ export function LabPage() {
           eyebrow="Console des pipelines"
           title="Labo"
           accent="des exécutions"
-          description="Chaque exécution de chaque pipeline — le pipeline de score sur AWS, ses runs planifiés, les runs du Labo sur un titre ou sur un groupe — avec tout ce qu'elle a produit."
+          description="Chaque exécution de chaque pipeline — le pipeline de score sur AWS, ses exécutions planifiées, celles du Labo sur un titre ou sur un groupe — avec tout ce qu'elle a produit."
           actions={
             <Button asChild>
               <Link to={LAUNCH_PATH}>
                 <Play aria-hidden="true" data-icon="inline-start" />
-                Lancer un run
+                Lancer une exécution
               </Link>
             </Button>
           }
@@ -64,7 +64,7 @@ export function LabPage() {
 
         {feed.source === 'score' && !feed.isLoading && !feed.error && (
           <p role="note" className="text-sm text-muted-foreground">
-            Le registre des exécutions n'est pas disponible sur ce serveur : seuls les runs du pipeline de score sont listés.
+            Le registre des exécutions n'est pas disponible sur ce serveur : seules les exécutions du pipeline de score sont listées.
           </p>
         )}
 
@@ -80,7 +80,7 @@ export function LabPage() {
           <Card>
             <CardContent className="space-y-4 py-10 text-center">
               <p className="font-display text-2xl">Aucune exécution pour ces filtres.</p>
-              <p className="text-muted-foreground">Élargissez les filtres, ou lancez un run sur un groupe de titres.</p>
+              <p className="text-muted-foreground">Élargissez les filtres, ou lancez une exécution sur un groupe de titres.</p>
             </CardContent>
           </Card>
         ) : (
@@ -91,7 +91,7 @@ export function LabPage() {
                   Frise
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Hauteur : titres traités · teinte : statut · une rangée par pipeline · cliquez une tuile pour ouvrir le run.
+                  Hauteur : titres traités · teinte : statut · une rangée par pipeline · cliquez une tuile pour ouvrir l’exécution.
                 </p>
               </div>
               <Card>
@@ -108,11 +108,11 @@ export function LabPage() {
                 </h2>
                 {picked.length === 2 ? (
                   <Button asChild size="sm">
-                    <Link to={comparePath(picked[0], picked[1])}>Comparer les 2 runs choisis</Link>
+                    <Link to={comparePath(picked[0], picked[1])}>Comparer les 2 exécutions choisies</Link>
                   </Button>
                 ) : (
                   <p className="text-sm text-muted-foreground" aria-live="polite">
-                    {picked.length === 1 ? 'Choisissez un second run à comparer.' : 'Choisissez deux runs pour les comparer.'}
+                    {picked.length === 1 ? 'Choisissez une seconde exécution à comparer.' : 'Choisissez deux exécutions pour les comparer.'}
                   </p>
                 )}
               </div>

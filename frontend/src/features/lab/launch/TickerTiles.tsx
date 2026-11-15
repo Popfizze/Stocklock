@@ -18,9 +18,12 @@ interface TickerTilesProps {
 export function TickerTiles({ label, tickers, cap, onChange }: TickerTilesProps) {
   const id = useId()
   const [query, setQuery] = useState('')
-  const search = useUniverseSearch(useDebouncedValue(query), 8)
+  const debounced = useDebouncedValue(query)
+  const search = useUniverseSearch(debounced, 8)
   const full = tickers.length >= cap
-  const matches = query.trim()
+  // While the answer on screen is still the previous query's, nothing is offered (Enter would add the wrong title).
+  const settled = debounced.trim() === query.trim() && !search.isPlaceholderData && !search.isFetching
+  const matches = query.trim() && settled
     ? [...(search.data?.results ?? []), ...(search.data?.crypto ?? [])].filter((match) => !tickers.includes(match.ticker))
     : []
   const add = (ticker: string) => {
@@ -92,7 +95,12 @@ export function TickerTiles({ label, tickers, cap, onChange }: TickerTilesProps)
           ))}
         </ul>
       )}
-      {query.trim() !== '' && search.isSuccess && matches.length === 0 && (
+      {query.trim() !== '' && !settled && (
+        <p role="status" className="text-sm text-muted-foreground">
+          Recherche…
+        </p>
+      )}
+      {query.trim() !== '' && settled && search.isSuccess && matches.length === 0 && (
         <p className="text-sm text-muted-foreground">Aucun titre de l'univers ne correspond à « {query.trim()} ».</p>
       )}
     </div>

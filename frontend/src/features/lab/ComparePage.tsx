@@ -50,16 +50,16 @@ export function ComparePage() {
           <ArrowLeft aria-hidden="true" className="size-4" />
           Toutes les exécutions
         </Link>
-        <PageHeader eyebrow="Labo" title="Comparer" accent="deux runs" />
+        <PageHeader eyebrow="Labo" title="Comparer" accent="deux exécutions" />
         {left.view && right.view && sides ? (
           <Comparison views={[left.view, right.view]} sides={sides} />
         ) : left.isLoading || right.isLoading ? (
           <p role="status" className="text-muted-foreground">
-            Chargement des deux runs…
+            Chargement des deux exécutions…
           </p>
         ) : (
           <p role="alert" className="text-destructive">
-            Il faut deux runs existants pour comparer : choisissez-les dans la liste des exécutions.
+            Il faut deux exécutions existantes pour comparer : choisissez-les dans la liste des exécutions.
           </p>
         )}
       </div>
@@ -89,7 +89,7 @@ function Comparison({ views, sides }: { views: [RunView, RunView]; sides: readon
             <span className="flex items-center gap-2">
               <span aria-hidden="true" className={cn('size-3.5', index === 0 ? 'bg-tile-2' : 'bg-tile-5')} />
               <span className="eyebrow">
-                Run {index === 0 ? 'A' : 'B'} · {view.pipelineLabel}
+                Exécution {index === 0 ? 'A' : 'B'} · {view.pipelineLabel}
               </span>
             </span>
             <span className="block font-display text-2xl">{view.title}</span>
@@ -105,7 +105,7 @@ function Comparison({ views, sides }: { views: [RunView, RunView]; sides: readon
             <Tile3D
               tiles={scene.tiles}
               view="iso"
-              label={`Comparaison 3D des mesures communes aux deux runs (${scene.shared.join(', ')}) : A en encre, B en gris, chaque paire à l'échelle de sa plus grande valeur. Les valeurs sont dans les tableaux qui suivent.`}
+              label={`Comparaison 3D des mesures communes aux deux exécutions (${scene.shared.join(', ')}) : A en encre, B en gris, chaque paire à l'échelle de sa plus grande valeur. Les valeurs sont dans les tableaux qui suivent.`}
               className="h-56 sm:h-64"
             />
           </CardContent>
@@ -114,7 +114,7 @@ function Comparison({ views, sides }: { views: [RunView, RunView]; sides: readon
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p aria-live="polite" className="tabular-nums">
-          {differing === 0 ? 'Aucune différence entre ces deux runs.' : `${differing} différence${differing > 1 ? 's' : ''} entre ces deux runs.`}
+          {differing === 0 ? 'Aucune différence entre ces deux exécutions.' : `${differing} différence${differing > 1 ? 's' : ''} entre ces deux exécutions.`}
         </p>
         <Button type="button" variant="outline" size="sm" aria-pressed={all} onClick={() => setAll(!all)}>
           {all ? 'Seulement les différences' : 'Tout afficher'}
@@ -129,7 +129,7 @@ function Comparison({ views, sides }: { views: [RunView, RunView]; sides: readon
               {title} <em>{all ? `(${rows.length})` : `qui diffèrent (${shown.length})`}</em>
             </h2>
             {shown.length === 0 ? (
-              <p className="text-muted-foreground">{rows.length === 0 ? 'Rien à comparer.' : 'Identiques dans les deux runs.'}</p>
+              <p className="text-muted-foreground">{rows.length === 0 ? 'Rien à comparer.' : 'Identiques dans les deux exécutions.'}</p>
             ) : (
               <ul className="divide-y divide-border border-y border-border">
                 {shown.map((row) => (

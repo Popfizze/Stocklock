@@ -19,10 +19,12 @@ interface AddHoldingProps {
 export function AddHolding({ held, onAdd, disabled }: AddHoldingProps) {
   const [query, setQuery] = useState('')
   const debounced = useDebouncedValue(query, 250)
-  const { data, isFetching } = useUniverseSearch(debounced, RESULT_LIMIT)
+  const { data, isFetching, isPlaceholderData } = useUniverseSearch(debounced, RESULT_LIMIT)
 
   const typed = query.trim().length > 0
-  const matches = typed
+  // The list is only shown once it answers what is typed now, not the previous query.
+  const settled = debounced.trim() === query.trim() && !isPlaceholderData
+  const matches = typed && settled
     ? [...(data?.results ?? []), ...(data?.crypto ?? [])].filter((match) => !held.includes(match.ticker))
     : []
 
@@ -57,25 +59,35 @@ export function AddHolding({ held, onAdd, disabled }: AddHoldingProps) {
       {typed && matches.length > 0 && (
         <ul aria-label="Titres à ajouter" className="max-w-md divide-y divide-border rounded-xl border border-border">
           {matches.slice(0, RESULT_LIMIT).map((match) => (
-            <li key={match.ticker}>
+            // The row itself is what is dragged onto the blocks (a button does not start a drag in every browser).
+            <li
+              key={match.ticker}
+              draggable
+              onDragStart={(event) => {
+                event.dataTransfer.setData(TICKER_MIME, match.ticker)
+                event.dataTransfer.setData('text/plain', match.ticker)
+                event.dataTransfer.effectAllowed = 'copy'
+              }}
+              onDragEnd={(event) => {
+                // Dropped on the blocks: the title is in, the search is done.
+                if (event.dataTransfer.dropEffect === 'copy') setQuery('')
+              }}
+              // A click anywhere on the row adds it too; the button is the keyboard's and the screen reader's way.
+              onClick={() => handleAdd(match.ticker)}
+              className="flex cursor-grab items-center gap-3 py-1 pr-1.5 pl-3 text-sm transition-colors hover:bg-muted/60 active:cursor-grabbing"
+            >
+              <span className="w-20 shrink-0 truncate font-semibold">{match.ticker}</span>
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">{displayName(match.name)}</span>
               <button
                 type="button"
-                draggable
-                onDragStart={(event) => {
-                  event.dataTransfer.setData(TICKER_MIME, match.ticker)
-                  event.dataTransfer.effectAllowed = 'copy'
+                onClick={(event) => {
+                  event.stopPropagation()
+                  handleAdd(match.ticker)
                 }}
-                onDragEnd={(event) => {
-                  // Dropped on the blocks: the title is in, the search is done.
-                  if (event.dataTransfer.dropEffect === 'copy') setQuery('')
-                }}
-                onClick={() => handleAdd(match.ticker)}
                 aria-label={`Ajouter ${match.ticker}`}
-                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                className="inline-flex size-9 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="w-20 shrink-0 truncate font-semibold">{match.ticker}</span>
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{displayName(match.name)}</span>
-                <Plus aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+                <Plus aria-hidden="true" className="size-4" />
               </button>
             </li>
           ))}

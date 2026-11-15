@@ -107,7 +107,7 @@ export const SCORE_PARAM_SPECS: ScoreParamSpec[] = [
   { key: 'ca_share', label: 'Part TSX', help: 'Part des actions canadiennes parmi les actions.', min: 0, max: 1, step: 0.05, format: 'percent', kinds: ['auto', 'sector'] },
   { key: 'etf_share', label: 'Part FNB', help: 'Part des FNB parmi les titres.', min: 0, max: 0.5, step: 0.05, format: 'percent', kinds: ['auto'] },
   { key: 'news_per_title', label: 'Articles par titre', help: 'Articles gardés au plus pour chaque titre.', min: 0, max: 20, step: 1, format: 'count', kinds: ['auto', 'section', 'sector', 'portfolio', 'custom'] },
-  { key: 'max_llm_articles', label: 'Articles lus par Bedrock', help: 'Plafond d’articles envoyés à Claude Haiku dans le run.', min: 0, max: 3000, step: 100, format: 'count', kinds: ['auto', 'section', 'sector', 'portfolio', 'custom'] },
+  { key: 'max_llm_articles', label: 'Articles lus par Bedrock', help: 'Plafond d’articles envoyés à Claude Haiku dans l’exécution.', min: 0, max: 3000, step: 100, format: 'count', kinds: ['auto', 'section', 'sector', 'portfolio', 'custom'] },
 ]
 
 const LOCALE = 'fr-CA'
@@ -162,7 +162,7 @@ export function fittingSize(error: ApiError | null): number | null {
 
 export function scoreErrorMessage(error: ApiError): string {
   if (error.status === 0) return 'Impossible de joindre le serveur. Vérifiez votre connexion, puis réessayez.'
-  if (error.status === 409) return 'Un run du pipeline de score est déjà en cours : ouvrez-le plutôt que d’en lancer un autre.'
+  if (error.status === 409) return 'Une exécution du pipeline de score est déjà en cours : ouvrez-le plutôt que d’en lancer une autre.'
   if (error.status === 503) return 'Le pipeline de score n’est pas déployé sur ce serveur.'
   if (error.status === 422) {
     const detail = error.message === 'Request failed' ? 'vérifiez le groupe et les paramètres.' : error.message

@@ -216,7 +216,7 @@ describe('PortfolioPage', () => {
     renderPortfolio()
 
     expect(await screen.findByRole('img', { name: /Suggestions en attente : WM\./ })).toBeInTheDocument()
-    expect(screen.getByText(/hors de la scène pour le\s+retirer ; les blocs bas au bord sont des suggestions/)).toBeInTheDocument()
+    expect(screen.getByText(/hors de la scène par un côté pour le\s+retirer ; les blocs bas au bord sont des suggestions/)).toBeInTheDocument()
   })
 
   it('opens each profile on its own holdings', async () => {

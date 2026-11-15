@@ -39,6 +39,9 @@ export interface TileEngineState {
   tagLayer?: HTMLElement | null
 }
 
+/** Under this width a scene is narrow: tiles write their `tagShort`. */
+const COMPACT_PX = 480
+
 const TAG_CLASS =
   'pointer-events-none absolute top-0 left-0 rounded-sm bg-background/80 px-1 text-center text-[10px] leading-3 font-medium whitespace-pre text-foreground tabular-nums'
 
@@ -238,7 +241,12 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     if (!layer || !mesh || width === 0 || height === 0) return
     let used = 0
     const taken: Array<[number, number, number, number]> = []
-    state.props.tiles.forEach((tile, index) => {
+    const { tiles } = state.props
+    // Tags marked `tagFirst` are placed first: they are the ones kept where tags would overlap.
+    const order = tiles.map((_, index) => index).filter((index) => tiles[index].tag)
+    order.sort((a, b) => Number(Boolean(tiles[b].tagFirst)) - Number(Boolean(tiles[a].tagFirst)) || a - b)
+    order.forEach((index) => {
+      const tile = tiles[index]
       if (!tile.tag || !mesh) return
       let node = tagNodes[used]
       if (!node) {
@@ -248,11 +256,13 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
         tagNodes.push(node)
       }
       used++
-      if (node.textContent !== tile.tag) node.textContent = tile.tag
-      let size = tagSizes.get(tile.tag)
+      // On a narrow scene (a phone), a tile's shorter tag is written when it has one.
+      const text = width < COMPACT_PX && tile.tagShort ? tile.tagShort : tile.tag
+      if (node.textContent !== text) node.textContent = text
+      let size = tagSizes.get(text)
       if (!size) {
         size = [node.offsetWidth, node.offsetHeight]
-        tagSizes.set(tile.tag, size)
+        tagSizes.set(text, size)
       }
       mesh.getMatrixAt(index, M)
       P.setFromMatrixPosition(M)
@@ -317,7 +327,8 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
   theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   // Props changed: redraw on the next frame.
   const poll = window.setInterval(() => {
-    if (state.dirty) schedule()
+    // Off-screen or in a hidden tab, the change waits: it is drawn when the scene comes back.
+    if (state.dirty && visible && !document.hidden) schedule()
   }, 120)
 
   const raycaster = new THREE.Raycaster()
@@ -361,11 +372,15 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     canvas.classList.remove('cursor-grabbing')
     if (tile) {
       const rect = canvas.getBoundingClientRect()
-      const outside =
-        event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom
+      let side: 'top' | 'bottom' | 'left' | 'right' | null = null
+      if (event.clientX < rect.left) side = 'left'
+      else if (event.clientX > rect.right) side = 'right'
+      else if (event.clientY > rect.bottom) side = 'bottom'
+      else if (event.clientY < rect.top) side = 'top'
+      const outside = side !== null
       const distance = Math.hypot(event.clientX - downX, event.clientY - downY)
       if (distance > 4) didDrag = true
-      state.props.onDrop?.(tile, { outside, distance })
+      state.props.onDrop?.(tile, { outside, side, distance })
     }
     if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
   }

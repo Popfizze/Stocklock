@@ -54,7 +54,7 @@ export function PipelinePicker({ steps, scoreLayers, value, onChange }: Pipeline
               ))}
             </span>
             <span className={cn('text-xs', checked ? 'text-primary-foreground/80' : 'text-muted-foreground')}>
-              {option.layers.length} étapes · {option.note}
+              {option.layers.length} étape{option.layers.length > 1 ? 's' : ''} · {option.note}
             </span>
           </button>
         )

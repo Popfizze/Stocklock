@@ -30,7 +30,7 @@ describe('LabPage (Exécutions)', () => {
     renderLab()
 
     expect(screen.getByRole('heading', { level: 1, name: 'Labo des exécutions' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Lancer un run' })).toHaveAttribute('href', '/labo/lancer')
+    expect(screen.getByRole('link', { name: 'Lancer une exécution' })).toHaveAttribute('href', '/labo/lancer')
 
     const list = within(await screen.findByRole('list', { name: /^Exécutions du/ }))
     expect(list.getByRole('link', { name: /SHOP\.TO/ })).toHaveAttribute('href', `/labo/executions/${RUN_LAB.run_id}`)
@@ -76,10 +76,10 @@ describe('LabPage (Exécutions)', () => {
     renderLab()
 
     await user.click(await screen.findByRole('button', { name: 'Comparer SHOP.TO' }))
-    expect(screen.getByText('Choisissez un second run à comparer.')).toBeInTheDocument()
+    expect(screen.getByText('Choisissez une seconde exécution à comparer.')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: /Comparer Groupe/ }))
 
-    expect(screen.getByRole('link', { name: 'Comparer les 2 runs choisis' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Comparer les 2 exécutions choisies' })).toHaveAttribute(
       'href',
       `/labo/comparer?a=${RUN_LAB.run_id}&b=${RUN_BATCH.run_id}`,
     )

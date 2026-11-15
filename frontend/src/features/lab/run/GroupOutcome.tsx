@@ -53,7 +53,8 @@ export function GroupOutcome({ view }: { view: RunView }) {
     <div className="space-y-6">
       <h3 className="text-xl">Résultat du groupe</h3>
       <p className="tabular-nums">
-        {children.length + unfinished.length} titres : {count('succeeded')} réussis, {count('warning')} avec avertissements,{' '}
+        {children.length + unfinished.length} titre{children.length + unfinished.length > 1 ? 's' : ''} : {count('succeeded')} réussi
+        {count('succeeded') > 1 ? 's' : ''}, {count('warning')} avec avertissements,{' '}
         {failed.length + stopped.length} non terminés ou en échec
         {skipped.length > 0 && `, ${skipped.length} ignoré${skipped.length > 1 ? 's' : ''} (rien à analyser sur la période)`}.
       </p>
@@ -62,7 +63,7 @@ export function GroupOutcome({ view }: { view: RunView }) {
         // 3D — the group at a glance: one column per title, as tall as its result, red when it failed; click one to open its run.
         <Tile3D
           tiles={tiles}
-          view="iso"
+          view="front"
           onSelect={(tile) => tile.id && navigate(runPath(tile.id))}
           label={`Résultat du groupe en 3D : une colonne par titre (${children.length}), haute selon son résultat, teintée selon son statut. Les mêmes valeurs sont dans le tableau qui suit.`}
           className="h-56"

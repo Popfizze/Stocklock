@@ -54,7 +54,8 @@ export function ProjectionResults({ projection, level, accounts = ACCOUNT_IDS, s
         </section>
       )}
 
-      {normal && <AccountTowers accounts={outcomes} series={projection.series} years={inputs.years} />}
+      {/* At every level of detail: the towers are the picture of the answer, the figures come after. */}
+      <AccountTowers accounts={outcomes} series={projection.series} years={inputs.years} />
 
       <div className="@container">
         <div className={cn('grid gap-4', normal ? '@5xl:grid-cols-5' : 'max-w-3xl')}>

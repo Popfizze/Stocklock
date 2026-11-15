@@ -44,7 +44,7 @@ export function RunInputs({ view }: { view: RunView }) {
 
   return (
     <div className="space-y-6">
-      <h3 className="text-xl">Entrées du run</h3>
+      <h3 className="text-xl">Entrées de l’exécution</h3>
       {run?.group && (
         <>
           <p>

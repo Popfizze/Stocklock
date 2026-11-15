@@ -79,6 +79,9 @@ export function PortfolioBlocks({
             : SECTOR_TONES[sectors.indexOf(detail?.sector ?? 'Autre') % SECTOR_TONES.length],
       label: parts.join(' · '),
       tag: `${holding.ticker}\n${formatShare(share)}`,
+      tagShort: holding.ticker,
+      // What breaks the profile's rules is named first.
+      tagFirst: aboveLimit || verdict === 'hors_profil',
     }
   })
 
@@ -116,7 +119,7 @@ export function PortfolioBlocks({
           Le portefeuille en blocs{maxPosition !== null && ` · plafond à ${formatShare(maxPosition)} par titre`}
         </p>
         <p className="text-sm text-muted-foreground">
-          Glissez un bloc vers le haut ou le bas pour changer son poids, hors de la scène pour le
+          Glissez un bloc vers le haut ou le bas pour changer son poids, hors de la scène par un côté pour le
           retirer{waiting.length > 0 && ' ; les blocs bas au bord sont des suggestions à glisser dedans'}.
         </p>
       </div>
@@ -146,7 +149,8 @@ export function PortfolioBlocks({
           const ticker = suggested(tile)
           if (ticker !== null) {
             if (drop.distance >= DRAG_IN_PX) onAdd(ticker)
-          } else if (drop.outside && tile.id) {
+          } else if (drop.outside && drop.side !== 'top' && tile.id) {
+            // Out by a side or by the bottom: removed. Out by the top is only a block pulled very high.
             onRemove(tile.id)
           }
         }}

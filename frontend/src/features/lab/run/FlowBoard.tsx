@@ -21,7 +21,7 @@ interface FlowBoardProps {
 /** The conveyor's text equivalent: the five columns, each stage a button that opens its detail. */
 export function FlowBoard({ nodes, selected, onSelect }: FlowBoardProps) {
   return (
-    <ol aria-label="Étapes du run" className="grid gap-x-3 gap-y-5 sm:grid-cols-5">
+    <ol aria-label="Étapes de l’exécution" className="grid gap-x-3 gap-y-5 sm:grid-cols-5">
       {FLOW_COLUMNS.map((column) => (
         <li key={column} className="min-w-0 space-y-2">
           <p className="eyebrow text-foreground">{COLUMN_LABELS[column]}</p>
