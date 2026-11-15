@@ -45,6 +45,22 @@ def _slow(seconds, value):
 
 
 @pytest.fixture
+def gate():
+    """A source that answers only once the test opens the gate (at the latest when the test ends)."""
+    opened = threading.Event()
+
+    def held(value):
+        def fn(*args, **kwargs):
+            opened.wait(timeout=10)
+            return value
+        return fn
+
+    yield held
+    opened.set()
+    time.sleep(0.05)  # the held requests end inside the test
+
+
+@pytest.fixture
 def slow_sources(monkeypatch):
     """EDGAR, the Federal Register and both GDELT timelines each answer in 0.5 s."""
     monkeypatch.setattr(edgar, "cik_for", lambda ticker: NVDA_CIK)
@@ -61,16 +77,17 @@ def test_independent_sources_load_side_by_side(client, slow_sources):
                                           "inputs": {"ticker": "NVDA", "start": "2022-01-01", "end": "2022-12-31"}})
     assert r.status_code == 200, r.text
     st_ = {s["id"]: s for s in r.json()["stages"]}
-    waited = sum(st_[k]["duration_ms"] for k in ("company_events", "world_events", "political_events")) / 1000
+    after_prices = list(st_)[1:list(st_).index("political_events") + 1]  # the stages that wait for the sources
+    waited = sum(st_[k]["duration_ms"] for k in after_prices) / 1000
     # one after the other: 4 × 0.5 s; side by side: the two GDELT requests in a row (its throttle), 1 s
-    assert 0.8 <= waited < 1.6
+    assert 0.95 <= waited < 1.8
     assert st_["company_events"]["metrics"]["dépôts EDGAR (8-K, 10-Q, 10-K)"] == 0
     assert st_["world_events"]["decisions"][0]["answer"] == "GDELT (intensité de couverture quotidienne)"
     assert all("budget" not in w for s in st_.values() for w in s["warnings"])  # the Lab has no time budget
 
 
-def test_a_slow_source_is_left_out_within_the_budget_and_said_so(client, monkeypatch):
-    monkeypatch.setattr(gdelt, "timeline", _slow(0.6, EMPTY_TIMELINE))
+def test_a_slow_source_is_left_out_within_the_budget_and_said_so(client, monkeypatch, gate):
+    monkeypatch.setattr(gdelt, "timeline", gate(EMPTY_TIMELINE))
     monkeypatch.setattr("app.main.Budget", lambda: Budget(fetch_s=0.2))
     t0 = time.perf_counter()
     body = _stock(client).json()
@@ -79,11 +96,11 @@ def test_a_slow_source_is_left_out_within_the_budget_and_said_so(client, monkeyp
     assert "Couverture GDELT du titre laissé(e) de côté : pas de réponse dans le budget de temps (0.2 s)" in warnings
     assert body["cache"]["complete"] is False and "Couverture GDELT du titre" in body["cache"]["skipped"]
     assert body["moves"] and body["analysis"]["governance"]["passed"] is True
-    time.sleep(0.7)  # let the abandoned request end inside the test
 
 
-def test_the_budget_skip_is_a_recorded_decision(slow_sources, monkeypatch):
-    monkeypatch.setattr(gdelt, "timeline", _slow(0.6, EMPTY_TIMELINE))
+def test_the_budget_skip_is_a_recorded_decision(slow_sources, monkeypatch, gate):
+    monkeypatch.setattr(edgar, "filings_between", gate(([], False)))
+    monkeypatch.setattr(gdelt, "timeline", gate(EMPTY_TIMELINE))
     budget = Budget(fetch_s=0.2)
     result, _ = execute("explain_move", get_persona("robert"),
                         {"ticker": "NVDA", "start": date(2022, 1, 1), "end": date(2022, 12, 31)},
@@ -96,7 +113,6 @@ def test_the_budget_skip_is_a_recorded_decision(slow_sources, monkeypatch):
     assert budget.skipped[:2] == ["Dépôts EDGAR", "Couverture GDELT du titre"]
     company = next(s for s in result.stages if s["id"] == "company_events")
     assert any(d["answer"] == "aucun (budget de temps dépassé)" for d in company["decisions"])
-    time.sleep(1.0)
 
 
 # --- GDELT: never wait past the deadline, longer pauses after refusals in a row ---------------------------
