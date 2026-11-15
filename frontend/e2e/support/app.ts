@@ -67,6 +67,35 @@ export function sceneTag(sceneLocator: Locator, text: string | RegExp): Locator 
   return sceneLocator.locator('span').filter({ hasText: text }).first()
 }
 
+/**
+ * Counts the WebGL contexts the page opens, from its very first script: every canvas that was
+ * given one. To call before the first navigation; read the count with the function it returns.
+ */
+export async function trackWebglContexts(page: Page): Promise<() => Promise<number>> {
+  await page.addInitScript(() => {
+    const store = window as unknown as { __webglCanvases: Set<HTMLCanvasElement> }
+    store.__webglCanvases = new Set()
+    const original = HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...rest: unknown[]) {
+      const context = (original as (...args: unknown[]) => unknown).call(this, type, ...rest)
+      if (context && /webgl/.test(type)) store.__webglCanvases.add(this)
+      return context
+    } as typeof original
+  })
+  return () => page.evaluate(() => (window as unknown as { __webglCanvases: Set<HTMLCanvasElement> }).__webglCanvases.size)
+}
+
+/** Whether a scene's canvas has been painted (some pixel is not transparent). */
+export async function isPainted(sceneLocator: Locator): Promise<boolean> {
+  return sceneLocator.locator('canvas').evaluate((canvas: HTMLCanvasElement) => {
+    const context = canvas.getContext('2d')
+    if (!context || canvas.width === 0 || canvas.height === 0) return false
+    const { data } = context.getImageData(0, 0, canvas.width, canvas.height)
+    for (let index = 3; index < data.length; index += 4) if (data[index] !== 0) return true
+    return false
+  })
+}
+
 /** The main navigation's link, in the sidebar. */
 export function nav(page: Page, name: string): Locator {
   return page.getByRole('navigation', { name: 'Navigation principale' }).getByRole('link', { name })

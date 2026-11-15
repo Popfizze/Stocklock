@@ -35,7 +35,7 @@ glisser les blocs du portefeuille et les colonnes de la table de mixage.
 | `stock.spec.ts` | recherche (action, cryptomonnaie, sans résultat) → fiche titre : verdict « Pour {profil} », score et sa scène, battage → « Prendre du recul » prérempli → analyse du biais → « Quel compte ? » ; « Comprendre » (ruban + parcours au clavier) ; score personnel après réglage des pondérations ; titre inconnu ; adresse inconnue |
 | `portfolio.spec.ts` | exemple du profil et plafond ; poids au clavier, retrait, persistance, retour à l'exemple ; ajout par recherche (clic) et **en glissant un résultat sur les blocs** ; glisser un bloc (poids), hors de la scène (retrait), une suggestion (ajout) ; table de mixage : **score suivi en direct**, suggestions reclassées, total à 100 %, glisser une colonne ; un portefeuille par profil |
 | `labo.spec.ts` | console : frise, liste, filtres envoyés au registre (statut, pipeline, profil, **date → `since`**) ; ouvrir une exécution → une étape → un élément généré → son aperçu ; comparer deux exécutions ; groupe et titre non terminé ; lancer le pipeline de score sur des titres choisis par la recherche → page de l'exécution ; lancer un pipeline du Labo sur le portefeuille ; **« Relancer » reprend groupe et réglages** ; exécution inconnue (« introuvable », sans interrogation en boucle) ; **409** (déjà en cours) ; **503** (non déployé) |
-| `shell.spec.ts` | navigation principale ; menu réduit en rail, gardé après rechargement ; thème sombre (choix, persistance, thème du système) ; **animations** : activées par défaut même quand le système demande moins de mouvement, l'interrupteur « Animations : activées / réduites » fige les scènes et coupe les entrées, le choix tient au rechargement ; téléphone 375 px : menu, aucune page ne déborde ; **sans WebGL** (mosaïques à plat) ; API injoignable ; section en échec puis relancée ; analyse du portefeuille en échec |
+| `shell.spec.ts` | navigation principale ; menu réduit en rail, gardé après rechargement ; thème sombre (choix, persistance, thème du système) ; **animations** : activées par défaut même quand le système demande moins de mouvement, l'interrupteur « Animations : activées / réduites » fige les scènes et coupe les entrées, le choix tient au rechargement ; **un seul contexte WebGL par page** (choix du profil, fiche titre et ses six scènes, puis navigation) et scènes réellement peintes ; pied du rail réduit au profil, dont le menu porte les réglages d'affichage ; téléphone 375 px : menu, aucune page ne déborde ; **sans WebGL** (mosaïques à plat) ; API injoignable ; section en échec puis relancée ; analyse du portefeuille en échec |
 
 Chaque test échoue aussi s'il laisse une erreur dans la console du navigateur.
 
@@ -46,7 +46,8 @@ Chaque test échoue aussi s'il laisse une erreur dans la console du navigateur.
   titres et les pondérations envoyés) en est dérivé, de façon déterministe. Options : `scoreRunning` (409),
   `scoreUnconfigured` (503), `override` (réponse sur mesure, par exemple une erreur).
 - `support/app.ts` — `test` (API simulée et contrôle de la console branchés d'office), `openAs(page, profil, chemin)`,
-  `scene()`, `sceneTag()` (l'étiquette qu'une scène écrit sur une tuile : c'est ainsi que les tests savent où glisser).
+  `scene()`, `sceneTag()` (l'étiquette qu'une scène écrit sur une tuile : c'est ainsi que les tests savent où glisser),
+  `trackWebglContexts()` (compte les contextes WebGL ouverts par la page) et `isPainted()` (le canevas d'une scène a bien été dessiné).
 
 ## Projet `live` : quelques vérifications sur l'API déployée (optionnel)
 

@@ -3,27 +3,10 @@ import { usePrefersReducedMotion } from '@/hooks/use-reduced-motion'
 import { cn } from '@/lib/utils'
 import { TileFlat } from './TileFlat'
 import type { SceneTile, TileSceneProps } from './tileModel'
+import { sharedGlCanvas } from './webglCanvas'
 
 // three.js stays out of the main bundle: it loads with the first scene drawn.
 const TileCanvas = lazy(() => import('./TileCanvas'))
-
-let webglSupport: boolean | undefined
-
-/** Checked once: no WebGL (old browser, test environment) means the flat mosaic. */
-function supportsWebGL(): boolean {
-  if (webglSupport === undefined) {
-    webglSupport = false
-    if (typeof window !== 'undefined' && 'WebGLRenderingContext' in window) {
-      try {
-        const canvas = document.createElement('canvas')
-        webglSupport = Boolean(canvas.getContext('webgl2') ?? canvas.getContext('webgl'))
-      } catch {
-        webglSupport = false
-      }
-    }
-  }
-  return webglSupport
-}
 
 interface Tile3DProps extends Omit<TileSceneProps, 'onHover'> {
   /** What the scene shows, in a sentence: its accessible equivalent. */
@@ -49,7 +32,7 @@ export function Tile3D({ label, className, caption = true, ...scene }: Tile3DPro
   return (
     <figure className="m-0">
       <div role="img" aria-label={label} className={cn('relative w-full overflow-hidden', className)}>
-        {supportsWebGL() ? (
+        {sharedGlCanvas() ? (
           <Suspense fallback={flat}>
             <TileCanvas {...scene} reducedMotion={reducedMotion} onHover={setHovered} />
           </Suspense>

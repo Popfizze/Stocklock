@@ -1,6 +1,6 @@
 import { unreachableApi } from './support/api'
 import type { Page } from '@playwright/test'
-import { expect, nav, openAs, scene, test } from './support/app'
+import { expect, isPainted, nav, openAs, scene, test, trackWebglContexts } from './support/app'
 
 test.describe('Cadre de l’application', () => {
   test('la navigation principale mène aux quatre espaces', async ({ page }) => {
@@ -30,6 +30,17 @@ test.describe('Cadre de l’application', () => {
     await nav(page, 'Labo').click()
     await expect(page.getByRole('heading', { level: 1, name: 'Labo des exécutions' })).toBeVisible()
     await expect(deploy).toBeVisible()
+    // The rail's foot is one button: the profile, whose menu also holds the display settings.
+    await expect(page.getByRole('switch', { name: 'Animations' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /Passer au thème/ })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Profil actif : Amira' }).click()
+    await expect(page.getByRole('menuitem', { name: 'Changer de profil' })).toBeVisible()
+    await expect(page.getByRole('menuitemcheckbox', { name: 'Animations' })).toBeChecked()
+    await page.getByRole('menuitemcheckbox', { name: 'Thème sombre' }).click()
+    await expect(page.locator('html')).toHaveClass(/dark/)
+    await page.getByRole('button', { name: 'Profil actif : Amira' }).click()
+    await page.getByRole('menuitemcheckbox', { name: 'Thème sombre' }).click()
+    await expect(page.locator('html')).not.toHaveClass(/dark/)
     await page.reload({ waitUntil: 'domcontentloaded' })
     await expect(deploy).toBeVisible()
     await deploy.click()
@@ -80,6 +91,45 @@ test.describe('Sur téléphone (375 px)', () => {
       expect(overflow, 'défilement horizontal de la page').toBeLessThanOrEqual(1)
     })
   }
+})
+
+test.describe('Un seul contexte WebGL par page', () => {
+  test('le choix du profil : trois scènes, un contexte', async ({ page }) => {
+    const contexts = await trackWebglContexts(page)
+    await page.goto('/choisir-profil', { waitUntil: 'domcontentloaded' })
+    const amira = scene(page, /Profil de Amira en tuiles/)
+    await expect(amira.locator('canvas')).toBeVisible()
+    await expect(page.getByRole('img', { name: /Profil de .* en tuiles/ }).locator('canvas')).toHaveCount(3)
+    await expect.poll(() => isPainted(amira)).toBe(true)
+    await expect.poll(() => isPainted(scene(page, /Profil de Robert en tuiles/))).toBe(true)
+    expect(await contexts()).toBeLessThanOrEqual(1)
+  })
+
+  test('la fiche titre : toutes ses scènes, ruban compris, puis les autres pages, toujours un contexte', async ({ page }) => {
+    const contexts = await trackWebglContexts(page)
+    await openAs(page, 'mateo', '/titres/NVDA')
+    await expect(scene(page, /Le score en construction : six piliers/).locator('canvas')).toBeVisible({ timeout: 15_000 })
+    await page.locator('#comprendre').getByRole('button', { name: 'Expliquer les mouvements' }).click({ timeout: 15_000 })
+    const ribbon = scene(page, /La période en ruban de tuiles/)
+    await expect(ribbon.locator('canvas')).toBeVisible()
+    // Every scene of the page is mounted and drawn as it comes on screen.
+    const scenes = page.getByRole('img').filter({ has: page.locator('canvas') })
+    expect(await scenes.count()).toBeGreaterThanOrEqual(5)
+    for (let index = 0; index < (await scenes.count()); index++) {
+      await scenes.nth(index).scrollIntoViewIfNeeded()
+      await expect.poll(() => isPainted(scenes.nth(index))).toBe(true)
+    }
+    expect(await contexts()).toBeLessThanOrEqual(1)
+
+    // Moving on inside the app keeps the same context: scenes come and go, the renderer stays.
+    await nav(page, 'Mon portefeuille').click()
+    const blocks = scene(page, /Le portefeuille en blocs/)
+    await expect(blocks.locator('canvas')).toBeVisible({ timeout: 15_000 })
+    await expect.poll(() => isPainted(blocks)).toBe(true)
+    await nav(page, 'Tableau de bord').click()
+    await expect.poll(() => isPainted(scene(page, /Le marché du jour en tuiles/))).toBe(true)
+    expect(await contexts()).toBeLessThanOrEqual(1)
+  })
 })
 
 test.describe('Sans WebGL', () => {

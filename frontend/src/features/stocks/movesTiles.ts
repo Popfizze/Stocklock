@@ -12,9 +12,19 @@ const FLOOR = 0.1
 const SPIKE_BASE = 1.6
 const SPIKE_PER_RATIO = 45
 const SPIKE_MAX = 7
-const SPIKE_ROW = -1.5
-const INDEX_ROW = 1.15
-const CURSOR_ROW = 2.3
+/*
+ * Rows, from the viewer to the back (the scene is seen from the front, +z towards the viewer):
+ * the spikes stand in front so nothing hides them, the index is a thin line just in front of
+ * the ribbon — it crosses the title's tiles without covering them — and the pinned session's
+ * pole rises behind.
+ */
+const SPIKE_ROW = 1.15
+const INDEX_ROW = 0.62
+const CURSOR_ROW = -1.2
+/** The index's line: a thin slab at the index's level, slightly wider than a column so it reads as one stroke. */
+const INDEX_THICKNESS = 0.24
+const INDEX_WIDTH = 1.12
+const INDEX_DEPTH = 0.22
 
 const SHORT_DAY = new Intl.DateTimeFormat('fr-CA', { day: 'numeric', month: 'short' })
 
@@ -43,11 +53,11 @@ const raised = (value: number | null, scale: number): number => {
 }
 
 /**
- * The period as a ribbon: one tile per session for the title (its cumulative
- * return, hanging when negative), a thinner row behind for its index, and in
- * front a spike for each marked move — green up, red down — capped with a tile
- * when a dated event goes with it. The pinned session, if any, gets a pole
- * behind the ribbon.
+ * The period as a ribbon: one ink tile per session for the title (its cumulative
+ * return, hanging when negative) — the hero —, its index as a thin light line
+ * drawn across it, and in front a spike for each marked move — green up, red
+ * down — capped with a tile when a dated event goes with it. The pinned session,
+ * if any, gets a pole behind the ribbon.
  */
 export function ribbonTiles(result: StockMovesResult, columns: RibbonColumn[], pinned: string | null = null): SceneTile[] {
   const benchmark = result.benchmark ?? 'indice'
@@ -58,7 +68,20 @@ export function ribbonTiles(result: StockMovesResult, columns: RibbonColumn[], p
   columns.forEach((column, x) => {
     const label = `${formatLongDate(column.date)} · ${result.ticker} ${column.asset === null ? 'n. d.' : signedRatio(column.asset)} depuis le début · ${benchmark} ${column.benchmark === null ? 'n. d.' : signedRatio(column.benchmark)}`
     tiles.push({ id: column.date, x, z: 0, h: raised(column.asset, scale), tone: 2, label })
-    tiles.push({ id: column.date, x, z: INDEX_ROW, d: 0.6, h: raised(column.benchmark, scale), tone: 6, label })
+    if (column.benchmark !== null) {
+      const level = column.benchmark * scale
+      tiles.push({
+        id: column.date,
+        x,
+        z: INDEX_ROW,
+        w: INDEX_WIDTH,
+        d: INDEX_DEPTH,
+        y: level - INDEX_THICKNESS / 2,
+        h: INDEX_THICKNESS,
+        tone: 5,
+        label,
+      })
+    }
   })
 
   for (const move of result.moves) {
@@ -101,7 +124,7 @@ export function ribbonTiles(result: StockMovesResult, columns: RibbonColumn[], p
       z: CURSOR_ROW,
       w: 0.3,
       d: 0.3,
-      h: HEIGHT,
+      h: HEIGHT + 1,
       tone: 'warn',
       label: `Séance épinglée : ${formatLongDate(pinned)}`,
     })

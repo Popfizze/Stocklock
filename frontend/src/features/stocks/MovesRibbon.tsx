@@ -15,7 +15,7 @@ interface MovesRibbonProps {
   result: StockMovesResult
 }
 
-// 3D — the story of the period: the title's path as a ribbon of tiles with its index behind, and each
+// 3D — the story of the period: the title's path as a ribbon of tiles with its index as a thin line across it, and each
 // marked move as a spike in front, capped when a dated event goes with it. Pointing reads a session,
 // clicking pins it; the two buttons walk from one marked move to the next.
 export function MovesRibbon({ result }: MovesRibbonProps) {
@@ -46,7 +46,7 @@ export function MovesRibbon({ result }: MovesRibbonProps) {
       />
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <p className="max-w-md text-xs text-muted-foreground">
-          Le ruban est le parcours de {result.ticker}, la rangée du fond celui de {benchmark}. Devant, les
+          Le ruban sombre est le parcours de {result.ticker} ; le trait clair qui le traverse, celui de {benchmark}. Devant, les
           mouvements marquants en pics, coiffés d’une tuile quand un événement daté les accompagne. Pointez pour
           lire une séance, cliquez pour l’épingler (un mât la marque).
         </p>

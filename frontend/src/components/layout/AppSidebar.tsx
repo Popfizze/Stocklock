@@ -38,6 +38,9 @@ export function AppSidebar() {
   const location = useLocation()
   const { isMobile, setOpenMobile, state } = useSidebar()
   const isCollapsed = state === 'collapsed'
+  // The rail (desktop, reduced): icons only. Its foot keeps one button, the profile, whose menu
+  // also holds the display settings.
+  const isRail = isCollapsed && !isMobile
 
   // Navigation uses <Link> (real anchors: middle-click, cmd-click, a11y all
   // work). Only the mobile-drawer close stays behind onClick.
@@ -93,9 +96,13 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
-        <MotionToggle withLabel={!isCollapsed} className="group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" />
-        <ThemeToggle withLabel={!isCollapsed} className="group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0" />
-        <ProfileSwitcher />
+        {!isRail && (
+          <>
+            <MotionToggle withLabel />
+            <ThemeToggle withLabel />
+          </>
+        )}
+        <ProfileSwitcher withSettings={isRail} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

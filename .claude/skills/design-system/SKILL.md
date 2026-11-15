@@ -68,7 +68,8 @@ Every screen has at least one 3D element, and each one **tells a story, illustra
 - **Plain equivalent required**: every scene has an `aria-label` that summarises the information, and the same information exists as text or a table on the page. The 3D never is the only place a number lives.
 - **Readable without pointing**: give the tiles that matter a permanent `tag` (and a `tagShort` for phone width) — name and value on the tile, not only in a hover tooltip; the engine drops a tag that would cover an earlier one.
 - **Fallbacks**: no WebGL → the flat SVG mosaic of the same tiles; animations reduced (switch) → one static rendered frame.
-- **Performance**: one canvas per view where possible, instanced meshes, device pixel ratio capped at 2, paused off-screen and when the tab is hidden, everything disposed on unmount.
+- **One WebGL context for the whole app**: every `Tile3D` scene is drawn by the same renderer (`sharedRenderer.ts`, on an off-page canvas) and copied to the scene's own 2D canvas — never create a `WebGLRenderer` or ask a canvas for a `webgl` context elsewhere. An E2E test fails above one context per page.
+- **Performance**: instanced meshes, device pixel ratio capped at 2, paused off-screen and when the tab is hidden, everything disposed on unmount.
 - Colours come from the tokens (resolved at run time), tones are the tile scale plus `up` / `down` / `alert` for meaning.
 - A scene never blocks or overlaps the data, and never captures the scroll.
 

@@ -1,4 +1,5 @@
 import * as THREE from 'three'
+import { acquireRenderer } from './sharedRenderer'
 import { TONE_VARIABLES, type SceneTile, type TileSceneProps, type TileTone } from './tileModel'
 
 /** Seconds a tile takes to grow, and the delay between two tiles. */
@@ -46,22 +47,24 @@ const TAG_CLASS =
   'pointer-events-none absolute top-0 left-0 rounded-sm bg-background/80 px-1 text-center text-[10px] leading-3 font-medium whitespace-pre text-foreground tabular-nums'
 
 /**
- * Starts the three.js renderer of a tile scene on `canvas`: one instanced mesh
- * of boxes on an orthographic camera fitted to the tiles. It runs only while
- * the canvas is on screen and the tab is visible; with reduced motion it draws
- * a single still frame. Returns the function that stops it and disposes
- * everything it created.
+ * Starts a tile scene on `canvas`: one instanced mesh of boxes on an orthographic
+ * camera fitted to the tiles, drawn by the app's shared WebGL renderer and copied
+ * to this 2D canvas (one WebGL context for all the scenes, see `sharedRenderer.ts`).
+ * It runs only while the canvas is on screen and the tab is visible; with reduced
+ * motion it draws a single still frame. Returns the function that stops it and
+ * disposes everything it created.
  */
 export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineState): () => void {
   const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true })
   if (!probe) return () => {}
-  let renderer: THREE.WebGLRenderer
-  try {
-    renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true })
-  } catch {
-    return () => {}
-  }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
+  const surface = canvas.getContext('2d')
+  if (!surface) return () => {}
+  // After a lost context comes back, the scene is painted again.
+  const renderer = acquireRenderer(() => {
+    state.dirty = true
+    schedule()
+  })
+  if (!renderer) return () => {}
 
   const scene = new THREE.Scene()
   scene.add(new THREE.AmbientLight(0xffffff, 2.1))
@@ -289,11 +292,11 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
       build()
     }
     const moving = place(now)
-    renderer.render(scene, camera)
+    renderer.draw(scene, camera, surface, width, height)
     placeTags()
     if (moving) frame = requestAnimationFrame(tick)
   }
-  const schedule = () => {
+  function schedule() {
     if (frame === 0) frame = requestAnimationFrame(tick)
   }
 
@@ -303,7 +306,6 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     width = parent.clientWidth
     height = parent.clientHeight
     if (width === 0 || height === 0) return
-    renderer.setSize(width, height, false)
     state.dirty = true
     schedule()
   }
@@ -452,6 +454,6 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     material.dispose()
     planeGeometry.dispose()
     planeMaterial.dispose()
-    renderer.dispose()
+    renderer.release()
   }
 }
