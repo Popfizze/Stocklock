@@ -345,10 +345,12 @@ def resolve_options(step: StepSpec, partial: dict[str, Any] | None) -> dict[str,
 
 
 def run(step: StepSpec, persona: dict[str, Any], inputs: BaseModel,
-        options: dict[str, Any] | None = None, collect_datasets: bool = False) -> RunResult:
+        options: dict[str, Any] | None = None, collect_datasets: bool = False,
+        state: dict[str, Any] | None = None) -> RunResult:
+    """`state` seeds the context's state (e.g. the stock page's time budget, see explain_move_fetch)."""
     resolved = resolve_options(step, options)
     ctx = Context(step=step, persona=persona, inputs=inputs, options=resolved,
-                  report=Report(task=step.id), collect_datasets=collect_datasets)
+                  report=Report(task=step.id), state=dict(state or {}), collect_datasets=collect_datasets)
     started = time.perf_counter()
     aborted = False
     for spec in step.stages:

@@ -3,14 +3,17 @@
 - robots.txt is honoured per site (read once per process; a site that refuses it is not crawled);
 - HTML and plain text only, at most 1.5 MB per page, short timeouts, a few pages in parallel;
 - SEC pages are requested with the SEC User-Agent (name and contact, EDGAR fair-access policy);
-- what is kept from a page (title, description, publication date, first paragraphs) is cached 7 days.
+- what is kept from a page (title, description, publication date, first paragraphs) is cached 7 days;
+- with a `deadline` (the stock page's time budget), the pages not read in time are reported as such and
+  keep loading in the background, so that their text is cached for the next request.
 """
 
 from __future__ import annotations
 
 import re
 import threading
-from concurrent.futures import ThreadPoolExecutor
+import time
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass
 from html import unescape
 from html.parser import HTMLParser
@@ -26,6 +29,9 @@ USER_AGENT = "StockLock-datathon-crawler/1.0 (projet etudiant, lecture ponctuell
 TEXT_MAX_CHARS = 4000
 MAX_WORKERS = 6
 CACHE_TTL_S = 7 * 86400
+OVER_BUDGET = "lecture non terminée dans le budget de temps"
+# Reads under a deadline: a pool shared by the requests, so that the reads left running never hold one up.
+_POOL = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="crawler")
 
 _SKIP = {"script", "style", "noscript", "nav", "footer", "header", "aside", "form", "svg", "button", "select"}
 _BLOCK = {"p", "div", "li", "br", "tr", "h1", "h2", "h3", "h4", "section", "article", "table", "td"}
@@ -213,8 +219,13 @@ def fetch_page(url: str) -> Page:
     return Page(**{**value, "from_cache": hit})
 
 
-def fetch_many(urls: list[str]) -> dict[str, Page | ExternalUnavailable]:
-    """Each URL's page, or the reason it could not be read; a few requests at a time."""
+def _until(deadline: float | None) -> float | None:
+    return None if deadline is None else max(0.0, deadline - time.monotonic())
+
+
+def fetch_many(urls: list[str], deadline: float | None = None) -> dict[str, Page | ExternalUnavailable]:
+    """Each URL's page, or the reason it could not be read; a few requests at a time. With a `deadline`
+    (time.monotonic()), a page still loading then is reported `OVER_BUDGET` and keeps loading in the background."""
     def one(url: str) -> Page | ExternalUnavailable:
         try:
             return fetch_page(url)
@@ -226,8 +237,12 @@ def fetch_many(urls: list[str]) -> dict[str, Page | ExternalUnavailable]:
     unique = list(dict.fromkeys(urls))
     if not unique:
         return {}
-    with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(unique))) as pool:
-        return dict(zip(unique, pool.map(one, unique), strict=True))
+    if deadline is None:
+        with ThreadPoolExecutor(max_workers=min(MAX_WORKERS, len(unique))) as pool:
+            return dict(zip(unique, pool.map(one, unique), strict=True))
+    futures = {url: _POOL.submit(one, url) for url in unique}
+    done, _ = wait(futures.values(), timeout=_until(deadline))
+    return {url: f.result() if f in done else ExternalUnavailable(SOURCE, OVER_BUDGET) for url, f in futures.items()}
 
 
 _ROW = re.compile(r"<tr[^>]*>(.*?)</tr>", re.IGNORECASE | re.DOTALL)
@@ -265,3 +280,20 @@ def sec_press_release(filing_url: str) -> str | None:
     if not paths:
         return None
     return "https://www.sec.gov" + paths[0] if paths[0].startswith("/") else paths[0]
+
+
+def press_releases(filing_urls: list[str], deadline: float | None = None) -> dict[str, str | None]:
+    """`sec_press_release` of several 8-Ks side by side; None for a filing without exhibit 99, whose index
+    could not be read, or (with a `deadline`) whose index was not read in time."""
+    def one(url: str) -> str | None:
+        try:
+            return sec_press_release(url)
+        except Exception:  # the filing's own document is read instead
+            return None
+
+    unique = list(dict.fromkeys(filing_urls))
+    if not unique:
+        return {}
+    futures = {url: _POOL.submit(one, url) for url in unique}
+    done, _ = wait(futures.values(), timeout=_until(deadline))
+    return {url: f.result() if f in done else None for url, f in futures.items()}

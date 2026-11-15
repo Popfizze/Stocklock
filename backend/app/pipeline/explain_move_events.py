@@ -6,8 +6,9 @@
   rate and leadership (8-K 5.02) events the title reacted to most become the period's key events;
 - crawl: the articles, 8-K press releases and presidential documents near each marked move (and the
   key events) are read by the crawler (robots.txt honoured), so that few pages are fetched;
-- digest: Claude Haiku summarizes and dates each article or 8-K from the page read; a summary with a
-  number absent from the page, or a date outside the week before publication, is rejected;
+- digest: Claude Haiku summarizes and dates each article or 8-K from the page read (a few events per
+  call, the calls side by side); a summary with a number absent from the page, or a date outside the
+  week before publication, is rejected;
 - plausibility: Claude Haiku says whether the nearby events plausibly explain each move, quoting the
   event word for word; each move ends up explained by a dated fact, a hypothesis, or no event;
 - key_events: the key events with the title's and the index's reaction over two sessions.
@@ -25,7 +26,8 @@ import numpy as np
 import pandas as pd
 
 from app.data import crawler, federal_register, gdelt
-from app.data.cache import ExternalUnavailable
+from app.data.cache import ExternalUnavailable, OverBudget
+from app.pipeline import explain_move_fetch as fetch
 from app.pipeline.core import Choice, Context, OptionSpec, StageSkipped
 from app.services import governance, narration
 from app.services import policy_events as policy
@@ -34,6 +36,8 @@ EVENT_LOOKBACK_DAYS = 3     # an event is tied to a move on the same day or in t
 READ_AFTER_DAYS = 2         # an article can come out a day or two after the event it reports
 DIGEST_MAX_SHIFT_DAYS = 7   # Haiku may date the reported fact at most a week before publication
 JUDGED_MOVES_MAX = 8
+DIGEST_CHUNK = 3            # events per Haiku digest call; the calls run side by side
+LINKS_CHUNK = 4             # moves per Haiku link-judgement call
 KEY_EVENTS_MAX = 8          # political, rate and leadership events kept for the period
 KEY_EVENTS_PER_DAY = 2
 POLITICAL_PEAKS_MAX = 8
@@ -203,7 +207,12 @@ def _federal_register(ctx: Context, start: date, end: date) -> list[dict[str, An
     try:
         info = ctx.state.get("asset", {})
         sector = f"{info.get('sector') or ''} {info.get('asset_class') or ''}"
-        docs, total, hit = federal_register.policy_documents(start, end, sector)
+        docs, total, hit = fetch.get(ctx, "federal_register",
+                                     lambda: federal_register.policy_documents(start, end, sector))
+    except OverBudget as exc:
+        fetch.over_budget(ctx, exc, "Federal Register", question, "aucun (budget de temps dépassé)",
+                          "aucune décision politique américaine utilisée.", rule)
+        return []
     except ExternalUnavailable as exc:
         ctx.warn(f"Federal Register indisponible ({exc.reason}) : aucune décision politique américaine utilisée.")
         ctx.decide(question, "aucun (Federal Register injoignable)", f"API indisponible ({exc.reason}) : rien "
@@ -225,7 +234,11 @@ def _political_coverage(ctx: Context, start: date, end: date) -> list[dict[str, 
     question = "Quels jours la couverture des tarifs et des sanctions culmine-t-elle ?"
     rule = f"seuil = moyenne + 2 écarts-types, un pic par 3 jours, {POLITICAL_PEAKS_MAX} au plus"
     try:
-        tl = gdelt.timeline_for_query(gdelt.POLITICAL_QUERY, start, end)
+        tl = fetch.get(ctx, "gdelt_political", lambda: gdelt.timeline_for_query(gdelt.POLITICAL_QUERY, start, end))
+    except OverBudget as exc:
+        fetch.over_budget(ctx, exc, "Couverture GDELT des tarifs et sanctions", question,
+                          "inconnu (budget de temps dépassé)", "seules les sources officielles sont utilisées.", rule)
+        return []
     except ExternalUnavailable as exc:
         ctx.warn(f"GDELT indisponible pour les tarifs et sanctions ({exc.reason}) : seules les sources officielles "
                  "sont utilisées.")
@@ -342,25 +355,24 @@ def crawl(ctx: Context) -> None:
                "Articles, dépôts 8-K et documents présidentiels proches des plus grands mouvements d'abord, puis "
                "ceux des événements clés ; dividendes, 10-Q, 10-K et décisions de taux gardent leur libellé.",
                f"option max_pages = {limit}")
+    budget = fetch.budget_of(ctx)
+    crawl_deadline = fetch.deadline(ctx, budget.crawl_s) if budget else None
+    # Federal Register: the raw text (its HTML pages refuse robots); 8-K: its press release, looked up side by side
+    exhibit_of = crawler.press_releases([e["url"] for e in chosen if e["kind"] == "8-K"], crawl_deadline)
     targets: dict[str, str] = {}
     exhibits = 0
     for e in chosen:
-        url = e.get("text_url") or e["url"]  # Federal Register: the raw text (its HTML pages refuse robots)
-        if e["kind"] == "8-K":
-            try:
-                exhibit = crawler.sec_press_release(url)
-            except ExternalUnavailable:
-                exhibit = None
-            if exhibit:
-                url, exhibits = exhibit, exhibits + 1
+        url = e.get("text_url") or e["url"]
+        if e["kind"] == "8-K" and exhibit_of.get(url):
+            url, exhibits = exhibit_of[url], exhibits + 1
         targets[e["id"]] = url
     if any(e["kind"] == "8-K" for e in chosen):
         n_8k = sum(1 for e in chosen if e["kind"] == "8-K")
         ctx.decide("Que lire pour un 8-K ?", f"{exhibits} communiqué(s) sur {n_8k} dépôt(s)",
                    "Le communiqué de presse joint au dépôt (pièce 99) quand l'index du dépôt en contient un, sinon "
                    "le formulaire lui-même.", "pièce 99.x de index.json, sinon document principal")
-    pages = crawler.fetch_many(list(targets.values()))
-    read, failed = 0, []
+    pages = crawler.fetch_many(list(targets.values()), crawl_deadline)
+    read, failed, late = 0, [], 0
     for e in chosen:
         e["read_url"] = targets[e["id"]]
         page = pages.get(targets[e["id"]])
@@ -378,11 +390,18 @@ def crawl(ctx: Context) -> None:
             reason = page.reason if isinstance(page, ExternalUnavailable) else "non lue"
             e["read"] = f"non lue : {reason}"
             failed.append(f"{_host(targets[e['id']])} ({reason})")
+            late += reason == crawler.OVER_BUDGET
     if chosen:
         ctx.decide("Combien de pages lues ?", f"{read} sur {len(chosen)}",
                    "Toutes les pages ont été lues." if not failed else
                    "Non lues : " + "; ".join(failed[:6]) + (" …" if len(failed) > 6 else "") + ".",
                    "robots.txt respecté ; HTML ou texte seulement ; 1,5 Mo au plus par page")
+    if late and budget is not None:
+        budget.skip(f"lecture de {late} page(s)")
+        ctx.decide("Attendre les pages encore en lecture ?", f"non, {late} laissée(s) de côté",
+                   f"{late} page(s) n'étaient pas lues au bout de {budget.crawl_s:g} s : leurs événements gardent leur "
+                   "titre ; la lecture continue en arrière-plan et une prochaine analyse les reprend (cache).",
+                   f"budget de temps de la page titre : {budget.crawl_s:g} s pour les pages")
     if failed:
         ctx.warn(f"{len(failed)} page(s) non lue(s) (robots.txt, accès refusé ou délai dépassé) : leurs événements "
                  "gardent leur titre seul.")
@@ -450,23 +469,39 @@ def digest(ctx: Context) -> None:
         _digest_outputs(ctx, candidates)
         return
     info = ctx.state.get("asset", {})
-    facts = {"ticker": ctx.inputs.ticker, "name": info.get("name"), "events": [
-        {"id": e["id"], "type": e["kind"], "published": e["date"].isoformat(),
-         "title": e.get("page_title") or e["label"],
-         "excerpt": "\n".join(x for x in (e.get("page_description"), e.get("page_text")) if x)[:1500]}
-        for e in to_read]}
+
+    def facts(chunk: list[dict[str, Any]]) -> dict[str, Any]:
+        return {"ticker": ctx.inputs.ticker, "name": info.get("name"), "events": [
+            {"id": e["id"], "type": e["kind"], "published": e["date"].isoformat(),
+             "title": e.get("page_title") or e["label"],
+             "excerpt": "\n".join(x for x in (e.get("page_description"), e.get("page_text")) if x)[:1500]}
+            for e in chunk]}
+
     model_id = narration.model_id_for(choice)
-    try:
-        items = narration.digest_events(facts, choice)
-    except Exception as exc:  # Bedrock / AgentCore failure: the sources' own titles are kept
-        ctx.warn(f"Résumés Haiku indisponibles ({type(exc).__name__}) : titres et descriptions des pages repris.")
-        ctx.decide(question, "la source (repli)", f"Appel à {model_id} en échec ({type(exc).__name__}) : rien "
+    chunks = fetch.chunked(to_read, DIGEST_CHUNK)
+    answers = fetch.parallel(lambda chunk: narration.digest_events(facts(chunk), choice), chunks)
+    errors = [exc for _, exc in answers if exc is not None]
+    items = [item for got, exc in answers if exc is None for item in got or []]
+    if len(errors) == len(chunks):  # Bedrock / AgentCore failure: the sources' own titles are kept
+        name = type(errors[0]).__name__
+        ctx.state.setdefault("degraded", []).append("résumés Haiku")
+        ctx.warn(f"Résumés Haiku indisponibles ({name}) : titres et descriptions des pages repris.")
+        ctx.decide(question, "la source (repli)", f"Appel à {model_id} en échec ({name}) : rien "
                    "n'est inventé, les titres et descriptions des pages sont repris.", rule)
         _digest_outputs(ctx, candidates)
         return
     ctx.source("bedrock_digest", f"Amazon Bedrock, {model_id} (résumé et datation des événements)")
     ctx.decide(question, model_id, "Haiku résume chaque article ou 8-K à partir de la page lue ; chaque résumé et "
-               "chaque date sont vérifiés avant d'être gardés.", rule, {"événements": len(to_read)})
+               "chaque date sont vérifiés avant d'être gardés.", rule,
+               {"événements": len(to_read), "appels en parallèle": len(chunks)})
+    if errors:
+        missed = sum(len(c) for c, (_, exc) in zip(chunks, answers, strict=True) if exc is not None)
+        ctx.state.setdefault("degraded", []).append("résumés Haiku (en partie)")
+        ctx.warn(f"Résumés Haiku en partie indisponibles ({type(errors[0]).__name__}) : {missed} événement(s) gardent "
+                 "le titre et la description de leur page.")
+        ctx.decide("Que faire des événements dont l'appel a échoué ?", "titre et description de la page",
+                   f"{len(errors)} appel(s) sur {len(chunks)} en échec : rien n'est inventé pour ces {missed} "
+                   "événement(s).", f"{DIGEST_CHUNK} événements au plus par appel")
     by_id = {e["id"]: e for e in to_read}
     kept = refused = redated = off_topic = 0
     for item in items:
@@ -575,23 +610,32 @@ def plausibility(ctx: Context) -> None:
     else:
         model_id = narration.model_id_for(choice)
         info = ctx.state.get("asset", {})
-        facts = {"ticker": ctx.inputs.ticker, "name": info.get("name"), "benchmark": ctx.state.get("bench"),
-                 "moves": [{"move_id": f"m{i}", "date": m["date"].isoformat(),
-                            "direction": "hausse" if m["ar"] > 0 else "baisse",
-                            "events": [{"event_id": e["id"], "date": when(e).isoformat(), "type": e["kind"],
-                                        "title": e.get("page_title") or e["label"], "summary": e.get("summary")}
-                                       for e in m["events"]]} for i, m in enumerate(judged)]}
-        try:
-            links = narration.judge_links(facts, choice)
-        except Exception as exc:  # Bedrock / AgentCore failure: proximity only, nothing invented
-            ctx.warn(f"Jugement Haiku des liens indisponible ({type(exc).__name__}) : simple proximité dans le temps.")
-            ctx.decide(question, "personne (repli)", f"Appel à {model_id} en échec ({type(exc).__name__}) : chaque "
+        moves = [{"move_id": f"m{i}", "date": m["date"].isoformat(), "direction": "hausse" if m["ar"] > 0 else "baisse",
+                  "events": [{"event_id": e["id"], "date": when(e).isoformat(), "type": e["kind"],
+                              "title": e.get("page_title") or e["label"], "summary": e.get("summary")}
+                             for e in m["events"]]} for i, m in enumerate(judged)]
+        head = {"ticker": ctx.inputs.ticker, "name": info.get("name"), "benchmark": ctx.state.get("bench")}
+        answers = fetch.parallel(lambda chunk: narration.judge_links({**head, "moves": chunk}, choice),
+                                 fetch.chunked(moves, LINKS_CHUNK))
+        errors = [exc for _, exc in answers if exc is not None]
+        if len(errors) == len(answers):  # Bedrock / AgentCore failure: proximity only, nothing invented
+            name = type(errors[0]).__name__
+            ctx.state.setdefault("degraded", []).append("jugement Haiku des liens")
+            ctx.warn(f"Jugement Haiku des liens indisponible ({name}) : simple proximité dans le temps.")
+            ctx.decide(question, "personne (repli)", f"Appel à {model_id} en échec ({name}) : chaque "
                        "lien reste une simple proximité dans le temps.", rule)
+        else:
+            links = [item for got, exc in answers if exc is None for item in got or []]
+            if errors:
+                ctx.state.setdefault("degraded", []).append("jugement Haiku des liens (en partie)")
+                ctx.warn(f"Jugement Haiku en partie indisponible ({type(errors[0]).__name__}) : les mouvements de "
+                         "l'appel en échec restent une simple proximité dans le temps.")
         if links is not None:
             ctx.source("bedrock_links", f"Amazon Bedrock, {model_id} (jugement des liens mouvement-événement)")
             ctx.decide(question, model_id, f"Haiku juge les {len(judged)} plus grands mouvements qui ont un événement "
                        "proche ; un lien n'est gardé « plausible » que si l'événement est l'un des proches et que "
-                       "l'extrait cité y figure mot pour mot.", f"{rule} ; {JUDGED_MOVES_MAX} mouvements au plus")
+                       "l'extrait cité y figure mot pour mot.", f"{rule} ; {JUDGED_MOVES_MAX} mouvements au plus, "
+                       f"{LINKS_CHUNK} par appel, appels en parallèle", {"appels": len(answers)})
             _apply_links(ctx, judged, links)
     for m in found:
         _explain(m)

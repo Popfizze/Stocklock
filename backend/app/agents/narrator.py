@@ -99,6 +99,8 @@ def structured(task: str, facts: dict[str, Any], model_id: str, region: str) -> 
 def handle(payload: dict[str, Any], default_region: str) -> dict[str, Any]:
     """Single dispatcher used by the AgentCore entrypoint: {task, persona, facts, model_id}."""
     task = payload.get("task")
+    if task == "ping":  # the backend starts the runtime session ahead of its first model call
+        return {"ok": True}
     region = payload.get("region") or default_region
     model_id = payload["model_id"]
     persona = payload.get("persona") or {}

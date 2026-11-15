@@ -69,6 +69,14 @@ data "aws_iam_policy_document" "api" {
     resources = ["${aws_s3_bucket.data.arn}/lab/*"]
   }
 
+  # Stock page, step 2: answers cached under cache/moves/ and shared by every instance (app/services/moves_cache);
+  # the bucket's lifecycle expires them (data.tf).
+  statement {
+    sid       = "WriteAnswerCache"
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.data.arn}/cache/*"]
+  }
+
   # Labo button: start and follow the score pipeline (score_pipeline.tf).
   statement {
     sid       = "ScorePipelineStart"

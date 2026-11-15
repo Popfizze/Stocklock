@@ -262,6 +262,7 @@ def narration_stage(ctx: Context) -> None:
     except Exception as exc:  # Bedrock / AgentCore failure: deterministic fallback
         ctx.state["answer"] = deterministic_answer(ctx)
         ctx.state["narration_model"] = "none"
+        ctx.state.setdefault("degraded", []).append("narration")
         ctx.warn(f"Narration indisponible ({type(exc).__name__}) : résumé déterministe utilisé.")
         ctx.decide(question, "résumé déterministe (repli)", f"Appel à {model_id} en échec "
                    f"({type(exc).__name__}) : rien n'est inventé, les faits calculés sont repris.", rule, facts)
@@ -284,7 +285,19 @@ def governance_stage(ctx: Context) -> None:
     retried = 0
     question = "Relancer la narration ?"
     rule = "relance unique si un chiffre de la réponse est absent des faits et qu'un modèle a rédigé"
-    if bad and ctx.state.get("narration_model", "none") != "none":
+    budget = ctx.state.get("budget")  # the stock page's time budget (explain_move_fetch.Budget), if any
+    if bad and ctx.state.get("narration_model", "none") != "none" and budget is not None \
+            and not budget.allows(budget.retry_s):
+        left = max(0.0, budget.remaining())
+        ctx.decide(question, "non (budget de temps)", f"Chiffres non sourcés dans la réponse : {', '.join(bad)} ; "
+                   f"il reste {left:.0f} s sur {budget.total_s:g} s, une deuxième narration en demande environ "
+                   f"{budget.retry_s:g} : les phrases qui portent ces chiffres sont retirées.",
+                   f"{rule} ; budget de temps de la page titre")
+        budget.skip("relance de la narration")
+        ctx.warn(f"Narration : {len(bad)} chiffre(s) non sourcé(s) retiré(s) avec leur phrase (pas le temps d'une "
+                 "relance).", limit=False)
+        answer, verdict, bad = gov.check(gov.without_sentences_citing(answer, bad), ctx.report, ctx.persona, inputs)
+    elif bad and ctx.state.get("narration_model", "none") != "none":
         retried = 1
         feedback = ("Ces chiffres ne figurent pas dans les faits et doivent être retirés ou remplacés "
                     f"par des valeurs des faits : {', '.join(bad)}.")

@@ -67,4 +67,16 @@ resource "aws_s3_bucket_lifecycle_configuration" "data" {
       days = 30
     }
   }
+
+  # Cached answers of the stock page (cache/moves/, at most 12 h fresh): removed after 2 days.
+  rule {
+    id     = "expire-answer-cache"
+    status = "Enabled"
+    filter {
+      prefix = "cache/"
+    }
+    expiration {
+      days = 2
+    }
+  }
 }

@@ -12,6 +12,7 @@ from app.data import edgar, gdelt, starter, yf_live
 from app.data.cache import ExternalUnavailable
 from app.pipeline import common, datasets
 from app.pipeline import explain_move_events as ev
+from app.pipeline import explain_move_fetch as fetch
 from app.pipeline.core import Choice, Context, InputSpec, OptionSpec, StageSkipped, StageSpec, StepSpec
 from app.schemas import ExplainMoveInputs
 from app.services import market, profile
@@ -76,6 +77,7 @@ def prices(ctx: Context) -> None:
                f"volatilité dans la fenêtre ≤ {ctx.persona['constraints']['max_volatility'] * 100:.0f} %",
                {"volatilité": vol})
     common.price_preview(ctx, market.window(df, start, end))
+    fetch.start(ctx)  # EDGAR, Federal Register, GDELT and news load while the next stages compute
 
 
 def benchmark(ctx: Context) -> None:
@@ -309,7 +311,7 @@ def company_events(ctx: Context) -> None:
     question, rule = "Quels dépôts réglementaires chercher ?", "formulaires 8-K, 10-Q et 10-K déposés dans la fenêtre"
     if cik:
         try:
-            filings, hit = edgar.filings_between(cik, start, end)
+            filings, hit = fetch.get(ctx, "edgar", lambda: edgar.filings_between(cik, start, end))
             ctx.source(f"edgar_filings_{ticker}", f"SEC EDGAR, index des dépôts CIK {cik:010d}",
                        edgar.SUBMISSIONS_URL.format(cik=cik))
             ctx.metric("cache EDGAR", "oui" if hit else "non")
@@ -321,6 +323,9 @@ def company_events(ctx: Context) -> None:
                 label = edgar.describe_8k(f.get("items")) if f["form"] == "8-K" else                     {"10-Q": "10-Q : rapport trimestriel", "10-K": "10-K : rapport annuel"}.get(f["form"], f["form"])
                 events.append({"date": date.fromisoformat(f["filed"]), "kind": f["form"], "label": label,
                                "source_id": f"edgar_filings_{ticker}", "url": f["url"]})
+        except fetch.OverBudget as exc:
+            fetch.over_budget(ctx, exc, "Dépôts EDGAR", question, "aucun (budget de temps dépassé)",
+                              "seules les opérations sur titres sont utilisées.", rule)
         except ExternalUnavailable as exc:
             ctx.warn(f"Dépôts EDGAR indisponibles ({exc.reason}).")
             ctx.decide(question, "aucun (EDGAR injoignable)", f"Dépôts EDGAR indisponibles ({exc.reason}) : seules "
@@ -355,7 +360,12 @@ def world_events(ctx: Context) -> None:
                  "environ), requête sur le nom de l'entreprise ; 1 requête / 5 s et réponses 429 fréquentes.",
                  limit=False)
         try:
-            tl = gdelt.timeline(ticker, info["name"], start, end)
+            tl = fetch.get(ctx, "gdelt_title", lambda: gdelt.timeline(ticker, info["name"], start, end))
+        except fetch.OverBudget as exc:
+            fetch.over_budget(ctx, exc, "Couverture GDELT du titre", question, "aucune (budget de temps dépassé)",
+                              "aucun événement du monde utilisé, rien n'est inventé ; l'attribution n'utilise que "
+                              "les autres événements.", rule)
+            return
         except ExternalUnavailable as exc:
             ctx.warn(f"GDELT indisponible ({exc.reason}) : aucun événement du monde utilisé, rien n'est inventé.")
             ctx.decide(question, "aucune (GDELT injoignable)", f"GDELT indisponible ({exc.reason}) : aucun "
@@ -401,7 +411,11 @@ def world_events(ctx: Context) -> None:
         ctx.report.factor("Pics de couverture médiatique (GDELT)", float(len(evts)), "jours", source_id=sid, digits=0)
         return
     try:
-        items, _ = yf_live.recent_news(ticker)
+        items, _ = fetch.get(ctx, "news", lambda: yf_live.recent_news(ticker))
+    except fetch.OverBudget as exc:
+        fetch.over_budget(ctx, exc, "Actualités yfinance", question, "aucune (budget de temps dépassé)",
+                          "aucun article utilisé.", rule)
+        return
     except ExternalUnavailable as exc:
         ctx.warn(f"Actualités yfinance indisponibles ({exc.reason}).")
         ctx.decide(question, "aucune (yfinance injoignable)", f"Actualités yfinance indisponibles ({exc.reason}).",

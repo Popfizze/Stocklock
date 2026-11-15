@@ -91,6 +91,21 @@ def _matches(token: NumberToken, pool: list[float]) -> bool:
     return False
 
 
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
+
+
+def without_sentences_citing(answer: str, numbers: list[str]) -> str:
+    """The answer without the sentences (or list items) that write one of `numbers`; paragraphs kept."""
+    unwanted = {n.strip() for n in numbers}
+    lines = []
+    for line in answer.split("\n"):
+        parts = [p for p in _SENTENCE_END.split(line)
+                 if not any(t.text.strip() in unwanted for t in extract_numbers(p))]
+        if parts or not line.strip():
+            lines.append(" ".join(parts))
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
 def unsupported_numbers(answer: str, pool: list[float]) -> list[str]:
     bad = []
     for tok in extract_numbers(answer):

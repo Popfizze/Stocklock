@@ -2,7 +2,9 @@
 
 One `tonechart` request gives both the article count (sum of bins) and the average tone
 (count-weighted bin mean), plus a few top articles used as sources. GDELT asks for at most one
-request every 5 seconds; a process-wide throttle enforces it.
+request every 5 seconds; a process-wide throttle enforces it. Inside `deadline_scope(deadline)` (the
+stock page's time budget) a call never waits beyond the deadline: when GDELT is busy or its next slot
+comes too late, it gives up at once (OverBudget), without counting as a refusal.
 """
 
 from __future__ import annotations
@@ -10,23 +12,29 @@ from __future__ import annotations
 import re
 import threading
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from urllib.parse import urlencode
 
 from app.config import get_settings
 from app.data import cache
-from app.data.cache import ExternalUnavailable
+from app.data.cache import ExternalUnavailable, OverBudget
 from app.data.http import get_json
 
 SOURCE = "GDELT DOC 2.0"
 API_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 MIN_INTERVAL_S = 5.5
 COOLDOWN_S = 300.0  # after a refusal, fail fast instead of waiting ~15 s for another 429
+COOLDOWN_MAX_S = 1800.0  # refusals in a row double the pause, up to 30 min; an answer resets it
+TIMELINE_TTL_S = 12 * 3600
 
 _lock = threading.Lock()
+_local = threading.local()  # this thread's deadline (deadline_scope)
 _last_call = 0.0
 _cooldown_until = 0.0
+_refusals = 0  # in a row
 
 # Short, unambiguous names used in news text.
 NAME_OVERRIDES = {
@@ -78,24 +86,49 @@ def summarize_tonechart(payload: dict) -> tuple[int, float | None, list[dict]]:
     return total, tone, tops
 
 
+@contextmanager
+def deadline_scope(deadline: float | None) -> Iterator[None]:
+    """Within the block, this thread's GDELT requests never wait past `deadline` (time.monotonic())."""
+    previous = getattr(_local, "deadline", None)
+    _local.deadline = deadline
+    try:
+        yield
+    finally:
+        _local.deadline = previous
+
+
 def _throttled_get(params: dict[str, str], timeout_s: float | None = None) -> dict:
-    global _last_call, _cooldown_until
-    with _lock:
+    """Gives up at once (OverBudget) rather than wait for the lock or the next slot past the thread's deadline."""
+    global _last_call, _cooldown_until, _refusals
+    deadline = getattr(_local, "deadline", None)
+    budget = None if deadline is None else deadline - time.monotonic()
+    if not _lock.acquire(timeout=-1 if budget is None else max(0.0, budget)):
+        raise OverBudget(SOURCE, "une autre requête GDELT occupe le créneau au-delà du budget de temps")
+    try:
         remaining = _cooldown_until - time.monotonic()
         if remaining > 0:
             raise ExternalUnavailable(SOURCE, f"en pause après un refus récent, nouvel essai possible dans "
                                               f"{remaining:.0f} s")
         wait = MIN_INTERVAL_S - (time.monotonic() - _last_call)
+        if deadline is not None and max(wait, 0.0) >= deadline - time.monotonic():
+            raise OverBudget(SOURCE, "budget de temps écoulé avant la requête" if wait <= 0 else
+                             f"prochain créneau dans {max(1, round(wait))} s (une requête toutes les "
+                             f"{MIN_INTERVAL_S:g} s), au-delà du budget de temps")
         if wait > 0:
             time.sleep(wait)
         try:
-            return get_json(SOURCE, API_URL, params=params, timeout_s=timeout_s or get_settings().gdelt_timeout_s,
-                            headers={"User-Agent": "StockLock datathon research"})
+            payload = get_json(SOURCE, API_URL, params=params, timeout_s=timeout_s or get_settings().gdelt_timeout_s,
+                               headers={"User-Agent": "StockLock datathon research"})
         except ExternalUnavailable:
-            _cooldown_until = time.monotonic() + COOLDOWN_S
+            _refusals += 1
+            _cooldown_until = time.monotonic() + min(COOLDOWN_S * 2 ** (_refusals - 1), COOLDOWN_MAX_S)
             raise
         finally:
             _last_call = time.monotonic()
+        _refusals = 0
+        return payload
+    finally:
+        _lock.release()
 
 
 def news_summary(ticker: str, name: str, start: date, end: date) -> NewsSummary:
@@ -161,9 +194,9 @@ def timeline_for_query(query: str, start: date, end: date, *, cache_only: bool =
     }
     key = "|".join(f"{k}={params[k]}" for k in sorted(params))
     if cache_only:
-        payload, hit = cache.read("gdelt", key, 12 * 3600), True
+        payload, hit = cache.read("gdelt", key, TIMELINE_TTL_S), True
         if payload is None:
             raise ExternalUnavailable(SOURCE, "couverture pas encore calculée pour ce titre")
     else:
-        payload, hit = cache.cached("gdelt", key, 12 * 3600, lambda: _throttled_get(params, timeout_s))
+        payload, hit = cache.cached("gdelt", key, TIMELINE_TTL_S, lambda: _throttled_get(params, timeout_s))
     return Timeline(query, parse_timeline(payload), hit, API_URL + "?" + urlencode(params))

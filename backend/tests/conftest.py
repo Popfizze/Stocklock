@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 from app.config import get_settings
 from app.data import crawler, gdelt, http, universe, yf_fundamentals, yf_live, yf_market
 from app.data.cache import ExternalUnavailable
-from app.services import score_table
+from app.services import moves_cache, narration, score_table
 
 
 @pytest.fixture(autouse=True)
@@ -19,6 +19,9 @@ def offline(monkeypatch, tmp_path):
     get_settings.cache_clear()
     universe.reset()
     score_table.reset()
+    moves_cache.reset()
+    narration.reset_session()
+    monkeypatch.setattr(moves_cache, "enabled", False)  # every request computes, unless a test turns it on
 
     def no_network(source, url, **kwargs):
         raise ExternalUnavailable(source, "réseau désactivé pendant les tests")
@@ -39,6 +42,7 @@ def offline(monkeypatch, tmp_path):
     monkeypatch.setattr(yf_market, "_post", no_yf)
     monkeypatch.setattr(yf_market, "_run_screen", no_yf)
     monkeypatch.setattr(gdelt, "_cooldown_until", 0.0)
+    monkeypatch.setattr(gdelt, "_refusals", 0)
     monkeypatch.setattr(gdelt, "MIN_INTERVAL_S", 0.0)
 
     def no_bedrock(payload):

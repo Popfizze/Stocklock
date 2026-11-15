@@ -23,6 +23,10 @@ class ExternalUnavailable(Exception):
         self.reason = reason
 
 
+class OverBudget(ExternalUnavailable):
+    """The caller's time budget ran out before the source answered, or before it could be asked."""
+
+
 def _cache_path(namespace: str, key: str) -> Path:
     digest = hashlib.sha256(key.encode("utf-8")).hexdigest()[:32]
     return get_settings().cache_dir / namespace / f"{digest}.json"

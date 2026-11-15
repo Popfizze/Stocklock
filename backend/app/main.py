@@ -5,6 +5,7 @@ Run from backend/: uvicorn app.main:app --reload --port 8000
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -16,6 +17,7 @@ from app.config import get_settings
 from app.market_api import router as market_router
 from app.personas import get_persona, list_public
 from app.pipeline import batch
+from app.pipeline.explain_move_fetch import Budget
 from app.pipeline.core import OptionError, PipelineInputError
 from app.pipeline.registry import STEPS, catalog, execute
 from app.registry import lab as stored_runs
@@ -25,7 +27,7 @@ from app.score_pipeline_api import router as score_pipeline_router
 from app.scoring_api import router as scoring_router
 from app.schemas import (AnalysisResponse, BiasRequest, ExplainMoveRequest, LabBatchRequest, LabRunRequest,
                          Persona, ScoreRequest, StockBiasRequest, StockMovesRequest, TaxRequest)
-from app.services import lab_groups, moves_view
+from app.services import lab_groups, moves_cache, moves_view, narration
 
 settings = get_settings()
 app = FastAPI(title="StockLock API", version="0.1.0",
@@ -80,19 +82,30 @@ def stock_moves(request: StockMovesRequest) -> dict[str, Any]:
     """Step 2 on a stock page: the period's marked moves and what plausibly explains each one.
 
     Market model (beta over the year before the window, with its fallback); the business and Lab
-    contracts of /api/explain-move stay unchanged."""
+    contracts of /api/explain-move stay unchanged. Answered from the cache when it can be
+    (services/moves_cache), else computed within a time budget (pipeline/explain_move_fetch): the
+    sources and pages left out are stated in the warnings and in `cache.skipped`."""
+    started = time.perf_counter()
     persona = get_persona(request.persona_id)
     start, end = moves_view.window_for(request.period)
+    options = {"benchmark.method": "market_model"}
+    cache_key = moves_cache.key(request.ticker, start, end, request.persona_id, options)
+    hit = moves_cache.get(cache_key)
+    if hit is not None:
+        return moves_cache.served(hit[0], hit[1], started)
+    narration.warm_up()  # the model session starts while the prices load
+    budget = Budget()
     try:
-        result, response = execute("explain_move", persona,
-                                   {"ticker": request.ticker, "start": start, "end": end},
-                                   {"benchmark.method": "market_model"})
+        result, response = execute("explain_move", persona, {"ticker": request.ticker, "start": start, "end": end},
+                                   options, state={"budget": budget})
     except PipelineInputError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if result.failed:
         failed = next(s for s in result.stages if s["status"] == "error")
         raise HTTPException(status_code=503, detail=f"Étape « {failed['name']} » indisponible.")
-    return moves_view.build(result, response, request.period)
+    body = moves_view.build(result, response, request.period)
+    skipped = [*budget.skipped, *result.context.state.get("degraded", [])]
+    return moves_cache.served(moves_cache.put(cache_key, body, skipped), None, started)
 
 
 @app.post("/api/tax", response_model=AnalysisResponse)
