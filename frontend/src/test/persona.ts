@@ -56,6 +56,13 @@ export const HYPE_PLTR_HIGH: HypeSignal = {
   return_1m: 0.382,
   volatility_1y: 0.512,
   news_source: 'gdelt',
+  news_coverage: {
+    label: 'GDELT DOC 2.0',
+    as_of: '2026-11-13',
+    window_days: 90,
+    scope: 'Articles en anglais, couverture internationale indexée par GDELT.',
+    is_fallback: false,
+  },
   as_of: '2026-11-13',
 }
 

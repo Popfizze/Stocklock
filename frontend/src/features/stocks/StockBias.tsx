@@ -49,6 +49,7 @@ function BiasForm({ ticker, persona, prefill, pickedLabel }: BiasFormProps) {
         </h3>
         <p className="text-sm text-muted-foreground">
           Examinez votre intention pour {ticker} à la lumière de l’historique du titre et du profil de {persona.name}.
+          Le signal de battage du marché est un contexte distinct : il ne suffit pas à qualifier votre décision.
         </p>
       </div>
 
@@ -142,7 +143,7 @@ function BiasForm({ ticker, persona, prefill, pickedLabel }: BiasFormProps) {
           {mutation.error.status === 0 ? 'Vérifiez la connexion au serveur.' : mutation.error.message}
         </p>
       )}
-      {mutation.data && <BiasDetails result={mutation.data} persona={persona} />}
+      {mutation.data && <BiasDetails result={mutation.data} persona={persona} ticker={ticker} />}
     </section>
   )
 }

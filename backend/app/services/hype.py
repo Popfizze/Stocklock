@@ -142,6 +142,13 @@ def _gdelt_news(symbol: str, name: str, cache_only: bool) -> dict[str, Any]:
     points = _points(ratio, NEWS_NOTABLE, NEWS_STRONG)
     verdict = {0: "habituelle", 1: "≥ 1,5 : notable", 2: "≥ 3 : forte"}[points or 0]
     return {"source": "gdelt", "ratio": ratio, "points": points,
+            "coverage": {
+                "label": "GDELT DOC 2.0",
+                "as_of": str(values.index.max()),
+                "window_days": len(values),
+                "scope": "Articles en anglais, couverture internationale indexée par GDELT.",
+                "is_fallback": False,
+            },
             "message": f"Articles GDELT des {NEWS_RECENT_DAYS} derniers jours : {fr(recent)} par jour, soit "
                        f"{fr(ratio)} × la moyenne des {len(values) - NEWS_RECENT_DAYS} jours précédents ({verdict})."}
 
@@ -155,10 +162,24 @@ def _yahoo_news(symbol: str, reason: str) -> dict[str, Any]:
     dates = sorted(datetime.fromisoformat(i["date"]).date() for i in items if i.get("date"))
     if not dates:
         return {"source": "yahoo", "ratio": None, "points": None,
+                "coverage": {
+                    "label": "Yahoo Finance",
+                    "as_of": None,
+                    "window_days": 0,
+                    "scope": "Dernières manchettes proposées par Yahoo Finance ; couverture non exhaustive.",
+                    "is_fallback": True,
+                },
                 "message": f"Aucun article récent chez Yahoo Finance (GDELT : {reason})."}
     newest, span = dates[-1], (dates[-1] - dates[0]).days + 1
     if span < YAHOO_MIN_SPAN:
         return {"source": "yahoo", "ratio": None, "points": None,
+                "coverage": {
+                    "label": "Yahoo Finance",
+                    "as_of": newest.isoformat(),
+                    "window_days": span,
+                    "scope": "Dernières manchettes proposées par Yahoo Finance ; couverture non exhaustive.",
+                    "is_fallback": True,
+                },
                 "message": f"Yahoo Finance : {len(dates)} articles en {span} jour(s), couverture dense mais sans "
                            f"historique pour comparer (GDELT : {reason})."}
     recent = sum(1 for d in dates if (newest - d).days < YAHOO_RECENT_DAYS) / YAHOO_RECENT_DAYS
@@ -167,6 +188,13 @@ def _yahoo_news(symbol: str, reason: str) -> dict[str, Any]:
     points = 1 if ratio is not None and ratio >= NEWS_NOTABLE else 0
     shown = f"{fr(ratio)} ×" if ratio is not None else "sans comparaison possible avec"
     return {"source": "yahoo", "ratio": ratio, "points": points,
+            "coverage": {
+                "label": "Yahoo Finance",
+                "as_of": newest.isoformat(),
+                "window_days": span,
+                "scope": "Dernières manchettes proposées par Yahoo Finance ; couverture non exhaustive.",
+                "is_fallback": True,
+            },
             "message": f"Articles Yahoo Finance des {YAHOO_RECENT_DAYS} derniers jours : {fr(recent)} par jour, "
                        f"{shown} les {span - YAHOO_RECENT_DAYS} jours précédents "
                        f"({'≥ 1,5 : notable' if points else 'habituel'}) ; GDELT : {reason}."}
@@ -178,13 +206,13 @@ def news_attention(symbol: str, name: str, *, live: bool) -> dict[str, Any]:
         return _gdelt_news(symbol, name, cache_only=not live)
     except ExternalUnavailable as exc:
         if not live:
-            return {"source": None, "ratio": None, "points": None,
+            return {"source": None, "ratio": None, "points": None, "coverage": None,
                     "message": "Attention médiatique non évaluée dans un calcul groupé (ouvrir la fiche du titre)."}
         reason = exc.reason
     try:
         return _yahoo_news(symbol, reason)
     except ExternalUnavailable as exc:
-        return {"source": None, "ratio": None, "points": None,
+        return {"source": None, "ratio": None, "points": None, "coverage": None,
                 "message": f"Attention médiatique non évaluée : GDELT ({reason}) et Yahoo ({exc.reason}) indisponibles."}
 
 
@@ -199,6 +227,7 @@ def build(symbol: str, quote: dict[str, Any], metrics: dict[str, Any], news: dic
             "volume_last": quote.get("volume"), "volume_avg_10d": quote.get("avg_volume_10d"),
             "volume_avg_3m": quote.get("avg_volume_3m"), "return_1m": metrics["return_1m"],
             "volatility_1y": metrics["volatility_1y"], "news_source": news["source"],
+            "news_coverage": news["coverage"],
             "as_of": metrics["as_of"] or quote.get("as_of")}
 
 

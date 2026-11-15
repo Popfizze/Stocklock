@@ -59,6 +59,15 @@ export interface HypeSignal {
   volatility_1y: number | null
   /** `gdelt`: GDELT DOC 2.0 coverage; `yahoo`: Yahoo Finance headlines (fallback); `null`: not evaluated. */
   news_source: 'gdelt' | 'yahoo' | null
+  /** How current and complete the media signal is; absent on responses from an older API deployment. */
+  news_coverage?: {
+    label: string
+    /** Last day represented by the source, `YYYY-MM-DD`; `null` when no articles are available. */
+    as_of: string | null
+    window_days: number
+    scope: string
+    is_fallback: boolean
+  } | null
   /** Date of the last price used, `YYYY-MM-DD`. */
   as_of: string | null
 }

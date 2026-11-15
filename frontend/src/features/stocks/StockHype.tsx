@@ -139,12 +139,33 @@ function HypeDetails({ hype, personaName, reasons, picked, onPick }: HypeDetails
         </div>
       )}
 
+      <MediaCoverage hype={hype} />
+      <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+        Le battage décrit un contexte de marché observé. Il ne permet pas de conclure que votre décision est
+        impulsive : seul le message que vous choisissez d’analyser plus bas est examiné à cette fin.
+      </div>
+    </div>
+  )
+}
+
+function MediaCoverage({ hype }: { hype: HypeSignal }) {
+  const coverage = hype.news_coverage
+  if (!coverage) {
+    return (
       <p className="text-xs text-muted-foreground">
         {hype.as_of && `Données au ${formatLongDate(hype.as_of)} · `}
-        Attention médiatique : {hype.news_source ? NEWS_SOURCES[hype.news_source] : 'non évaluée'}. Le
-        signal mesure un emballement possible, pas la qualité de l’entreprise.
+        Attention médiatique : {hype.news_source ? NEWS_SOURCES[hype.news_source] : 'non évaluée'}. Le signal mesure
+        un emballement possible, pas la qualité de l’entreprise.
       </p>
-    </div>
+    )
+  }
+  return (
+    <p className="text-xs text-muted-foreground">
+      <strong className="font-medium text-foreground">Source média :</strong> {coverage.label}
+      {coverage.is_fallback && ' (source de repli)'}
+      {coverage.as_of && ` · données jusqu’au ${formatLongDate(coverage.as_of)}`}
+      {coverage.window_days > 0 && ` · fenêtre de ${coverage.window_days} jours`}. {coverage.scope}
+    </p>
   )
 }
 

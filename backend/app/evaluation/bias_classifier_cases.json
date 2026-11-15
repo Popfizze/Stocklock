@@ -1,0 +1,11 @@
+[
+  {"id": "fomo-urgence", "message": "Je vais rater le train si je n'achète pas maintenant.", "expected": ["fomo", "urgence"]},
+  {"id": "panique", "message": "Le marché s'effondre, je veux tout vendre.", "expected": ["panique"]},
+  {"id": "foule", "message": "Tout le monde en parle et mon collègue en achète.", "expected": ["autorite_sociale"]},
+  {"id": "surconfiance", "message": "C'est sûr, impossible de perdre avec ce titre.", "expected": ["surconfiance"]},
+  {"id": "ancrage", "message": "Il était à 200 $, il doit revenir à mon prix d'achat.", "expected": ["ancrage"]},
+  {"id": "concentration", "message": "Je mets toute ma retraite sur ce titre.", "expected": ["concentration"]},
+  {"id": "urgence", "message": "Il faut que je décide aujourd'hui.", "expected": ["urgence"]},
+  {"id": "euphorie", "message": "Ce titre va exploser, jackpot !", "expected": ["euphorie"]},
+  {"id": "neutre", "message": "Je souhaite comparer les risques avant de prendre une décision.", "expected": []}
+]

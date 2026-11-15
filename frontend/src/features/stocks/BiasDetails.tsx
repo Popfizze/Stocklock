@@ -1,6 +1,7 @@
 import type { BiasResult } from '@/api/bias'
 import type { Persona } from '@/api/personas'
 import { BiasNarrative } from './BiasNarrative'
+import { BiasFeedback } from './BiasFeedback'
 import { BiasSimulation } from './BiasSimulation'
 
 const LABELS: Record<string, string> = {
@@ -22,6 +23,7 @@ const LIST = 'list-disc space-y-1 pl-5'
 interface BiasDetailsProps {
   result: BiasResult
   persona: Persona
+  ticker: string
 }
 
 /**
@@ -29,7 +31,7 @@ interface BiasDetailsProps {
  * message, the title's recent context, the link with the profile, the
  * narrator's reading, the 2022 simulation, then sources and limits.
  */
-export function BiasDetails({ result, persona }: BiasDetailsProps) {
+export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
   const { history } = result
   return (
     <div className="space-y-6 border-t border-border pt-6" aria-live="polite">
@@ -45,7 +47,7 @@ export function BiasDetails({ result, persona }: BiasDetailsProps) {
       )}
 
       <section className="space-y-2">
-        <h4 className="font-display text-lg font-medium">Signaux dans votre message</h4>
+        <h4 className="font-display text-lg font-medium">Indices possibles dans votre message</h4>
         {result.signals.length ? (
           <ul className="space-y-1 text-sm">
             {result.signals.map((signal) => (
@@ -137,6 +139,8 @@ export function BiasDetails({ result, persona }: BiasDetailsProps) {
       </section>
 
       <BiasSimulation simulation={result.simulation} />
+
+      <BiasFeedback personaId={persona.id} ticker={ticker} />
 
       <details className="text-sm">
         <summary className="cursor-pointer font-medium">Sources, hypothèses et limites</summary>
