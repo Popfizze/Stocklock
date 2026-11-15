@@ -250,17 +250,18 @@ def agentcore(monkeypatch):
 def test_agentcore_calls_share_the_warm_session(agentcore, monkeypatch):
     import boto3
 
-    sessions = []
+    sessions, built = [], []
 
     class FakeClient:
         def invoke_agent_runtime(self, **kwargs):
             sessions.append(kwargs["runtimeSessionId"])
             return {"response": io.BytesIO(json.dumps({"answer": "ok"}).encode())}
 
-    monkeypatch.setattr(boto3, "client", lambda *a, **k: FakeClient())
+    monkeypatch.setattr(boto3, "client", lambda *a, **k: built.append(1) or FakeClient())
     assert narration._invoke_agentcore({"task": "explain_move"}) == {"answer": "ok"}
     narration._invoke_agentcore({"task": "move_digest"})
-    assert len(set(sessions)) == 1
+    assert len(set(sessions)) == 1 and len(sessions) == 2
+    assert built == [1]  # one client for the process
 
 
 def test_warm_up_starts_a_cold_session_once(agentcore, monkeypatch):

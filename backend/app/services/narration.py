@@ -3,7 +3,9 @@
 AgentCore starts a micro-VM for every new runtime session (about 3.5 s before the first token); calls
 on a session already started cost the model's time only. The agents keep no state between calls (each
 builds a fresh Strands agent), so one warm session is reused by every call of this process (concurrent
-calls on one session run side by side) and renewed before AgentCore closes it for inactivity.
+calls on one session run side by side) and renewed before AgentCore closes it for inactivity. The boto3
+client is built once per process too (thread-safe), by the warm-up: built by each of several parallel
+first calls at once, it cost about 2 s on a fresh Lambda instance.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ SESSION_MAX_AGE_S = 6 * 3600  # and well before its 8 h maximum lifetime
 
 _session_lock = threading.Lock()
 _session = {"id": "", "created": 0.0, "used": 0.0}
+_clients: dict[tuple[str, float], Any] = {}
 
 
 def model_id_for(choice: str) -> str:
@@ -50,17 +53,28 @@ def session_id(now: float | None = None) -> tuple[str, bool]:
 def reset_session() -> None:
     with _session_lock:
         _session.update(id="", created=0.0, used=0.0)
+        _clients.clear()
+
+
+def _client(region: str, read_timeout_s: float) -> Any:
+    """The process's bedrock-agentcore client (built once, under the lock)."""
+    with _session_lock:
+        key = (region, read_timeout_s)
+        if key not in _clients:
+            import boto3
+            from botocore.config import Config
+
+            _clients[key] = boto3.client("bedrock-agentcore", region_name=region,
+                                         config=Config(read_timeout=read_timeout_s, connect_timeout=5,
+                                                       max_pool_connections=16))
+        return _clients[key]
 
 
 def _invoke_agentcore(payload: dict[str, Any]) -> dict[str, Any]:
-    import boto3
-    from botocore.config import Config
-
     s = get_settings()
     if not s.agentcore_runtime_arn:
         raise RuntimeError("AGENT_MODE=agentcore mais AGENTCORE_RUNTIME_ARN est vide")
-    client = boto3.client("bedrock-agentcore", region_name=s.aws_region,
-                          config=Config(read_timeout=s.agent_timeout_s, connect_timeout=5))
+    client = _client(s.aws_region, s.agent_timeout_s)
     response = client.invoke_agent_runtime(
         agentRuntimeArn=s.agentcore_runtime_arn,
         runtimeSessionId=session_id()[0],
