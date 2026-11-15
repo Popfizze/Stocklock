@@ -108,6 +108,23 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('link', { name: 'Meilleurs scores' })).not.toBeInTheDocument()
   })
 
+  it('lets every market section be hidden and shown again', async () => {
+    mockApi()
+    renderDashboard()
+
+    const populaires = within(await section('Les plus populaires'))
+    const toggle = populaires.getByRole('button', { name: /Les plus populaires/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+    await userEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(populaires.queryByRole('link', { name: /NVDA/ })).not.toBeInTheDocument()
+
+    await userEvent.click(toggle)
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+    expect(await populaires.findByRole('link', { name: /NVDA/ })).toBeInTheDocument()
+  })
+
   it('marks each card with its fit for the active profile', async () => {
     const calls = mockApi()
     renderDashboard()

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { useLocation } from 'react-router-dom'
 import { fitByTicker, useFitBatch } from '@/api/persona'
 import { SECTION_MAX_LIMIT, useMarketSection, type MarketSectionInfo } from '@/api/stocks'
@@ -20,8 +21,10 @@ interface MarketSectionBlockProps {
  */
 export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
   const [limit, setLimit] = useState(INITIAL_LIMIT)
+  const [isOpen, setIsOpen] = useState(true)
   const { data, error, isPending, isFetching, refetch } = useMarketSection(section.id, limit)
   const headingId = `section-${section.id}`
+  const contentId = `${headingId}-content`
   // Arriving on `/#section-<id>` (e.g. from a finished score run) brings the section into view.
   const { hash } = useLocation()
   const ref = useRef<HTMLElement>(null)
@@ -39,18 +42,35 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
   return (
     <section ref={ref} aria-labelledby={headingId} className="scroll-mt-6 space-y-4">
       <div className="space-y-1">
-        {section.persona_reason && (
-          <p className="eyebrow">
-            Pour vous · {section.persona_reason}
-          </p>
-        )}
-        <h2 id={headingId} className="text-3xl leading-tight">
-          {section.title}
+        <h2 id={headingId} aria-label={section.title} className="text-3xl leading-tight">
+          <button
+            type="button"
+            aria-expanded={isOpen}
+            aria-controls={contentId}
+            onClick={() => setIsOpen((open) => !open)}
+            className="group flex w-full items-center justify-between gap-4 text-left hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          >
+            <span>{section.title}</span>
+            <ChevronDown
+              aria-hidden="true"
+              className="size-6 shrink-0 transition-transform group-aria-expanded:rotate-180"
+            />
+            <span className="sr-only">{isOpen ? 'Masquer la section' : 'Afficher la section'}</span>
+          </button>
         </h2>
-        <p className="max-w-3xl text-sm text-muted-foreground">{section.description}</p>
+        {isOpen && (
+          <div id={contentId} className="space-y-4">
+            {section.persona_reason && (
+              <p className="eyebrow">
+                Pour vous · {section.persona_reason}
+              </p>
+            )}
+            <p className="max-w-3xl text-sm text-muted-foreground">{section.description}</p>
+          </div>
+        )}
       </div>
 
-      {isPending ? (
+      {isOpen && (isPending ? (
         <div role="status" aria-label={`Chargement de « ${section.title} »`} className={STOCK_GRID}>
           {Array.from({ length: SKELETON_COUNT }, (_, index) => (
             <StockCardSkeleton key={index} />
@@ -94,7 +114,7 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
             )}
           </div>
         </>
-      )}
+      ))}
     </section>
   )
 }
