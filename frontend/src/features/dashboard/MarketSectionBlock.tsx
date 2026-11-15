@@ -11,6 +11,9 @@ import { STOCK_GRID, StockCard, StockCardSkeleton } from '@/features/stocks/Stoc
 const INITIAL_LIMIT = 24
 const SKELETON_COUNT = 12
 
+/** Cards shown before « Afficher plus » : two rows for a section of the profile, one for a general section. */
+const PREVIEW = { persona: 12, general: 6 }
+
 interface MarketSectionBlockProps {
   section: MarketSectionInfo
 }
@@ -22,6 +25,9 @@ interface MarketSectionBlockProps {
 export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
   const [limit, setLimit] = useState(INITIAL_LIMIT)
   const [isOpen, setIsOpen] = useState(true)
+  // The page stays short: a section opens on its first cards, and shows the rest on demand.
+  const [expanded, setExpanded] = useState(false)
+  const preview = section.persona_reason ? PREVIEW.persona : PREVIEW.general
   const { data, error, isPending, isFetching, refetch } = useMarketSection(section.id, limit)
   const headingId = `section-${section.id}`
   const contentId = `${headingId}-content`
@@ -29,7 +35,9 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
   const { hash } = useLocation()
   const ref = useRef<HTMLElement>(null)
   useEffect(() => {
-    if (hash === `#${headingId}`) ref.current?.scrollIntoView({ block: 'start' })
+    if (hash !== `#${headingId}`) return
+    setIsOpen(true)
+    ref.current?.scrollIntoView({ block: 'start' })
   }, [hash, headingId])
   const items = data?.items ?? []
   // The cards' verdict for the active profile: one batch per section, quietly absent if it fails.
@@ -38,6 +46,8 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
   const fits = fitByTicker(fitBatch)
   // The server served as many cards as asked: there may be more.
   const canShowMore = data?.status === 'ok' && items.length >= limit && limit < SECTION_MAX_LIMIT
+  const shown = expanded ? items : items.slice(0, preview)
+  const hidden = items.length - shown.length
 
   return (
     <section ref={ref} aria-labelledby={headingId} className="scroll-mt-6 space-y-4">
@@ -90,7 +100,7 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
       ) : (
         <>
           <ul className={STOCK_GRID}>
-            {items.map((stock) => (
+            {shown.map((stock) => (
               <li key={stock.ticker}>
                 <StockCard stock={stock} fit={fits[stock.ticker]} />
               </li>
@@ -98,20 +108,28 @@ export function MarketSectionBlock({ section }: MarketSectionBlockProps) {
           </ul>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-xs text-muted-foreground">
-              {items.length} titre{items.length > 1 ? 's' : ''} · {section.source}
+              {hidden > 0 ? `${shown.length} titres affichés sur ${items.length}` : `${items.length} titre${items.length > 1 ? 's' : ''}`} · {section.source}
               {data.as_of ? ` · au ${formatLongDate(data.as_of)}` : ''}
             </p>
-            {canShowMore && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={isFetching}
-                onClick={() => setLimit((current) => Math.min(current * 2, SECTION_MAX_LIMIT))}
-              >
-                {isFetching ? 'Chargement…' : 'Afficher plus'}
-              </Button>
-            )}
+            <div className="flex flex-wrap gap-2">
+              {expanded && items.length > preview && (
+                <Button type="button" variant="ghost" size="sm" onClick={() => setExpanded(false)}>
+                  Afficher moins
+                </Button>
+              )}
+              {(hidden > 0 || canShowMore) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isFetching}
+                  // First the cards already loaded, then more from the server.
+                  onClick={() => (hidden > 0 ? setExpanded(true) : setLimit((current) => Math.min(current * 2, SECTION_MAX_LIMIT)))}
+                >
+                  {isFetching ? 'Chargement…' : 'Afficher plus'}
+                </Button>
+              )}
+            </div>
           </div>
         </>
       ))}

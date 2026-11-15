@@ -158,7 +158,7 @@ describe('DashboardPage', () => {
     expect(calls.some((call) => call.url.endsWith('/api/market/sections?persona=amira'))).toBe(true)
 
     await section('IA et semi-conducteurs')
-    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.getAttribute('aria-label') ?? heading.textContent)
     expect(headings).toEqual(['Le marché du jour', 'IA et semi-conducteurs', 'Cryptomonnaies', 'Les plus populaires', 'Plus fortes hausses'])
     expect(within(await section('IA et semi-conducteurs')).getByText(/Pour vous · Préférence « IA » du profil d’Amira\./)).toBeInTheDocument()
     const cryptos = within(await section('Cryptomonnaies'))
@@ -223,7 +223,15 @@ describe('DashboardPage', () => {
     renderDashboard()
 
     const populaires = within(await section('Les plus populaires'))
-    await userEvent.click(await populaires.findByRole('button', { name: 'Afficher plus' }))
+    // A general section opens on one row of cards, so the page stays short…
+    const more = await populaires.findByRole('button', { name: 'Afficher plus' })
+    expect(populaires.getAllByRole('link')).toHaveLength(6)
+    expect(populaires.getByText(/6 titres affichés sur 24/)).toBeInTheDocument()
+    // … the first « Afficher plus » shows the cards already loaded, the next one asks the server for more.
+    await userEvent.click(more)
+    expect(populaires.getAllByRole('link')).toHaveLength(24)
+    expect(calls.some((call) => call.url.includes('limit=48'))).toBe(false)
+    await userEvent.click(populaires.getByRole('button', { name: 'Afficher plus' }))
     await vi.waitFor(() =>
       expect(calls.some((call) => call.url.endsWith('/sections/populaires?limit=48'))).toBe(true),
     )

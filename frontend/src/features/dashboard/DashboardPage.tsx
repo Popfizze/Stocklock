@@ -70,7 +70,7 @@ export function DashboardPage() {
           <>
             {sections.length > 0 && <MarketField sections={sections} />}
             <KpiStrip section={sections[0]} />
-            <div className="space-y-16">
+            <div className="space-y-12">
               {sections.map((section) => (
                 <MarketSectionBlock key={section.id} section={section} />
               ))}
