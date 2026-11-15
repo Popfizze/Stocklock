@@ -344,7 +344,7 @@ function stock(ticker: string, range: string): { status?: number; body: unknown 
 
 const BIAS_RESULT = {
   analysis: {
-    answer: 'Votre message évoque une **peur de manquer la hausse**. Le titre a déjà beaucoup monté : attendre quelques séances ne coûte rien.',
+    answer: 'Votre message évoque une **peur de manquer la hausse**. Point de vigilance : le profil de démonstration retient ses propres contraintes, à comparer avec l’intention exprimée. Ces éléments sont pédagogiques et ne constituent pas une recommandation d’achat, de vente ou de délai d’action.',
     sources: [{ id: 's1', title: 'Yahoo Finance, cours quotidiens', url: 'https://finance.yahoo.com/', as_of: '2026-11-13' }],
     assumptions: [],
     limits: ['Simulation éducative, pas un conseil financier personnalisé.'],
