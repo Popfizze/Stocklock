@@ -15,7 +15,7 @@ import { formatInteger, formatScore } from '@/features/stocks/format'
 import { cn } from '@/lib/utils'
 import { MixerFactor } from './MixerFactor'
 import { liveReading } from './mixerLive'
-import { DEFAULT_SETUP, isDefaultSetup, setWeight, toScoringChoice, type ScoreSetup } from './scoreWeights'
+import { DEFAULT_SETUP, displayWeights, isDefaultSetup, setWeight, toScoringChoice, type ScoreSetup } from './scoreWeights'
 
 /** Height of a column per point of weight. */
 const UNITS_PER_POINT = 0.08
@@ -46,6 +46,9 @@ export function ScoreMixer({ setup, settled, onChange, explanation, scored }: Sc
   const live = liveReading(simulation, moved, weights)
   const curves = simulation?.status === 'available' ? simulation.curves : []
 
+  // Whole percentages that always add up to 100 for every label; the raw weights drive the heights and the maths.
+  const shown = displayWeights(weights)
+
   const tiles: SceneTile[] = SUB_SCORE_ORDER.map((id, index) => ({
     id,
     x: index * 1.6,
@@ -55,10 +58,10 @@ export function ScoreMixer({ setup, settled, onChange, explanation, scored }: Sc
     h: Math.max(0.06, weights[id] * UNITS_PER_POINT),
     // Darker = heavier than StockLock's default; lighter = lighter.
     tone: greyTone(0.5 + (weights[id] - DEFAULT_SCORE_WEIGHTS[id]) / 40),
-    label: `${SUB_SCORE_LABELS[id]} · ${WEIGHT.format(weights[id])} %`,
+    label: `${SUB_SCORE_LABELS[id]} · ${WEIGHT.format(shown[id])} %`,
     // Each column carries its own name and weight: nothing to line up with the list below.
-    tag: `${SUB_SCORE_SHORT[id]}\n${WEIGHT.format(weights[id])} %`,
-    tagShort: `${WEIGHT.format(weights[id])} %`,
+    tag: `${SUB_SCORE_SHORT[id]}\n${WEIGHT.format(shown[id])} %`,
+    tagShort: `${WEIGHT.format(shown[id])} %`,
   }))
 
   const change = (id: SubScoreId, value: number) => {
@@ -141,7 +144,7 @@ export function ScoreMixer({ setup, settled, onChange, explanation, scored }: Sc
           change(id, weights[id] + delta / UNITS_PER_POINT)
         }}
         label={`Table de mixage du score, six colonnes hautes selon leur poids : ${SUB_SCORE_ORDER.map(
-          (id) => `${SUB_SCORE_LABELS[id]} ${WEIGHT.format(weights[id])} %`,
+          (id) => `${SUB_SCORE_LABELS[id]} ${WEIGHT.format(shown[id])} %`,
         ).join(', ')}. Les mêmes poids se règlent avec les boutons ci-dessous.`}
         className="h-64"
         caption={false}
@@ -154,6 +157,7 @@ export function ScoreMixer({ setup, settled, onChange, explanation, scored }: Sc
             key={id}
             id={id}
             weight={weights[id]}
+            shownWeight={shown[id]}
             excluded={excluded}
             curve={curves.find((curve) => curve.id === id)}
             followed={followed}

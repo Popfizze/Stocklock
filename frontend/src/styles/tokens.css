@@ -45,6 +45,8 @@
   --tile-6: oklch(0.891 0.007 268.5);
   --tile-7: oklch(0.934 0.006 264.5);
   --tile-8: oklch(0.967 0.003 264.5);
+  /* Scrim behind dialogs and sheets. */
+  --overlay: oklch(0.15 0.002 286 / 0.8);
   /* Chart series: ink first, then grey steps — never a rainbow. */
   --chart-1: oklch(0.15 0.002 286);
   --chart-2: oklch(0.539 0.014 271);
@@ -107,6 +109,7 @@
   --tile-6: oklch(0.333 0.011 271);
   --tile-7: oklch(0.293 0.01 268);
   --tile-8: oklch(0.231 0.008 274.6);
+  --overlay: oklch(0.05 0 0 / 0.8);
   --chart-1: oklch(0.967 0.003 264.5);
   --chart-2: oklch(0.745 0.013 271);
   --chart-3: oklch(0.891 0.007 268.5);
@@ -164,6 +167,7 @@
   --color-tile-6: var(--tile-6);
   --color-tile-7: var(--tile-7);
   --color-tile-8: var(--tile-8);
+  --color-overlay: var(--overlay);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);

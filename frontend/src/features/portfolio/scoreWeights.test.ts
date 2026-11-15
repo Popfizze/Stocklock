@@ -4,6 +4,7 @@ import { PORTFOLIO_ROBERT } from '@/test/persona'
 import { PORTFOLIO_ROBERT_CUSTOM, WEIGHTS_ROBERT } from '@/test/scoring'
 import {
   DEFAULT_SETUP,
+  displayWeights,
   explainChange,
   isDefaultSetup,
   readScoreSetup,
@@ -25,6 +26,18 @@ describe('scoreWeights', () => {
     expect(next.rentabilite).toBeGreaterThan(next.solidite)
     expect(next.solidite).toBeGreaterThan(next.evenements)
     expect(next.rentabilite).toBeLessThan(DEFAULT_SCORE_WEIGHTS.rentabilite)
+  })
+
+  it('shows whole percentages that always add up to 100', () => {
+    // 16.7 × 6 = 100.2: rounding each one alone would show 102 %.
+    const even = Object.fromEntries(SUB_SCORE_ORDER.map((id) => [id, 100 / 6])) as ScoreWeights
+    const shown = displayWeights(even)
+    expect(sum(shown)).toBe(100)
+    expect(SUB_SCORE_ORDER.every((id) => Number.isInteger(shown[id]))).toBe(true)
+
+    const moved = displayWeights(setWeight(DEFAULT_SCORE_WEIGHTS, 'croissance', 33.3))
+    expect(sum(moved)).toBe(100)
+    expect(displayWeights(DEFAULT_SCORE_WEIGHTS)).toEqual(DEFAULT_SCORE_WEIGHTS)
   })
 
   it('clamps a weight between 0 and 100', () => {

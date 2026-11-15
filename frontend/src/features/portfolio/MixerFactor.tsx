@@ -21,6 +21,8 @@ const ROUND_BUTTON =
 interface MixerFactorProps {
   id: SubScoreId
   weight: number
+  /** The weight as shown: a whole percentage, the six adding up to 100. Defaults to `weight` rounded. */
+  shownWeight?: number
   excluded: ScoreIndicatorId[]
   /** The followed title's score along this factor's weight, when the score table knows it. */
   curve?: ScoreSensitivity
@@ -31,7 +33,7 @@ interface MixerFactorProps {
 }
 
 /** One factor of the mixing desk for the keyboard: its weight (− / +), its sensitivity curve, its indicators. */
-export function MixerFactor({ id, weight, excluded, curve, followed, onWeight, onToggle }: MixerFactorProps) {
+export function MixerFactor({ id, weight, shownWeight, excluded, curve, followed, onWeight, onToggle }: MixerFactorProps) {
   const label = SUB_SCORE_LABELS[id]
   const here = curve ? readCurve(curve, sliderFor(weight, curve)) : null
   const marker = curve ? (sliderFor(weight, curve) / 100) * CURVE_WIDTH : 0
@@ -53,7 +55,7 @@ export function MixerFactor({ id, weight, excluded, curve, followed, onWeight, o
         </button>
         <p className="display text-3xl" aria-live="polite">
           <span className="sr-only">{label} : </span>
-          {WEIGHT.format(weight)}
+          {WEIGHT.format(shownWeight ?? weight)}
           <span className="text-base text-muted-foreground"> %</span>
         </p>
         <button

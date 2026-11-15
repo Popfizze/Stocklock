@@ -56,7 +56,7 @@ A **monochrome of cool greys built from square tiles**: near-black ink on white,
 
 - One easing: `ease-tile` = `cubic-bezier(0.4, 0, 0.25, 1)`.
 - Entrances: `fade-up` (rise 16 px while fading in), `flip-in` (for big figures), `tile-in` (tiles); a parent with `stagger` plays its children 60 ms apart.
-- **`prefers-reduced-motion` is respected everywhere**: the entrance classes switch off by themselves; any other animation must check it (`motion-reduce:` variants, or `usePrefersReducedMotion()`).
+- **Motion is on by default and the visitor decides**: the switch « Animations : activées / réduites » (sidebar footer and profile page, `src/lib/motion.ts`, stored as `stocklock.motion`) sets `data-motion="reduced"` on `<html>`. The OS `prefers-reduced-motion` setting does **not** switch motion off on its own (many Windows machines report it without the user knowing). The entrance classes, Tailwind's `motion-reduce:` / `motion-safe:` variants and the 3D engine all follow the switch; any new animation must too.
 - Motion never delays reading a number: content is in the DOM at once.
 
 ## 3D (three.js) rules
@@ -66,7 +66,8 @@ Every screen has at least one 3D element, and each one **tells a story, illustra
 - Use the shared engine: `Tile3D` from `src/components/three/` — you describe tiles (`x`, `z`, `h`, `tone`, `label`), it renders them. Do not create a second renderer set-up.
 - `three` is **lazy-loaded** (`React.lazy` inside `Tile3D`): never import `three` from a page or from the main bundle.
 - **Plain equivalent required**: every scene has an `aria-label` that summarises the information, and the same information exists as text or a table on the page. The 3D never is the only place a number lives.
-- **Fallbacks**: no WebGL → the flat SVG mosaic of the same tiles; reduced motion → one static rendered frame.
+- **Readable without pointing**: give the tiles that matter a permanent `tag` (and a `tagShort` for phone width) — name and value on the tile, not only in a hover tooltip; the engine drops a tag that would cover an earlier one.
+- **Fallbacks**: no WebGL → the flat SVG mosaic of the same tiles; animations reduced (switch) → one static rendered frame.
 - **Performance**: one canvas per view where possible, instanced meshes, device pixel ratio capped at 2, paused off-screen and when the tab is hidden, everything disposed on unmount.
 - Colours come from the tokens (resolved at run time), tones are the tile scale plus `up` / `down` / `alert` for meaning.
 - A scene never blocks or overlaps the data, and never captures the scroll.
@@ -76,6 +77,7 @@ Every screen has at least one 3D element, and each one **tells a story, illustra
 - [ ] Tokens only, no hardcoded colour; colour only where it means something
 - [ ] Headings in Jost (automatic), labels with `eyebrow`, numbers tabular
 - [ ] Pills 44 px, cards hairline + large radius, hairline dividers
-- [ ] Entrances respect reduced motion
+- [ ] Animations follow the in-app switch (`data-motion`), not the OS setting alone
+- [ ] Scrims and overlays use tokens (`bg-overlay`), never `bg-black/…`
 - [ ] 3D: purpose comment, lazy, accessible equivalent, fallback, paused off-screen, disposed
 - [ ] Mobile first; semantic HTML; UI text in French, code in English

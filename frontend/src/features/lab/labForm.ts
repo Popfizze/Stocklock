@@ -30,9 +30,14 @@ export function initialOptionValues(stages: LabStageDef[]): OptionValues {
   return values
 }
 
+/** A plain decimal number with more digits after the point than anyone reads. */
+const LONG_DECIMAL = /^-?\d+\.\d{5,}$/
+
 export function formatValue(value: string | number | null | undefined): string {
   if (value === null || value === undefined) return '—'
   if (typeof value === 'number') return value.toLocaleString('fr-CA', { maximumFractionDigits: 4 })
+  // Files read as text (CSV) give numbers as strings: « 115.29000091552734 » reads as 115,29.
+  if (LONG_DECIMAL.test(value)) return Number(value).toLocaleString('fr-CA', { maximumFractionDigits: 4 })
   return value
 }
 

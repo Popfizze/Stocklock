@@ -15,6 +15,7 @@ Code en anglais, textes d'interface en français.
 | Serveur de développement (port 5173) | `npm run dev` |
 | Build de production (`VITE_API_BASE_URL` requis) | `npm run build` |
 | Tests | `npm test` |
+| Tests E2E (Playwright, API simulée ; `npx playwright install chromium` la première fois) | `npm run test:e2e` |
 | Lint | `npm run lint` |
 
 L'URL du backend vient de `VITE_API_BASE_URL` (voir `frontend/.env.example`), `http://localhost:8000` par défaut en développement.

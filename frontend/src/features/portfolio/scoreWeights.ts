@@ -42,6 +42,28 @@ export function setWeight(weights: ScoreWeights, id: SubScoreId, value: number):
   return out
 }
 
+/**
+ * The six weights as whole percentages that still add up to 100 (largest remainder), for display:
+ * rounding each one on its own could show 99 % or 101 % in total.
+ */
+export function displayWeights(weights: ScoreWeights): ScoreWeights {
+  const total = SUB_SCORE_ORDER.reduce((sum, id) => sum + Math.max(0, weights[id]), 0)
+  const scaled = SUB_SCORE_ORDER.map((id) => ({
+    id,
+    exact: total > 0 ? (Math.max(0, weights[id]) / total) * 100 : 100 / SUB_SCORE_ORDER.length,
+  }))
+  const out = { ...weights }
+  for (const { id, exact } of scaled) out[id] = Math.floor(exact)
+  let left = 100 - SUB_SCORE_ORDER.reduce((sum, id) => sum + out[id], 0)
+  const byRemainder = [...scaled].sort((a, b) => (b.exact % 1) - (a.exact % 1))
+  for (const { id } of byRemainder) {
+    if (left <= 0) break
+    out[id] += 1
+    left -= 1
+  }
+  return out
+}
+
 export function isDefaultWeights(weights: ScoreWeights): boolean {
   return SUB_SCORE_ORDER.every((id) => Math.abs(weights[id] - DEFAULT_SCORE_WEIGHTS[id]) < 0.05)
 }
