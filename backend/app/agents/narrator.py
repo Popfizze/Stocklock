@@ -99,9 +99,12 @@ def structured(task: str, facts: dict[str, Any], model_id: str, region: str) -> 
 def handle(payload: dict[str, Any], default_region: str) -> dict[str, Any]:
     """Single dispatcher used by the AgentCore entrypoint: {task, persona, facts, model_id}."""
     task = payload.get("task")
-    if task == "ping":  # the backend starts the runtime session ahead of its first model call
-        return {"ok": True}
     region = payload.get("region") or default_region
+    if task == "ping":
+        # The backend starts the runtime session ahead of its first model calls; building one agent (no model
+        # call) loads the modules and the Bedrock client's files the parallel calls that follow would all load.
+        build_agent(payload.get("model_id") or "warm-up", region, "ping")
+        return {"ok": True}
     model_id = payload["model_id"]
     persona = payload.get("persona") or {}
     if task == "bias_classify":

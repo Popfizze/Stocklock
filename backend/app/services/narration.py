@@ -103,7 +103,9 @@ def warm_up() -> bool:
 
     def ping() -> None:
         try:
-            _call({"task": "ping", "persona": {}, "facts": {}, "model_id": "", "region": get_settings().aws_region})
+            s = get_settings()
+            _call({"task": "ping", "persona": {}, "facts": {}, "model_id": s.bedrock_fast_model_id,
+                   "region": s.aws_region})
         except Exception as exc:  # an older runtime refuses the task, but its session is started all the same
             log.info("agentcore warm-up: %s", type(exc).__name__)
 
