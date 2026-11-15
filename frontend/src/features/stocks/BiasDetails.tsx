@@ -33,7 +33,6 @@ interface BiasDetailsProps {
  */
 export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
   const { history } = result
-  const mediaWarning = result.warnings.find((warning) => warning.includes('GDELT'))
   const priceSource = history?.source === 'yfinance'
     ? 'Yahoo Finance, historique quotidien du titre.'
     : 'AlphaForge starter kit, prices_daily.csv (données Yahoo Finance via yfinance).'
@@ -76,7 +75,6 @@ export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
           <p>
             <strong>Prix et volumes de {ticker} :</strong> {history ? priceSource : 'historique insuffisant ou indisponible.'}
           </p>
-          {mediaWarning && <p><strong>Couverture média :</strong> {mediaWarning}</p>}
         </SectionHeading>
         {history ? (
           <div className="space-y-1 text-sm">
@@ -107,6 +105,7 @@ export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
         ) : (
           <p className="text-sm">Historique insuffisant ou indisponible pour contextualiser cette décision.</p>
         )}
+        {result.media && <p className="text-sm"><strong>Couverture média :</strong> {result.media.message}</p>}
       </section>
 
       <section className="space-y-2">

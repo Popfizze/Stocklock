@@ -5,7 +5,8 @@ import time
 import pandas as pd
 import pytest
 
-from app.data import starter, yf_live
+from app.data import gdelt, starter, yf_live
+from app.data.cache import ExternalUnavailable
 
 
 def test_stock_bias_uses_selected_ticker_and_exposes_history(client):
@@ -20,7 +21,27 @@ def test_stock_bias_uses_selected_ticker_and_exposes_history(client):
     assert body['history']['start'] < body['history']['end']
     assert body['history']['return_20d'] is not None
     assert any('historique des décisions' in limit for limit in body['analysis']['limits'])
-    assert any('indisponible' in warning for warning in body['warnings'])  # Bedrock/GDELT offline
+    assert any('indisponible' in warning for warning in body['warnings'])  # Bedrock offline
+    assert not any(warning.startswith('GDELT indisponible') for warning in body['warnings'])
+
+
+def test_stock_bias_falls_back_to_yahoo_media_when_gdelt_is_paused(client, monkeypatch):
+    def gdelt_paused(*args, **kwargs):
+        raise ExternalUnavailable('GDELT DOC 2.0', 'en pause après un refus récent')
+
+    monkeypatch.setattr(gdelt, 'timeline', gdelt_paused)
+    monkeypatch.setattr(yf_live, 'recent_news', lambda *args, **kwargs: ([
+        {'date': '2026-11-12', 'title': 'Headline one', 'publisher': 'Reuters', 'url': 'https://example.test/1'},
+        {'date': '2026-11-05', 'title': 'Headline two', 'publisher': 'Reuters', 'url': 'https://example.test/2'},
+    ], False))
+    response = client.post('/api/bias/stock', json={
+        'persona_id': 'amira', 'ticker': 'AAPL', 'message': 'Je réfléchis.', 'intent': 'buy',
+    })
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body['media']['source'] == 'yahoo'
+    assert '2 manchettes récentes' in body['media']['message']
+    assert not any(warning.startswith('Couverture médiatique indisponible') for warning in body['warnings'])
 
 
 def test_stock_bias_validates_blank_message_and_intent(client):

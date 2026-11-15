@@ -20,7 +20,9 @@ it('sends the selected title, active profile and message and shows a limited res
         assumptions: [], limits: [], governance: { passed: true, checks: [] },
       },
       signals: [{ category: 'panique', excerpt: 'tout vendre', method: 'lexique' }],
-      profile_flags: [], history: null, hype: null, simulation: null, warnings: [],
+      profile_flags: [], history: null, hype: null,
+      media: { source: 'yahoo', message: 'Yahoo Finance : 10 manchettes récentes reçues (source de repli).' },
+      simulation: null, warnings: [],
     })] },
   ])
   renderWithProviders(<StockBias ticker="NVDA" />, { personaId: 'robert' })
@@ -31,6 +33,7 @@ it('sends the selected title, active profile and message and shows a limited res
   await userEvent.click(screen.getByRole('button', { name: 'Analyser ma décision' }))
   expect((await screen.findByText('Panique')).closest('li')).toHaveTextContent('tout vendre')
   expect(screen.getByText(/Historique insuffisant/)).toBeInTheDocument()
+  expect(screen.getByText(/Yahoo Finance : 10 manchettes récentes/)).toBeInTheDocument()
   expect(screen.getByText(/Simulation historique indisponible/)).toBeInTheDocument()
   expect(screen.getByRole('heading', { name: 'Lien avec le profil de Robert' })).toBeInTheDocument()
   expect(screen.getByText(/Préférences : Revenu stable/)).toBeInTheDocument()

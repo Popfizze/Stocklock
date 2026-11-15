@@ -95,6 +95,7 @@ def _stock_bias_body(result: Any, response: AnalysisResponse) -> dict[str, Any]:
         "profile_flags": ctx.report.profile_flags,
         "history": ctx.state.get("market_history"),
         "hype": ctx.state.get("hype"),
+        "media": ctx.state.get("media_context"),
         "simulation": ctx.state.get("simulation_data"),
         "warnings": [warning for stage in result.stages for warning in stage["warnings"]],
     }

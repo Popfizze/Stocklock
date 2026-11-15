@@ -235,15 +235,42 @@ def hype_signal(ctx: Context) -> None:
             ctx.report.factor("Pic médiatique GDELT (14 derniers jours / période précédente)", gdelt_ratio, "x",
                               source_id=sid, digits=2)
             hype = hype or gdelt_ratio >= 1.5
+        ctx.state["media_context"] = {
+            "source": "gdelt",
+            "message": (f"GDELT DOC 2.0 : couverture des 14 derniers jours à {gdelt_ratio:.2f}× "
+                        "la période précédente.") if gdelt_ratio is not None else
+                       f"GDELT DOC 2.0 : {len(vals)} jour(s) de couverture reçus, insuffisant pour comparer.",
+        }
         ctx.decide("Couverture médiatique utilisée ?",
                    "oui" if gdelt_ratio is not None else "non",
                    f"Intensité GDELT des 14 derniers jours / 76 jours précédents = {gdelt_ratio:.2f}."
                    if gdelt_ratio is not None else f"Seulement {len(vals)} jour(s) de couverture GDELT (30 requis) "
                    "ou couverture nulle : critère médiatique ignoré.", "au moins 30 jours de couverture")
     except ExternalUnavailable as exc:
-        ctx.warn(f"GDELT indisponible ({exc.reason}) : signal de tendance fondé sur les prix et volumes seulement.")
-        ctx.decide("Couverture médiatique utilisée ?", "non", f"GDELT indisponible ({exc.reason}) : le signal "
-                   "repose sur les prix et volumes seulement.")
+        try:
+            headlines, _ = yf_live.recent_news(ticker, 50)
+        except ExternalUnavailable as yahoo_exc:
+            ctx.warn(f"Couverture médiatique indisponible : GDELT ({exc.reason}) et Yahoo Finance "
+                     f"({yahoo_exc.reason}).")
+            ctx.decide("Couverture médiatique utilisée ?", "non", f"GDELT indisponible ({exc.reason}) et "
+                       f"Yahoo Finance indisponible ({yahoo_exc.reason}) : le signal repose sur les prix et volumes.")
+        else:
+            start_recent = end - timedelta(days=13)
+            recent = [item for item in headlines
+                      if start_recent.isoformat() <= item.get("date", "") <= end.isoformat()]
+            sid = ctx.source(f"yfinance_news_{ticker}", f"Yahoo Finance, actualités {ticker}",
+                             f"https://finance.yahoo.com/quote/{ticker}/news", date.today().isoformat())
+            datasets.yf_news(ctx, headlines, sid)
+            ctx.metric("articles Yahoo Finance reçus", len(headlines))
+            ctx.metric("articles Yahoo Finance sur 14 jours", len(recent))
+            ctx.state["media_context"] = {
+                "source": "yahoo",
+                "message": (f"Yahoo Finance : {len(headlines)} manchettes récentes reçues, dont {len(recent)} "
+                            f"du {start_recent.isoformat()} au {end.isoformat()} (source de repli)."),
+            }
+            ctx.decide("Couverture médiatique utilisée ?", "Yahoo Finance (repli)",
+                       f"GDELT indisponible ({exc.reason}) ; {len(recent)} des {len(headlines)} manchettes Yahoo "
+                       f"sont dans les 14 derniers jours. Aucun score média n'est déduit de cette liste courte.")
     triggered = [name for name, hit in (("z ≥ 2", z >= 2), ("volume × 1,5", v_ratio is not None and v_ratio >= 1.5),
                                         ("couverture GDELT × 1,5", gdelt_ratio is not None and gdelt_ratio >= 1.5))
                  if hit]
