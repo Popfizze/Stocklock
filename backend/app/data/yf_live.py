@@ -22,16 +22,32 @@ class NoQuotes(LookupError):
 
 
 def _first_trade_date(ticker) -> date | None:
-    """The symbol's first trading day from the metadata Yahoo sends with any history answer."""
+    """The symbol's first trading day: from the metadata Yahoo sends with a history answer, else from its
+    whole history at a coarse step (one more request, only made when a period came back empty). None when
+    Yahoo does not know the symbol or cannot be reached."""
     try:
         value = (ticker.history_metadata or {}).get("firstTradeDate")
-        if value is None:
-            return None
         if isinstance(value, (int, float)):
             return datetime.fromtimestamp(int(value), tz=timezone.utc).date()
-        return pd.Timestamp(value).date()
+        if value is not None:
+            return pd.Timestamp(value).date()
+    except Exception:
+        pass
+    try:
+        whole = ticker.history(period="max", interval="3mo", auto_adjust=False, actions=False)
+        if whole is None or whole.empty:
+            return None
+        bar = pd.Timestamp(whole.index[0]).date()  # the first quarterly bar: its start, not the first session
     except Exception:
         return None
+    try:
+        days = ticker.history(start=bar.isoformat(), end=(pd.Timestamp(bar) + pd.Timedelta(days=100)).date().isoformat(),
+                              auto_adjust=False, actions=False)
+        if days is not None and not days.empty:
+            return pd.Timestamp(days.index[0]).date()
+    except Exception:
+        pass
+    return bar
 
 
 def _ticker(symbol: str):
