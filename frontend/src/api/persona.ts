@@ -5,14 +5,14 @@ import { scoringBody, type ScoreComparison, type ScoringApplied, type ScoringCho
 /*
  * Decision support adapted to the active investor profile (Amira, Mateo, Robert):
  * - fit verdict: GET /api/fit/{ticker}?persona= (stock page), POST /api/fit (≤ 100 cards);
- * - hype signal « battage »: GET /api/hype/{ticker}, POST /api/hype;
+ * - hype signal « tendance »: GET /api/hype/{ticker}, POST /api/hype;
  * - ESG risk and controversies: GET /api/esg/{ticker};
  * - portfolio analysis: POST /api/portfolio/analyze (the client keeps the holdings in
  *   localStorage per profile; see `@/lib/example-portfolios`), with the user's own score.
  * Every ratio is a fraction (0.523 is 52,3 %) unless its comment says otherwise.
  */
 
-// --- Hype signal « battage » ---------------------------------------------------
+// --- Hype signal « tendance » ---------------------------------------------------
 
 /** `faible`: 0-1 point, `modere`: 2 points, `eleve`: 3 points or more. */
 export type HypeLevel = 'faible' | 'modere' | 'eleve'

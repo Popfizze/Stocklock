@@ -1,4 +1,4 @@
-"""Hype signal « battage » of a title, from three measurable signs of a frenzy.
+"""Hype signal « tendance » of a title, from three measurable signs of a frenzy.
 
 Each component scores 0 (normal), 1 (notable) or 2 (strong):
 - volume: max(last session's volume, 10-day average) ÷ 3-month average (Yahoo quote);
@@ -122,7 +122,7 @@ def _run_up(metrics: dict[str, Any]) -> dict[str, Any]:
     points = _points(z, RUN_UP_NOTABLE, RUN_UP_STRONG) if ret > 0 else 0
     move = "Hausse" if ret >= 0 else "Baisse"
     verdict = ({0: "dans sa fourchette habituelle", 1: "≥ 1 : notable", 2: "≥ 2 : forte"}[points or 0] if ret >= 0
-               else "une baisse ne compte pas dans le battage")
+               else "une baisse ne compte pas dans la tendance")
     message = (f"{move} de {fr(abs(ret) * 100)} % sur {period}, soit {fr(z)} σ de sa variation habituelle sur "
                f"{period} ({verdict}).")
     return {"id": "run_up", "label": LABELS["run_up"], "points": points, "ratio": z, "message": message}

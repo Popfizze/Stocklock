@@ -37,7 +37,7 @@ describe('StockPage blocks', () => {
     renderStock('NVDA')
 
     const recul = await region('Prendre du recul')
-    expect(await recul.findByText('Battage faible')).toHaveTextContent('0 point sur 6')
+    expect(await recul.findByText('Tendance faible')).toHaveTextContent('0 point sur 6')
     const components = within(recul.getByRole('list', { name: 'Composantes du signal' })).getAllByRole('listitem')
     expect(components).toHaveLength(3)
     expect(components[0]).toHaveTextContent('Volume échangé')
@@ -51,7 +51,7 @@ describe('StockPage blocks', () => {
     expect(recul.getByText(/Données au 13 novembre 2026 · Attention médiatique : non évaluée/)).toBeInTheDocument()
 
     // The signal as a field of tiles, one band per component.
-    expect(recul.getByRole('img', { name: /Le signal de battage en champ de tuiles/ })).toHaveAccessibleName(
+    expect(recul.getByRole('img', { name: /Le signal de tendance en champ de tuiles/ })).toHaveAccessibleName(
       /Volume échangé 0 point sur 2, Hausse sur un mois 0 point sur 2, Attention médiatique non évalué/,
     )
 
@@ -77,16 +77,16 @@ describe('StockPage blocks', () => {
     renderStock('NVDA', 'robert')
 
     const recul = await region('Prendre du recul')
-    expect(await recul.findByText('Battage élevé')).toHaveTextContent('5 points sur 6')
+    expect(await recul.findByText('Tendance élevée')).toHaveTextContent('5 points sur 6')
     expect(figure('Volume, dernière séance')).toHaveTextContent('182,4 M')
     expect(recul.getByText('Source média :')).toBeInTheDocument()
     expect(recul.getByText(/fenêtre de 90 jours/)).toBeInTheDocument()
-    expect(recul.getByText(/Le battage décrit un contexte de marché observé/)).toBeInTheDocument()
-    const forRobert = within(recul.getByRole('list', { name: 'Le battage pour Robert' })).getAllByRole('listitem')
+    expect(recul.getByText(/La tendance décrit un contexte de marché observé/)).toBeInTheDocument()
+    const forRobert = within(recul.getByRole('list', { name: 'La tendance pour Robert' })).getAllByRole('listitem')
     expect(forRobert).toHaveLength(1)
-    expect(forRobert[0]).toHaveTextContent('Attention : Battage élevé (5 points sur 6)')
+    expect(forRobert[0]).toHaveTextContent('Attention : Tendance élevée (5 points sur 6)')
 
-    expect(recul.getByRole('note')).toHaveTextContent('Battage élevé sur NVDA.')
+    expect(recul.getByRole('note')).toHaveTextContent('Tendance élevée sur NVDA.')
     expect(recul.getByRole('radio', { name: 'Acheter' })).toBeChecked()
     const message = `Le titre a pris 38,2${NBSP}% en un mois et on en parle partout : j’ai peur de manquer la hausse si je n’achète pas maintenant.`
     expect(recul.getByLabelText('Pourquoi envisagez-vous cette décision ?')).toHaveValue(message)
@@ -107,11 +107,11 @@ describe('StockPage blocks', () => {
     renderStock('NVDA')
 
     const recul = await region('Prendre du recul')
-    expect(await recul.findByRole('alert')).toHaveTextContent('Signal de battage : Yahoo Finance ne répond pas.')
+    expect(await recul.findByRole('alert')).toHaveTextContent('Signal de tendance : Yahoo Finance ne répond pas.')
     expect(recul.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
     expect(recul.getByRole('button', { name: 'Analyser ma décision' })).toBeDisabled()
     const brief = within(screen.getByRole('navigation', { name: 'En bref' }))
-    expect(brief.getByRole('link', { name: /Battage/ })).toHaveTextContent('Indisponible')
+    expect(brief.getByRole('link', { name: /Tendance/ })).toHaveTextContent('Indisponible')
   })
 
   it('projects the title after tax in each account for the active profile, at the level of detail asked', async () => {

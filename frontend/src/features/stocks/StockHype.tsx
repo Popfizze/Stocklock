@@ -34,7 +34,7 @@ interface StockHypeProps {
 }
 
 /**
- * « Signal de battage » : whether the title is in a frenzy — traded volume,
+ * « Signal de tendance » : whether the title is in a frenzy — traded volume,
  * one-month run-up and news attention, each scored 0 to 2 — as a field of
  * tiles, then the numbers behind the level and what it means for the active
  * profile. Pointing at a component (in the field, or with its button) hands
@@ -43,14 +43,14 @@ interface StockHypeProps {
 export function StockHype({ hype, error, isPending, onRetry, ...details }: StockHypeProps) {
   return (
     <div className="space-y-4">
-      <h3 className="text-xl">Signal de battage</h3>
+      <h3 className="text-xl">Signal de tendance</h3>
       {isPending ? (
-        <div role="status" aria-label="Chargement du signal de battage" className="space-y-3">
+        <div role="status" aria-label="Chargement du signal de tendance" className="space-y-3">
           <Skeleton className="h-7 w-56" />
           <Skeleton className="h-28 w-full" />
         </div>
       ) : error || !hype ? (
-        error && <BlockError error={error} subject="Signal de battage" onRetry={onRetry} />
+        error && <BlockError error={error} subject="Signal de tendance" onRetry={onRetry} />
       ) : (
         <HypeDetails hype={hype} {...details} />
       )}
@@ -77,7 +77,7 @@ function HypeDetails({ hype, personaName, reasons, picked, onPick }: HypeDetails
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <p className="font-display text-2xl">
-          Battage {LEVEL_NAMES[hype.level]}
+          Tendance {LEVEL_NAMES[hype.level]}
           <span className="text-muted-foreground tabular-nums">
             {' '}
             · {hype.points} point{hype.points > 1 ? 's' : ''} sur {SIGNAL_MAX}
@@ -135,13 +135,13 @@ function HypeDetails({ hype, personaName, reasons, picked, onPick }: HypeDetails
       {reasons.length > 0 && (
         <div className="space-y-2">
           <h4 className="eyebrow">Pour {personaName}</h4>
-          <FitReasonList reasons={reasons} label={`Le battage pour ${personaName}`} />
+          <FitReasonList reasons={reasons} label={`La tendance pour ${personaName}`} />
         </div>
       )}
 
       <MediaCoverage hype={hype} />
       <div className="rounded-xl border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-        Le battage décrit un contexte de marché observé. Il ne permet pas de conclure que votre décision est
+        La tendance décrit un contexte de marché observé. Elle ne permet pas de conclure que votre décision est
         impulsive : seul le message que vous choisissez d’analyser plus bas est examiné à cette fin.
       </div>
     </div>

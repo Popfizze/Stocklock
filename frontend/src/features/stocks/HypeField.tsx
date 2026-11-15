@@ -64,7 +64,7 @@ export function HypeField({ hype, onPick }: HypeFieldProps) {
       motion="wave"
       view="front"
       onSelect={(tile) => tile.id && onPick(tile.id as HypeComponentId)}
-      label={`Le signal de battage en champ de tuiles, une bande par composante, d’autant plus agitée qu’elle marque de points : ${reading}. Les mêmes composantes sont détaillées dans la liste qui suit.`}
+      label={`Le signal de tendance en champ de tuiles, une bande par composante, d’autant plus agitée qu’elle marque de points : ${reading}. Les mêmes composantes sont détaillées dans la liste qui suit.`}
       className="h-44 sm:h-52"
     />
   )

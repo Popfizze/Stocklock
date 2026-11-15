@@ -136,9 +136,9 @@ describe('DashboardPage', () => {
       'Hors profil pour Robert : volatilité trop élevée.',
     )
     // High hype is flagged on the card; a quiet title is not.
-    expect(within(nvda).queryByText('Battage élevé')).not.toBeInTheDocument()
+    expect(within(nvda).queryByText('Tendance élevée')).not.toBeInTheDocument()
     const nu = populaires.getByRole('link', { name: /NU/ })
-    expect(within(nu).getByText('Battage élevé')).toHaveAttribute('title', expect.stringContaining('Volume de la dernière séance'))
+    expect(within(nu).getByText('Tendance élevée')).toHaveAttribute('title', expect.stringContaining('Volume de la dernière séance'))
     expect(within(nu).getByText('Hors profil')).toBeInTheDocument()
     // A title the batch does not cover keeps its card, without a pastille.
     expect(within(populaires.getByRole('link', { name: /INTC/ })).queryByText(/Compatible|Hors profil|À surveiller/)).not.toBeInTheDocument()

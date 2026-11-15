@@ -64,7 +64,7 @@ describe('PortfolioPage', () => {
     expect(pltr).toHaveTextContent('51,2 %')
     expect(within(pltr).getByText('Hors profil')).toHaveAttribute(
       'title',
-      'Hors profil pour Robert : volatilité trop élevée ; battage médiatique élevé.',
+      'Hors profil pour Robert : volatilité trop élevée ; tendance médiatique élevée.',
     )
     expect(within(holding('RY.TO')).getByText('Compatible')).toBeInTheDocument()
     expect(within(pltr).getByRole('link', { name: 'PLTR' })).toHaveAttribute('href', '/titres/PLTR')

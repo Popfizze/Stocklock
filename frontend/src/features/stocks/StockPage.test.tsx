@@ -144,7 +144,7 @@ describe('StockPage', () => {
     const score = await brief.findByRole('link', { name: /Score StockLock/ })
     expect(score).toHaveAttribute('href', '#score')
     expect(score).toHaveTextContent('61,8 / 100 · partiel')
-    const hype = brief.getByRole('link', { name: /Battage/ })
+    const hype = brief.getByRole('link', { name: /Tendance/ })
     expect(hype).toHaveAttribute('href', '#prendre-du-recul')
     await vi.waitFor(() => expect(hype).toHaveTextContent('À vérifier : Élevé'))
     expect(brief.getByRole('link', { name: /Fluctuations/ })).toHaveAttribute('href', '#comprendre')

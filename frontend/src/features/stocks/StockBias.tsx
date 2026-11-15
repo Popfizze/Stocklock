@@ -53,7 +53,7 @@ function BiasForm({ ticker, persona, prefill, pickedLabel }: BiasFormProps) {
         </h3>
         <p className="text-sm text-muted-foreground">
           Examinez votre intention pour {ticker} à la lumière de l’historique du titre et du profil de {persona.name}.
-          Le signal de battage du marché est un contexte distinct : il ne suffit pas à qualifier votre décision.
+          Le signal de tendance du marché est un contexte distinct : il ne suffit pas à qualifier votre décision.
         </p>
       </div>
 
@@ -66,7 +66,7 @@ function BiasForm({ ticker, persona, prefill, pickedLabel }: BiasFormProps) {
             </>
           ) : (
             <>
-              <strong className="font-medium">Battage élevé sur {ticker}.</strong> C’est le moment où l’envie
+              <strong className="font-medium">Tendance élevée sur {ticker}.</strong> C’est le moment où l’envie
               d’acheter est la plus forte : le formulaire propose cette situation, à partir des chiffres du signal.
             </>
           )}{' '}

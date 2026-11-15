@@ -126,13 +126,13 @@ def _hype(persona: dict[str, Any], hype: dict[str, Any] | None) -> list[dict[str
     scored = [comp["label"].lower() for comp in hype["components"] if comp.get("points")]
     what = ", ".join(scored) if scored else "signaux de marché"
     if hype["level"] == "modere":
-        return [_reason("hype", "info", f"Battage modéré ({hype['points']} points sur 6) : {what}.", hype["points"], 3)]
+        return [_reason("hype", "info", f"Tendance modérée ({hype['points']} points sur 6) : {what}.", hype["points"], 3)]
     lo, hi = persona["constraints"]["horizon_years"]
     horizon = (f" Avec un horizon de {persona['horizon']}, une correction laisserait peu de temps pour se refaire."
                if hi <= 5 else "")
-    return [_reason("hype", "attention", f"Battage élevé ({hype['points']} points sur 6) : {what} anormaux. "
+    return [_reason("hype", "attention", f"Tendance élevée ({hype['points']} points sur 6) : {what} anormaux. "
                     f"Une décision sous l'effet de l'emballement est risquée.{horizon}", hype["points"], 3,
-                    "battage élevé")]
+                    "tendance élevée")]
 
 
 def checks(persona: dict[str, Any], info: dict[str, Any], volatility: float | None,

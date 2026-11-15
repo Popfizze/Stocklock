@@ -94,7 +94,7 @@ export function BiasDetails({ result, persona, ticker }: BiasDetailsProps) {
               <p>Volume récent / volume habituel : {history.volume_ratio.toFixed(2)}×.</p>
             )}
             <p>
-              Signal de battage : {result.hype === null ? 'indisponible' : result.hype ? 'détecté' : 'non détecté'}{' '}
+              Signal de tendance : {result.hype === null ? 'indisponible' : result.hype ? 'détecté' : 'non détecté'}{' '}
               selon les seuils de prix, de volume et, si disponible, de couverture médiatique.
             </p>
             <p className="text-xs text-muted-foreground">

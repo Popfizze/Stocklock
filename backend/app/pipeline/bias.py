@@ -82,7 +82,7 @@ def message_analysis(ctx: Context) -> None:
     ctx.decide("De quel titre parle le message ?", ticker or "aucun",
                "Titre fourni en entrée." if ctx.inputs.ticker else
                ("Symbole ou nom reconnu dans le message." if ticker else
-                "Aucun symbole du kit ni nom connu dans le message : signal de battage et simulation sur le titre "
+                "Aucun symbole du kit ni nom connu dans le message : signal de tendance et simulation sur le titre "
                 "impossibles."),
                "entrée « ticker », sinon premier symbole du kit (3 lettres et plus) puis nom connu (Nvidia, Tesla…)")
     if ticker:
@@ -171,7 +171,7 @@ def message_analysis(ctx: Context) -> None:
 
 def hype_signal(ctx: Context) -> None:
     if ctx.opt("enabled") == "off":
-        raise StageSkipped("Signal de battage désactivé.")
+        raise StageSkipped("Signal de tendance désactivé.")
     ticker = ctx.state.get("ticker")
     if not ticker:
         raise StageSkipped("Aucun titre identifié dans le message.")
@@ -182,13 +182,13 @@ def hype_signal(ctx: Context) -> None:
     px, vol = hist["adj_close"], hist["volume"]
     if len(px.dropna()) <= 20:
         ctx.warn("Historique insuffisant pour comparer les 20 dernières séances.")
-        ctx.decide("Calculer le signal de battage ?", "non", f"Seulement {len(px.dropna())} prix : il en faut plus "
+        ctx.decide("Calculer le signal de tendance ?", "non", f"Seulement {len(px.dropna())} prix : il en faut plus "
                    "de 20.", "plus de 20 séances d'historique")
         return
     ret20 = px.pct_change(20).dropna()
     if ret20.empty:
         ctx.warn("Historique insuffisant pour calculer la variation récente.")
-        ctx.decide("Calculer le signal de battage ?", "non", "Aucune variation sur 20 séances calculable.")
+        ctx.decide("Calculer le signal de tendance ?", "non", "Aucune variation sur 20 séances calculable.")
         return
     last20 = float(ret20.iloc[-1])
     z = float((last20 - ret20.mean()) / ret20.std()) if ret20.std() > 0 else 0.0
@@ -196,7 +196,7 @@ def hype_signal(ctx: Context) -> None:
     v_base = float(vol.iloc[-140:-20].mean()) if len(vol) > 140 else float(vol.mean())
     v_ratio = v_recent / v_base if pd.notna(v_base) and v_base > 0 and pd.notna(v_recent) else None
     if v_ratio is None:
-        ctx.warn("Volumes insuffisants : le critère de volume du signal de battage est indisponible.")
+        ctx.warn("Volumes insuffisants : le critère de volume du signal de tendance est indisponible.")
     year = px.dropna().tail(252)
     ctx.state["market_history"] = {
         "start": px.index[-21].date().isoformat(), "end": px.index[-1].date().isoformat(),
@@ -241,25 +241,25 @@ def hype_signal(ctx: Context) -> None:
                    if gdelt_ratio is not None else f"Seulement {len(vals)} jour(s) de couverture GDELT (30 requis) "
                    "ou couverture nulle : critère médiatique ignoré.", "au moins 30 jours de couverture")
     except ExternalUnavailable as exc:
-        ctx.warn(f"GDELT indisponible ({exc.reason}) : signal de battage fondé sur les prix et volumes seulement.")
+        ctx.warn(f"GDELT indisponible ({exc.reason}) : signal de tendance fondé sur les prix et volumes seulement.")
         ctx.decide("Couverture médiatique utilisée ?", "non", f"GDELT indisponible ({exc.reason}) : le signal "
                    "repose sur les prix et volumes seulement.")
     triggered = [name for name, hit in (("z ≥ 2", z >= 2), ("volume × 1,5", v_ratio is not None and v_ratio >= 1.5),
                                         ("couverture GDELT × 1,5", gdelt_ratio is not None and gdelt_ratio >= 1.5))
                  if hit]
-    ctx.decide("Battage détecté ?", "oui" if hype else "non",
+    ctx.decide("Tendance détectée ?", "oui" if hype else "non",
                ("Critère(s) atteint(s) : " + ", ".join(triggered) + ".") if triggered else
                "Aucun critère atteint sur les 20 dernières séances.",
-               "battage si z-score du rendement 20 séances ≥ 2, volume récent ≥ 1,5 × l'habituel ou couverture "
+               "tendance si z-score du rendement 20 séances ≥ 2, volume récent ≥ 1,5 × l'habituel ou couverture "
                "GDELT ≥ 1,5 × la période précédente",
                {"z-score": z, "ratio de volume": v_ratio, "ratio GDELT": gdelt_ratio})
     ctx.state["hype"] = hype
-    ctx.metric("battage détecté", "oui" if hype else "non")
+    ctx.metric("tendance détectée", "oui" if hype else "non")
     ctx.preview(["date", "adj_close", "volume"], [[d, r["adj_close"], r["volume"]] for d, r in hist.tail(20).iterrows()])
     ctx.report.factor(f"Rendement de {ticker} sur 20 séances", last20, "ratio", source_id=source)
     ctx.report.factor("Z-score de ce rendement", z, "σ", source_id=source, digits=2)
     ctx.report.factor("Volume récent / volume habituel", v_ratio, "x", source_id=source, digits=2)
-    ctx.report.factor("Signal de battage", "détecté" if hype else "non détecté",
+    ctx.report.factor("Signal de tendance", "détecté" if hype else "non détecté",
                       effect="seuils : z ≥ 2, volume × 1,5 ou couverture GDELT × 1,5")
 
 
@@ -470,14 +470,14 @@ STEP = StepSpec(
     ),
     stages=(
         StageSpec("message_analysis", "Analyse du message",
-                  "Émotions et battage (FOMO, panique, autorité sociale…) avec extraits du message.",
+                  "Émotions et tendance (FOMO, panique, autorité sociale…) avec extraits du message.",
                   message_analysis,
                   (OptionSpec("method", "Méthode",
                               (Choice("lexicon", "Lexique"), Choice("haiku", "Claude Haiku"),
                                Choice("both", "Les deux")), "both",
                               "Les extraits proposés par Haiku sont rejetés s'ils ne figurent pas mot pour mot."),),
                   degradable=False, layer="silver"),
-        StageSpec("hype_signal", "Signal de battage",
+        StageSpec("hype_signal", "Signal de tendance",
                   "Hausse et volume anormaux récents (kit) et pic de couverture GDELT.", hype_signal,
                   (OptionSpec("enabled", "Activé", (Choice("on", "Oui"), Choice("off", "Non")), "on"),), layer="bronze"),
         StageSpec("profile_check", "Confrontation au profil", "Risque, horizon et concentration du profil.",

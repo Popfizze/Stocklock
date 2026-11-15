@@ -50,7 +50,7 @@ MAIN_DECISIONS: dict[str, tuple[tuple[str, str], ...]] = {
                      ("world_events", "Quelle source d'événements du monde"),
                      ("attribution", "Niveau de confiance"), ("plausibility", "Niveau de confiance")),
     "bias": (("message_analysis", "De quel titre parle le message"), ("message_analysis", "Quels biais retenir"),
-             ("hype_signal", "Battage détecté"), ("profile_check", ""), ("simulation_2022", "Conserver ou vendre")),
+             ("hype_signal", "Tendance détectée"), ("profile_check", ""), ("simulation_2022", "Conserver ou vendre")),
 }
 FAILURE_QUESTION = "Que faire après l'échec de l'étape ?"
 
@@ -157,7 +157,7 @@ TABLES: dict[str, tuple[tuple[tuple[str, str, str], ...], Callable[[RunResult], 
                       ("abnormal", "Rendement anormal", "percent"), ("moves", "Mouvements marquants", "number"),
                       ("confidence", "Confiance", "text"), ("main_move", "Mouvement principal", "text")),
                      _move_row, "abnormal"),
-    "bias": ((("hype", "Battage", "text"), ("z_score", "Z-score 20 séances", "number"),
+    "bias": ((("hype", "Tendance", "text"), ("z_score", "Z-score 20 séances", "number"),
               ("volume_ratio", "Volume / habituel", "number"), ("signals", "Biais du message", "number"),
               ("profile_flags", "Écarts au profil", "number"),
               ("hold_minus_panic", "Conserver − vendre 2022 (CAD)", "number")),

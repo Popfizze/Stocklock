@@ -54,7 +54,7 @@ export function DecisionSummary({ ticker, starterKit, fit }: DecisionSummaryProp
         />
         <SummaryRow
           href="#prendre-du-recul"
-          label="Battage"
+          label="Tendance"
           isPending={hype.isPending}
           value={hype.data ? HYPE_LEVEL_LABELS[hype.data.level] : UNAVAILABLE}
           attention={hype.data?.level === 'eleve' || needsAttention(reasonsFor(fit, HYPE_RULES))}

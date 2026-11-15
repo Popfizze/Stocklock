@@ -25,7 +25,7 @@ export function StockRecul({ ticker, personaName, fit }: StockReculProps) {
   return (
     <StockSection
       id="prendre-du-recul"
-      eyebrow="Étape 4 · Battage et biais"
+      eyebrow="Étape 4 · Tendance et biais"
       title="Prendre"
       accent="du recul"
       description="Le titre est-il emporté par un engouement, et votre envie d’agir tient-elle à l’émotion du moment ? Le signal d’abord, votre décision ensuite."

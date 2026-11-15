@@ -46,7 +46,7 @@ export function StockCard({ stock, fit }: StockCardProps) {
         {/* Hype is only flagged when it is high: a quiet word, the detail is on the title's page. */}
         {fit?.hype?.level === 'eleve' && (
           <span title={fit.hype.reasons.join(' ')} className="ml-auto text-xs text-warning">
-            Battage élevé
+            Tendance élevée
           </span>
         )}
       </span>

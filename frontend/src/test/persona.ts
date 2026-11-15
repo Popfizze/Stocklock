@@ -229,10 +229,10 @@ export const FIT_PLTR_ROBERT: FitResult = {
   name: 'Palantir Technologies Inc.',
   persona_id: 'robert',
   verdict: 'hors_profil',
-  summary: 'Hors profil pour Robert : volatilité trop élevée ; battage médiatique élevé.',
+  summary: 'Hors profil pour Robert : volatilité trop élevée ; tendance médiatique élevée.',
   reasons: [
     reason('volatility', 'bloquant', 'Volatilité annualisée de 51,2 % supérieure au seuil de 25 % retenu pour le profil Robert (risque faible à modéré).', 0.512, 0.25),
-    reason('hype', 'attention', "Battage élevé (5 points sur 6) : volume échangé, hausse sur un mois, attention médiatique anormaux. Une décision sous l'effet de l'emballement est risquée. Avec un horizon de 3 à 5 ans, une correction laisserait peu de temps pour se refaire.", 5, 3),
+    reason('hype', 'attention', "Tendance élevée (5 points sur 6) : volume échangé, hausse sur un mois, attention médiatique anormaux. Une décision sous l'effet de l'emballement est risquée. Avec un horizon de 3 à 5 ans, une correction laisserait peu de temps pour se refaire.", 5, 3),
     reason('position', 'info', 'Position maximale pour Robert : 10 % du portefeuille.', null, 0.1),
   ],
   asset_class: 'equity',

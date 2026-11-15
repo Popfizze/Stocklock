@@ -55,7 +55,7 @@ export function StockSection({ id, title, accent, eyebrow, description, action, 
 
 interface BlockErrorProps {
   error: ApiError
-  /** What could not be loaded, as the sentence's subject: « Signal de battage ». */
+  /** What could not be loaded, as the sentence's subject: « Signal de tendance ». */
   subject?: string
   onRetry?: () => void
 }

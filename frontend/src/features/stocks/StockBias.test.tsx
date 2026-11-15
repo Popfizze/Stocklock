@@ -70,7 +70,7 @@ it('shows the real pipeline stage and a check once each stage is completed', asy
   }
   const stages = [
     { id: 'message_analysis', name: 'Analyse du message', status: 'done' },
-    { id: 'hype_signal', name: 'Signal de battage', status: 'active' },
+    { id: 'hype_signal', name: 'Signal de tendance', status: 'active' },
     { id: 'profile_check', name: 'Confrontation au profil', status: 'pending' },
   ] as const
   mockFetchByUrl([
@@ -89,7 +89,7 @@ it('shows the real pipeline stage and a check once each stage is completed', asy
   await userEvent.click(screen.getByRole('radio', { name: 'Acheter' }))
   await userEvent.click(screen.getByRole('button', { name: 'Analyser ma décision' }))
 
-  expect(await screen.findByText('En cours : Signal de battage')).toBeInTheDocument()
+  expect(await screen.findByText('En cours : Signal de tendance')).toBeInTheDocument()
   expect(screen.getByLabelText('Terminée')).toBeInTheDocument()
   expect(screen.getByLabelText('En cours')).toBeInTheDocument()
   expect(await screen.findByText('Analyse terminée')).toBeInTheDocument()
@@ -100,7 +100,7 @@ it('proposes the tempted buyer’s case while the hype is high, and lets the use
   mockFetchByUrl([{ match: '/api/personas', responses: [json(PERSONAS)] }])
   renderWithProviders(<StockBias ticker="PLTR" hype={HYPE_PLTR_HIGH} />, { personaId: 'robert' })
   const input = await screen.findByLabelText<HTMLTextAreaElement>('Pourquoi envisagez-vous cette décision ?')
-  expect(screen.getByRole('note')).toHaveTextContent('Battage élevé sur PLTR.')
+  expect(screen.getByRole('note')).toHaveTextContent('Tendance élevée sur PLTR.')
   expect(screen.getByRole('radio', { name: 'Acheter' })).toBeChecked()
   expect(input.value).toMatch(/^Le titre a pris 38,2\s% en un mois et on en parle partout/)
   expect(screen.getByRole('button', { name: 'Analyser ma décision' })).toBeEnabled()
