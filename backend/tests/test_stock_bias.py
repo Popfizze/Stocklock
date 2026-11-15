@@ -154,3 +154,20 @@ def test_stock_bias_without_2022_prices_does_not_simulate_another_asset(client, 
     assert response.status_code == 200, response.text
     assert response.json()['simulation'] is None
     assert any('aucun historique' in warning for warning in response.json()['warnings'])
+
+
+def test_typographic_apostrophes_neither_hide_a_signal_nor_reject_a_true_excerpt():
+    """The app's own proposed messages are written with « ’ »: the lexicon and the excerpt check read them."""
+    from app.services import lexicon
+
+    message = "Le titre a perdu 19,5 % : j’ai peur que ça s’effondre, je veux tout vendre aujourd’hui."
+    found = lexicon.detect(message)
+    assert {"panique", "urgence"} <= {s["category"] for s in found}
+    assert all(s["excerpt"] in message for s in found)  # still copied from the message itself
+    assert lexicon.excerpt_is_verbatim("j'ai peur que ça s'effondre", message)
+    assert lexicon.excerpt_is_verbatim("« J’ai peur que  ça s’effondre… »", message)
+    assert not lexicon.excerpt_is_verbatim("je suis certain de gagner", message)
+    assert not lexicon.excerpt_is_verbatim("  ", message)
+    # The sale the stock page proposes after a fall is read as what it is.
+    proposed = "Le titre a perdu 19,5 % en un mois : j’ai peur que la baisse continue et je pense vendre avant de perdre davantage."
+    assert "panique" in {s["category"] for s in lexicon.detect(proposed)}

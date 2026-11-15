@@ -26,7 +26,7 @@ PATTERNS: dict[str, tuple[str, ...]] = {
                       r"\ball[- ]in\b", r"tout miser", r"je mets tout", r"100 ?%"),
     "urgence": (r"tout de suite", r"imm[ée]diatement", r"\bvite\b", r"maintenant", r"aujourd'hui", r"!{2,}"),
     "panique": (r"tout vendre", r"vendre tout", r"panique", r"krach", r"s'effondre", r"je perds tout",
-                r"sortir du march[ée]"),
+                r"sortir du march[ée]", r"peur que la baisse", r"avant de perdre"),
     "surconfiance": (r"c'est s[ûu]r", r"garanti", r"impossible de perdre", r"sans risque", r"ne peut que monter",
                      r"certain que"),
     "euphorie": (r"incroyable", r"jackpot", r"exploser", r"devenir riche", r"🚀"),
@@ -34,8 +34,18 @@ PATTERNS: dict[str, tuple[str, ...]] = {
 }
 
 
+# Typographic apostrophes and non-breaking spaces, as a French keyboard, a phone or the app's own proposed
+# message write them, read as their plain forms (one character for one: positions in the text are kept).
+_PLAIN = str.maketrans({"\u2019": "'", "\u2018": "'", "\u02bc": "'", "\u00a0": " ", "\u202f": " ", "\u2009": " "})
+
+
 def _fold(text: str) -> str:
-    return unicodedata.normalize("NFC", text).lower()
+    return unicodedata.normalize("NFC", text).translate(_PLAIN).lower()
+
+
+def _loose(text: str) -> str:
+    """Folded, without the quotes or ellipsis a model wraps a quotation in, and with single spaces."""
+    return " ".join(_fold(text).strip(" \t\n\"«»“”…").strip(".").split())
 
 
 def detect(message: str) -> list[dict]:
@@ -53,4 +63,7 @@ def detect(message: str) -> list[dict]:
 
 
 def excerpt_is_verbatim(excerpt: str, message: str) -> bool:
-    return bool(excerpt.strip()) and _fold(excerpt.strip()) in _fold(message)
+    """The excerpt is really in the message: same words, whatever the apostrophe (' or ’), the case, the
+    spacing or the quotes around it. Anything else was invented and is rejected."""
+    wanted = _loose(excerpt)
+    return bool(wanted) and wanted in _loose(message)
