@@ -1,6 +1,6 @@
 import pytest
 
-CONTRACT_FIELDS = {"id", "name", "age", "risk_tolerance", "horizon", "preferences", "summary"}
+CONTRACT_FIELDS = {"id", "name", "age", "risk_tolerance", "horizon", "preferences", "summary", "limits"}
 
 
 def test_health(client):
@@ -19,6 +19,21 @@ def test_personas_contract(client):
         assert isinstance(p["preferences"], list) and all(isinstance(x, str) for x in p["preferences"])
         assert isinstance(p["age"], int)
     assert {p["id"]: p["age"] for p in body} == {"amira": 26, "mateo": 41, "robert": 59}
+
+
+def test_personas_carry_their_limits_from_the_seed(client):
+    from app.personas import get_persona
+
+    body = {p["id"]: p for p in client.get("/api/personas").json()}
+    assert body["robert"]["limits"] == {"max_volatility": 0.25, "max_single_position": 0.10, "allow_crypto": False,
+                                        "excluded_sectors": []}
+    assert body["mateo"]["limits"]["excluded_sectors"] == ["Energy"]
+    assert body["amira"]["limits"]["allow_crypto"] is True
+    for pid, p in body.items():
+        seed = get_persona(pid)["constraints"]
+        assert p["limits"] == {k: seed[k] for k in ("max_volatility", "max_single_position", "allow_crypto",
+                                                    "excluded_sectors")}
+        assert "constraints" not in p and "tax_profile" not in p  # the rest of the seed stays server-side
 
 
 def test_cors_allows_frontend(client):

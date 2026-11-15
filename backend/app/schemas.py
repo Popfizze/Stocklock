@@ -10,6 +10,14 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.personas import persona_ids
 
 
+class PersonaLimits(BaseModel):
+    """A profile's limits (seed `constraints`): ratios (0.25 = 25 %) and excluded GICS sectors."""
+    max_volatility: float
+    max_single_position: float
+    allow_crypto: bool
+    excluded_sectors: list[str]
+
+
 class Persona(BaseModel):
     id: str
     name: str
@@ -18,6 +26,7 @@ class Persona(BaseModel):
     horizon: str
     preferences: list[str]
     summary: str
+    limits: PersonaLimits
 
 
 class Factor(BaseModel):

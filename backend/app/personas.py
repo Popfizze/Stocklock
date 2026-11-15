@@ -10,6 +10,8 @@ from typing import Any
 SEED_PATH = Path(__file__).resolve().parent / "seeds" / "personas.json"
 
 PUBLIC_FIELDS = ("id", "name", "age", "risk_tolerance", "horizon", "preferences", "summary")
+# The profile's limits the UI shows (from `constraints`): ratios, and sectors by their GICS name.
+LIMIT_FIELDS = ("max_volatility", "max_single_position", "allow_crypto", "excluded_sectors")
 
 
 @lru_cache(maxsize=1)
@@ -23,7 +25,8 @@ def persona_ids() -> set[str]:
 
 
 def list_public() -> list[dict[str, Any]]:
-    return [{k: p[k] for k in PUBLIC_FIELDS} for p in _load()]
+    return [{**{k: p[k] for k in PUBLIC_FIELDS}, "limits": {k: p["constraints"][k] for k in LIMIT_FIELDS}}
+            for p in _load()]
 
 
 def get_persona(persona_id: str) -> dict[str, Any]:
