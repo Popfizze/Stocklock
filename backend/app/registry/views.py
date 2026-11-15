@@ -41,6 +41,16 @@ def _score_ms(run_id: str) -> int | None:
     return int(stamp.timestamp() * 1000)
 
 
+def _record_ms(store: rs.Store, run_id: str) -> int | None:
+    """Start of a score run whose id carries no time stamp, read from its record: a run started by the daily
+    EventBridge schedule is named by Step Functions itself (a UUID), not by the API (`20261115T060000Z-…`)."""
+    try:
+        started = str(_score_record(store, run_id).get("started_at") or "")
+        return int(datetime.fromisoformat(started.replace("Z", "+00:00")).timestamp() * 1000)
+    except (RunNotFound, ValueError, TypeError, AttributeError):
+        return None
+
+
 def _score_record(store: rs.Store, run_id: str) -> dict[str, Any]:
     try:
         return rs.get_json(store, f"score/runs/{run_id}.json")
@@ -149,7 +159,8 @@ def _score_candidates(store: rs.Store, after: tuple[int, str] | None, filters: d
         if not more or not keys:
             break
         start = keys[-1]
-    entries = sorted(((ms, run_id) for run_id in ids if (ms := _score_ms(run_id)) is not None), reverse=True)
+    stamped = ((_score_ms(run_id) or _record_ms(store, run_id), run_id) for run_id in ids)
+    entries = sorted(((ms, run_id) for ms, run_id in stamped if ms is not None), reverse=True)
     for ms, run_id in entries:
         if after and (ms, run_id) >= after:
             continue

@@ -289,3 +289,22 @@ def test_json_files_become_tables(value, rows):
 
     columns, table, _ = _json_table(value)
     assert [[core._cell(v) for v in r] for r in table] == rows and columns
+
+
+def test_a_run_started_by_the_daily_schedule_is_listed_as_scheduled(client):
+    """EventBridge Scheduler starts the state machine without a name: Step Functions names the execution with
+    a UUID, which becomes the run id (no time stamp in it). The run is listed all the same, by its start."""
+    _seed_score_run()
+    store = rs.get_store()
+    scheduled = "3f6c1d2e-8a4b-4f0e-9c1a-2b7d5e8f9a01"
+    rs.put_json(store, f"score/runs/{scheduled}.json", {
+        "run_id": scheduled, "status": "running", "trigger": "schedule", "date": "2026-11-15",
+        "params": {}, "started_at": "2026-11-15T11:03:12Z", "finished_at": None, "duration_s": None,
+        "summary": None, "error": None, "stages": []})
+    runs = _list(client, pipeline="score_pipeline")["runs"]
+    assert [r["run_id"] for r in runs] == [scheduled, SCORE_RUN]  # newest first
+    assert runs[0]["trigger"] == "schedule" and runs[0]["started_at"] == "2026-11-15T11:03:12Z"
+    assert runs[0]["title"] == "Pipeline de score du 2026-11-15"
+    assert [r["run_id"] for r in _list(client, trigger="schedule")["runs"]] == [scheduled, SCORE_RUN]
+    assert [r["run_id"] for r in _list(client, since="2026-11-15")["runs"]] == [scheduled]
+    assert client.get(f"/api/runs/{scheduled}").status_code == 200
