@@ -14,6 +14,7 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { ProfileSwitcher } from './ProfileSwitcher'
+import { ThemeToggle } from './ThemeToggle'
 import { SIDEBAR_ID } from './sidebarState'
 
 interface NavigationItem {
@@ -91,6 +92,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
+        <ThemeToggle withLabel={!isCollapsed} className="group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:px-0 group-data-[collapsible=icon]:justify-center" />
         <ProfileSwitcher />
       </SidebarFooter>
       <SidebarRail />

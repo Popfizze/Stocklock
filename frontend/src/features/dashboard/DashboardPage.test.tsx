@@ -98,7 +98,7 @@ describe('DashboardPage', () => {
     // The day's market as a field of tiles, with its plain reading next to it.
     const field = within(await screen.findByRole('region', { name: 'Le marché du jour' }))
     expect(field.getByText(/3 titres de « Les plus populaires » et « Meilleurs scores » : 2 en hausse, 1 en baisse\./)).toBeInTheDocument()
-    expect(field.getByRole('img', { name: /Le marché du jour en tuiles : 3 titres, 2 en hausse/ })).toBeInTheDocument()
+    expect(field.getByRole('img', { name: /Le marché du jour en tuiles, de la meilleure séance à la pire : 3 titres, 2 en hausse/ })).toBeInTheDocument()
 
     // A KPI strip stands where the row of section links used to be.
     const kpis = within(await screen.findByRole('region', { name: 'Indicateurs' }))

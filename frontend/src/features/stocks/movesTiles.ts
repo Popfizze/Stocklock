@@ -16,6 +16,8 @@ const SPIKE_ROW = -1.5
 const INDEX_ROW = 1.15
 const CURSOR_ROW = 2.3
 
+const SHORT_DAY = new Intl.DateTimeFormat('fr-CA', { day: 'numeric', month: 'short' })
+
 export type RibbonColumn = StockMovesResult['series'][number]
 
 /** The sessions drawn: evenly thinned, always with the first, the last and every marked move's day. */
@@ -65,7 +67,19 @@ export function ribbonTiles(result: StockMovesResult, columns: RibbonColumn[], p
     const height = Math.min(SPIKE_MAX, SPIKE_BASE + Math.abs(move.abnormal) * SPIKE_PER_RATIO) * (up ? 1 : -1)
     const explanation = EXPLANATIONS[move.explanation].label
     const label = `${formatLongDate(move.date)} · mouvement marquant : titre ${signedRatio(move.asset)}, écart ${signedRatio(move.abnormal)} · ${explanation}${move.event ? ` : ${move.event.summary}` : ''}`
-    tiles.push({ id: move.date, x, z: SPIKE_ROW, w: 0.8, d: 0.8, h: height, tone: up ? 'up' : 'down', label })
+    tiles.push({
+      id: move.date,
+      x,
+      z: SPIKE_ROW,
+      w: 0.8,
+      d: 0.8,
+      h: height,
+      tone: up ? 'up' : 'down',
+      label,
+      // Each marked move carries its day and its gap to the index.
+      tag: `${SHORT_DAY.format(new Date(`${move.date}T12:00:00`))}\n${signedRatio(move.abnormal)}`,
+      tagAt: up ? 'top' : 'base',
+    })
     if (move.event) {
       tiles.push({
         id: move.date,

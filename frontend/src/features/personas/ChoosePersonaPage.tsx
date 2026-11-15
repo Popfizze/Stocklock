@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import type { ApiError } from '@/api/client'
 import { usePersonas } from '@/api/personas'
+import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { API_BASE_URL } from '@/lib/env'
 import { useActivePersona } from './activePersona'
 import { PersonaCard } from './PersonaCard'
@@ -26,9 +27,12 @@ export function ChoosePersonaPage() {
     <main className="min-h-screen bg-background px-4 py-10 sm:py-16">
       <div className="mx-auto max-w-6xl space-y-12">
         <header className="fade-up space-y-10">
-          <p className="font-display text-2xl leading-none font-medium tracking-tight">
-            <span className="text-tile-3">Stock</span>Lock
-          </p>
+          <div className="flex items-center justify-between gap-4">
+            <p className="font-display text-2xl leading-none font-medium tracking-tight">
+              <span className="text-tile-3">Stock</span>Lock
+            </p>
+            <ThemeToggle />
+          </div>
           <div className="space-y-4">
             <p className="eyebrow">Aide à la décision, adaptée à l'investisseur</p>
             <h1 className="text-5xl leading-none sm:text-7xl">

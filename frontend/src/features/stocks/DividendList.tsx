@@ -23,6 +23,8 @@ export function DividendList({ dividends, currency }: DividendListProps) {
       z: 0,
       h: Math.max(0.12, peak > 0 ? (dividend.value / peak) * HEIGHT : 0.12),
       tone: index === timeline.length - 1 ? 1 : 4,
+      // The first and the latest payment carry their amount: the trend reads between the two.
+      tag: index === 0 || index === timeline.length - 1 ? `${dividend.ex_date.slice(0, 4)}\n${amount(dividend.value)}` : undefined,
       label: `${formatLongDate(dividend.ex_date)} · ${amount(dividend.value)} par action`,
     }),
   )

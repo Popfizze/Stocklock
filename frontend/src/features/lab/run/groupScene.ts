@@ -14,6 +14,7 @@ export function groupScene(children: RunSummary[]): SceneTile[] {
     z: Math.floor(index / perRow),
     h: values[index] === null ? 0.15 : 0.3 + ((values[index] ?? 0) / top) * 2.7,
     tone: STATUS_TONES[child.status],
+    tag: child.title,
     label: [child.title, formatKeyResult(child.key_result), STATUS_LABELS[child.status]].filter(Boolean).join(' · '),
   }))
 }

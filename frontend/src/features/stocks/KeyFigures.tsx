@@ -37,20 +37,34 @@ function yearTiles(stock: StockDetail): SceneTile[] {
       tone = 1
       what = ` · dernier cours ${formatPrice(stock.last_close, currency)}`
     }
-    return { x: index, z: 0, h: height, tone, label: `${formatPrice(from, currency)} à ${formatPrice(from + size, currency)}${what}` }
+    // The strip's two ends and the last price are written on the scene.
+    let tag: string | undefined
+    if (index === last) tag = `Cours\n${formatPrice(stock.last_close, currency)}`
+    else if (index === 0) tag = `Bas 52 sem.\n${formatPrice(stats.low_52w, currency)}`
+    else if (index === STEPS - 1) tag = `Haut 52 sem.\n${formatPrice(stats.high_52w, currency)}`
+    return {
+      x: index,
+      z: 0,
+      h: height,
+      tone,
+      tag,
+      tagAt: index === last ? 'top' : 'base',
+      label: `${formatPrice(from, currency)} à ${formatPrice(from + size, currency)}${what}`,
+    }
   })
   const peak = Math.max(stats.volume, stats.avg_volume_3m ?? 0, 1)
-  const column = (x: number, volume: number, tone: TileTone, label: string): SceneTile => ({
+  const column = (x: number, volume: number, tone: TileTone, label: string, tag: string): SceneTile => ({
     x,
     z: 0,
     w: 1.5,
     d: 1.5,
     h: Math.max(0.1, (volume / peak) * VOLUME_HEIGHT),
     tone,
+    tag,
     label: `${label} · ${formatInteger(volume)}`,
   })
-  tiles.push(column(STEPS + 2, stats.volume, 2, 'Volume de la séance'))
-  if (stats.avg_volume_3m !== null) tiles.push(column(STEPS + 4, stats.avg_volume_3m, 6, 'Volume moyen sur 3 mois'))
+  tiles.push(column(STEPS + 2, stats.volume, 2, 'Volume de la séance', 'Volume'))
+  if (stats.avg_volume_3m !== null) tiles.push(column(STEPS + 4, stats.avg_volume_3m, 6, 'Volume moyen sur 3 mois', 'Moy. 3 mois'))
   return tiles
 }
 

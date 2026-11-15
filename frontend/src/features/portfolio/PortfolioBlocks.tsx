@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import type { AnalyzedHolding, PortfolioHolding, PortfolioSuggestion } from '@/api/persona'
 import { Tile3D, type SceneTile, type TileTone } from '@/components/three'
-import { formatShare, totalWeight } from './portfolioStore'
+import { cn } from '@/lib/utils'
+import { TICKER_MIME, formatShare, totalWeight } from './portfolioStore'
 
 /** Height of a block that weighs exactly the profile's maximum position: the ceiling's height. */
 const CEILING = 2
@@ -43,6 +45,8 @@ export function PortfolioBlocks({
   onRemove,
   onAdd,
 }: PortfolioBlocksProps) {
+  // A search result is being dragged over the scene.
+  const [receiving, setReceiving] = useState(false)
   const total = totalWeight(holdings)
   if (holdings.length === 0 || total <= 0) return null
   const limit = maxPosition ?? 0.2
@@ -74,6 +78,7 @@ export function PortfolioBlocks({
             ? 'warn'
             : SECTOR_TONES[sectors.indexOf(detail?.sector ?? 'Autre') % SECTOR_TONES.length],
       label: parts.join(' · '),
+      tag: `${holding.ticker}\n${formatShare(share)}`,
     }
   })
 
@@ -87,6 +92,8 @@ export function PortfolioBlocks({
       z: edge,
       h: 0.4,
       tone: 7,
+      tag: `+ ${item.ticker}`,
+      tagAt: 'base',
       label: `À ajouter : ${item.ticker}${item.score !== null ? ` · score ${SCORE.format(item.score)}` : ''}${
         item.ranking?.partiel ? ' (partiel)' : ''
       } — glissez-le ou cliquez`,
@@ -113,9 +120,27 @@ export function PortfolioBlocks({
           retirer{waiting.length > 0 && ' ; les blocs bas au bord sont des suggestions à glisser dedans'}.
         </p>
       </div>
-      <Tile3D
-        tiles={tiles}
-        plane={maxPosition !== null ? { y: CEILING } : null}
+      <div
+        data-testid="portfolio-drop"
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes(TICKER_MIME)) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'copy'
+          setReceiving(true)
+        }}
+        onDragLeave={() => setReceiving(false)}
+        onDrop={(event) => {
+          const ticker = event.dataTransfer.getData(TICKER_MIME)
+          setReceiving(false)
+          if (!ticker) return
+          event.preventDefault()
+          onAdd(ticker)
+        }}
+        className={cn('rounded-3xl border border-transparent transition-colors', receiving && 'border-dashed border-foreground bg-muted/40')}
+      >
+        <Tile3D
+          tiles={tiles}
+          plane={maxPosition !== null ? { y: CEILING } : null}
         onAdjust={handleAdjust}
         onDrop={(tile, drop) => {
           const ticker = suggested(tile)
@@ -134,8 +159,9 @@ export function PortfolioBlocks({
         }. ${over.length === 0 ? 'Aucun titre ne dépasse le plafond.' : `Au-dessus du plafond : ${over.join(', ')}.`}${
           waiting.length > 0 ? ` Suggestions en attente : ${waiting.map((item) => item.ticker).join(', ')}.` : ''
         } Les poids exacts se lisent et se modifient au clavier dans le tableau des titres.`}
-        className="h-80 touch-none"
+        className="h-80 sm:h-96"
       />
+      </div>
     </section>
   )
 }

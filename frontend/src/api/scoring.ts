@@ -49,6 +49,16 @@ export const SUB_SCORE_LABELS: Record<SubScoreId, string> = {
   evenements: 'Événements récents',
 }
 
+/** Short names, for the tags written on the 3D scenes. */
+export const SUB_SCORE_SHORT: Record<SubScoreId, string> = {
+  rentabilite: 'Rentabilité',
+  solidite: 'Solidité',
+  croissance: 'Croissance',
+  valorisation: 'Valorisation',
+  momentum_risque: 'Momentum',
+  evenements: 'Événements',
+}
+
 export type ScoreIndicatorId =
   | 'roe'
   | 'net_margin'

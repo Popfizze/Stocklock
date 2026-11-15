@@ -12,8 +12,11 @@ export function TileFlat({ tiles }: TileFlatProps) {
   if (tiles.length === 0) return null
   const minX = Math.min(...tiles.map((tile) => tile.x - (tile.w ?? 1) / 2))
   const maxX = Math.max(...tiles.map((tile) => tile.x + (tile.w ?? 1) / 2))
-  const minZ = Math.min(...tiles.map((tile) => tile.z - (tile.d ?? 1) / 2))
+  const minZ = Math.min(...tiles.map((tile) => tile.z - (tile.d ?? 1) / 2 - (tile.tag ? 0.6 : 0)))
   const maxZ = Math.max(...tiles.map((tile) => tile.z + (tile.d ?? 1) / 2))
+
+  // Tags are sized against the mosaic's extent, so they stay readable whatever the scene's scale.
+  const fontSize = Math.max(maxX - minX, (maxZ - minZ) * 2) / 42
 
   return (
     <svg
@@ -36,6 +39,20 @@ export function TileFlat({ tiles }: TileFlatProps) {
           />
         )
       })}
+      {tiles.map((tile, index) =>
+        tile.tag ? (
+          <text
+            key={`tag-${index}`}
+            x={tile.x}
+            y={tile.z - (tile.d ?? 1) / 2 - fontSize * 0.4}
+            fontSize={fontSize}
+            textAnchor="middle"
+            className="fill-foreground font-medium"
+          >
+            {tile.tag.replace(/\n/g, ' ')}
+          </text>
+        ) : null,
+      )}
     </svg>
   )
 }

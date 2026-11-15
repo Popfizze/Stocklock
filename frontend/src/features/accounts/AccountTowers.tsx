@@ -26,7 +26,16 @@ function towerTiles(accounts: AccountOutcome[], series: SeriesPoint[]): SceneTil
       const point = series[Math.min(series.length - 1, Math.round((layer / LAYERS) * (series.length - 1)))]
       const value = layer === LAYERS ? account.after_tax : (point?.[account.account] ?? account.after_tax * (layer / LAYERS))
       const height = Math.max(0.05, value / unit - base)
-      tiles.push({ x, z: 0, y: base, h: height, tone: RANK_TONES[rank] ?? 6, label })
+      tiles.push({
+        x,
+        z: 0,
+        y: base,
+        h: height,
+        tone: RANK_TONES[rank] ?? 6,
+        label,
+        // The account and what is left after tax, on top of its tower.
+        tag: layer === LAYERS ? `${account.account}\n${formatMoney(account.after_tax)}` : undefined,
+      })
       base += height
     }
     // The tax taken out lies at the foot of the tower, as tiles that fell off it.

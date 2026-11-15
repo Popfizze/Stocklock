@@ -8,6 +8,7 @@ import { startTileEngine, type TileEngineProps, type TileEngineState } from './t
  */
 export default function TileCanvas(props: TileEngineProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const tagRef = useRef<HTMLDivElement>(null)
   // The engine reads the latest props without being torn down on every change.
   const state = useRef<TileEngineState>({ props, dirty: true })
   useEffect(() => {
@@ -17,8 +18,15 @@ export default function TileCanvas(props: TileEngineProps) {
 
   useEffect(() => {
     const canvas = canvasRef.current
+    state.current.tagLayer = tagRef.current
     return canvas ? startTileEngine(canvas, state.current) : undefined
   }, [])
 
-  return <canvas ref={canvasRef} aria-hidden="true" className="block size-full" />
+  return (
+    <>
+      <canvas ref={canvasRef} aria-hidden="true" className="block size-full" />
+      {/* The tiles' tags, written by the engine; the same words are in the scene's label and on the page. */}
+      <div ref={tagRef} aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden" />
+    </>
+  )
 }

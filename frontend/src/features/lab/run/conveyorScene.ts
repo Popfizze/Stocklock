@@ -1,5 +1,5 @@
 import type { SceneFlow, SceneTile, TileTone } from '@/components/three'
-import { FLOW_COLUMNS, FLOW_STATUS_LABELS, type FlowNode, type FlowStatus, type Traveller } from './flowModel'
+import { COLUMN_LABELS, FLOW_COLUMNS, FLOW_STATUS_LABELS, type FlowNode, type FlowStatus, type Traveller } from './flowModel'
 
 const COLUMN_GAP = 3.2
 const ROW_GAP = 1.3
@@ -36,7 +36,8 @@ export function conveyorScene(
     const here = travellers.map((traveller, index) => ({ traveller, index })).filter(({ traveller }) => traveller.column === column)
     const x = columnIndex * COLUMN_GAP
     const depth = Math.max(1, own.length) * ROW_GAP + 0.5
-    tiles.push({ x, z: 0, w: 2.2, d: depth, y: -0.16, h: 0.14, tone: 8 })
+    // Each layer's slab carries its name.
+    tiles.push({ x, z: 0, w: 2.2, d: depth, y: -0.16, h: 0.14, tone: 8, tag: COLUMN_LABELS[column], tagAt: 'base' })
     own.forEach((node, row) => {
       const z = (row - (own.length - 1) / 2) * ROW_GAP
       const label = `${node.order ? `${node.order}. ` : ''}${node.label} · ${FLOW_STATUS_LABELS[node.status]}`

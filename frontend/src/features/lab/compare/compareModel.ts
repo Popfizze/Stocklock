@@ -124,7 +124,7 @@ export function compareScene(left: CompareSide, right: CompareSide): { tiles: Sc
     const top = Math.max(Math.abs(a), Math.abs(b), 1e-9)
     const label = `${name} · A : ${formatValue(a)} · B : ${formatValue(b)}`
     const x = index * 1.6
-    tiles.push({ x, z: 0, w: 1.3, d: 2.3, y: -0.14, h: 0.12, tone: a === b ? 8 : 7 })
+    tiles.push({ x, z: 0, w: 1.3, d: 2.3, y: -0.14, h: 0.12, tone: a === b ? 8 : 7, tag: name.length > 18 ? `${name.slice(0, 17)}…` : name, tagAt: 'base' })
     tiles.push({ x, z: 0.5, w: 0.8, d: 0.8, h: 0.2 + (Math.abs(a) / top) * 2.6, tone: 2, label })
     tiles.push({ x, z: -0.5, w: 0.8, d: 0.8, h: 0.2 + (Math.abs(b) / top) * 2.6, tone: 5, label })
   })

@@ -35,7 +35,12 @@ export interface TileEngineProps extends TileSceneProps {
 export interface TileEngineState {
   props: TileEngineProps
   dirty: boolean
+  /** The layer above the canvas where the engine writes the tiles' tags. */
+  tagLayer?: HTMLElement | null
 }
+
+const TAG_CLASS =
+  'pointer-events-none absolute top-0 left-0 rounded-sm bg-background/80 px-1 text-center text-[10px] leading-3 font-medium whitespace-pre text-foreground tabular-nums'
 
 /**
  * Starts the three.js renderer of a tile scene on `canvas`: one instanced mesh
@@ -179,6 +184,8 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     let moving = false
     const glide = reducedMotion ? 1 : 1 - Math.exp(-Math.min(0.1, (now - lastFrame) / 1000) * 9)
     lastFrame = now
+    // Only the first tile of an id glides: stacked tiles may share their column's id.
+    const gliding = new Set<string>()
     tiles.forEach((tile, index) => {
       const grown = reducedMotion || motion === 'none' ? 1 : ease(clamp01((elapsed - index * stagger) / GROW_S))
       if (grown < 1) moving = true
@@ -187,7 +194,8 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
       const size = Math.max(Math.abs(h), 0.03)
       let x = tile.x
       let z = tile.z
-      if (tile.id !== undefined && (tile.y ?? 0) === 0) {
+      if (tile.id !== undefined && (tile.y ?? 0) === 0 && !gliding.has(tile.id)) {
+        gliding.add(tile.id)
         const place = places.get(tile.id)
         if (place) {
           place.x += (tile.x - place.x) * glide
@@ -221,6 +229,48 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     return moving || alive
   }
 
+  // Tags: one small text per tagged tile, kept on its tile as it grows or moves. A tag that would
+  // cover an earlier one is hidden rather than piled up.
+  const tagNodes: HTMLSpanElement[] = []
+  const tagSizes = new Map<string, [number, number]>()
+  const placeTags = () => {
+    const layer = state.tagLayer
+    if (!layer || !mesh || width === 0 || height === 0) return
+    let used = 0
+    const taken: Array<[number, number, number, number]> = []
+    state.props.tiles.forEach((tile, index) => {
+      if (!tile.tag || !mesh) return
+      let node = tagNodes[used]
+      if (!node) {
+        node = document.createElement('span')
+        node.className = TAG_CLASS
+        layer.appendChild(node)
+        tagNodes.push(node)
+      }
+      used++
+      if (node.textContent !== tile.tag) node.textContent = tile.tag
+      let size = tagSizes.get(tile.tag)
+      if (!size) {
+        size = [node.offsetWidth, node.offsetHeight]
+        tagSizes.set(tile.tag, size)
+      }
+      mesh.getMatrixAt(index, M)
+      P.setFromMatrixPosition(M)
+      S.setFromMatrixScale(M)
+      const below = tile.tagAt === 'base'
+      corner.set(P.x, below ? P.y - S.y / 2 : P.y + S.y / 2, below ? P.z + S.z / 2 : P.z).project(camera)
+      const [w, h] = size
+      const left = Math.min(Math.max(0, (corner.x * 0.5 + 0.5) * width - w / 2), Math.max(0, width - w))
+      const top = Math.min(Math.max(0, (-corner.y * 0.5 + 0.5) * height + (below ? 4 : -h - 4)), Math.max(0, height - h))
+      const hit = taken.some(([l, t, r, b]) => left < r + 2 && left + w + 2 > l && top < b + 1 && top + h + 1 > t)
+      node.style.visibility = hit ? 'hidden' : 'visible'
+      if (hit) return
+      taken.push([left, top, left + w, top + h])
+      node.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`
+    })
+    for (let i = used; i < tagNodes.length; i++) tagNodes[i].style.visibility = 'hidden'
+  }
+
   const tick = (now: number) => {
     frame = 0
     if (!visible || document.hidden) return
@@ -230,6 +280,7 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     }
     const moving = place(now)
     renderer.render(scene, camera)
+    placeTags()
     if (moving) frame = requestAnimationFrame(tick)
   }
   const schedule = () => {
@@ -257,6 +308,13 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     if (!document.hidden) schedule()
   }
   document.addEventListener('visibilitychange', onVisibility)
+  // Light ↔ dark: the tokens changed, so the tiles are painted again.
+  const theme = new MutationObserver(() => {
+    colors.clear()
+    state.dirty = true
+    schedule()
+  })
+  theme.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
   // Props changed: redraw on the next frame.
   const poll = window.setInterval(() => {
     if (state.dirty) schedule()
@@ -264,7 +322,7 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
 
   const raycaster = new THREE.Raycaster()
   const pointer = new THREE.Vector2()
-  const pick = (event: PointerEvent | MouseEvent): SceneTile | null => {
+  const pick = (event: { clientX: number; clientY: number }): SceneTile | null => {
     if (!mesh) return null
     const rect = canvas.getBoundingClientRect()
     pointer.set(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1)
@@ -342,6 +400,14 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     const tile = pick(event)
     if (tile) state.props.onSelect?.(tile)
   }
+  // On a touch screen the page keeps scrolling from the scene, except when the finger lands on a
+  // tile that can be dragged: only then is the gesture kept for the drag.
+  const onTouchStart = (event: TouchEvent) => {
+    if (!state.props.onAdjust && !state.props.onDrop) return
+    const touch = event.touches[0]
+    if (touch && pick(touch)?.id !== undefined) event.preventDefault()
+  }
+  canvas.addEventListener('touchstart', onTouchStart, { passive: false })
   canvas.addEventListener('pointerdown', onDown)
   canvas.addEventListener('pointerup', onUp)
   canvas.addEventListener('pointercancel', onUp)
@@ -357,6 +423,9 @@ export function startTileEngine(canvas: HTMLCanvasElement, state: TileEngineStat
     resizeObserver.disconnect()
     intersection.disconnect()
     document.removeEventListener('visibilitychange', onVisibility)
+    theme.disconnect()
+    for (const node of tagNodes) node.remove()
+    canvas.removeEventListener('touchstart', onTouchStart)
     canvas.removeEventListener('pointerdown', onDown)
     canvas.removeEventListener('pointerup', onUp)
     canvas.removeEventListener('pointercancel', onUp)

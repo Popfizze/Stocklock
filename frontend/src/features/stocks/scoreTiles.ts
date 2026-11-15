@@ -1,4 +1,4 @@
-import type { ReweightedRow } from '@/api/scoring'
+import { SUB_SCORE_SHORT, type ReweightedRow } from '@/api/scoring'
 import type { ScoreIndicator, ScoreRow, SubScore } from '@/api/stocks'
 import type { SceneTile, TileTone } from '@/components/three'
 import { formatIndicator, formatPoints, formatScore, formatWeight } from './format'
@@ -28,8 +28,10 @@ function tower(
   parts: Array<{ id: string; label: string; contribution: number }>,
   x: number,
   name: string,
+  tag: string,
 ): SceneTile[] {
   let base = 0
+  const last = parts.reduce((found, part, index) => (part.contribution > 0 ? index : found), -1)
   return parts.flatMap((part, index) => {
     if (part.contribution <= 0) return []
     const tile: SceneTile = {
@@ -42,6 +44,8 @@ function tower(
       h: part.contribution * UNIT,
       tone: toneOf(index),
       label: `${name} · ${part.label} apporte ${formatPoints(part.contribution)} pts`,
+      // The tower's name and total are written on its top tile.
+      tag: index === last ? tag : undefined,
     }
     base += tile.h
     return [tile]
@@ -65,16 +69,17 @@ export function overviewTiles(row: ScoreRow, personal?: ReweightedRow): SceneTil
       d: side,
       h: missing ? FLAT : Math.max(FLAT, (subScore.score ?? 0) * UNIT),
       tone: missing ? 7 : toneOf(index),
+      tag: `${SUB_SCORE_SHORT[subScore.id] ?? subScore.label}\n${missing ? 'n. d.' : formatScore(subScore.score ?? 0)}`,
       label: missing
         ? `${subScore.label} · non disponible`
         : `${subScore.label} · ${formatScore(subScore.score ?? 0)} / 100 · poids ${formatWeight(subScore.effective_weight)} · +${formatPoints(subScore.contribution)} pts`,
     }
   })
   const towerX = row.sub_scores.length * SPACING + TOWER_GAP
-  const stockLock = tower(row.sub_scores, towerX, `Score StockLock ${formatScore(row.score)}`)
+  const stockLock = tower(row.sub_scores, towerX, `Score StockLock ${formatScore(row.score)}`, `Score\n${formatScore(row.score)}`)
   const own =
     personal && personal.custom_score !== null
-      ? tower(personal.sub_scores, towerX + TOWER_SIDE + 0.6, `Votre score ${formatScore(personal.custom_score)}`)
+      ? tower(personal.sub_scores, towerX + TOWER_SIDE + 0.6, `Votre score ${formatScore(personal.custom_score)}`, `Le vôtre\n${formatScore(personal.custom_score)}`)
       : []
   return [...pillars, ...stockLock, ...own]
 }
@@ -89,6 +94,9 @@ export function indicatorTiles(subScore: SubScore, index: number): SceneTile[] {
     d: 1.3,
     h: indicator.rank === null ? FLAT : Math.max(FLAT, indicator.rank * UNIT),
     tone: indicator.rank === null ? 7 : toneOf(index),
+    tag: `${indicator.label.length > 22 ? `${indicator.label.slice(0, 21)}…` : indicator.label}\n${
+      indicator.rank === null ? 'rang inconnu' : `rang ${formatScore(indicator.rank)}`
+    }`,
     label: `${indicator.label} · ${formatIndicator(indicator.value, indicator.unit)} · ${
       indicator.rank === null ? 'rang inconnu' : `rang ${formatScore(indicator.rank)} sur 100`
     } · ${BETTER_LABELS[indicator.better].toLowerCase()}`,

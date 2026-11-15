@@ -30,6 +30,9 @@ function bandTiles(component: HypeComponent, band: number): SceneTile[] {
         z: -band * (ROWS + BAND_GAP) - row,
         h: height,
         tone,
+        // Each band is named once, on its first tile.
+        tag: row === 0 && column === 0 ? `${component.label} · ${points === null ? 'non évalué' : `${points}/2`}` : undefined,
+        tagAt: 'base',
         label: `${component.label} · ${points === null ? 'non évalué' : `${points} point${points > 1 ? 's' : ''} sur 2`}`,
       })
     }

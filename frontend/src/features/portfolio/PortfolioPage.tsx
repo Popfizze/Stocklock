@@ -175,7 +175,13 @@ function PortfolioView({ personaId, persona }: PortfolioViewProps) {
           aria-busy={isFetching}
           className={cn('space-y-10 transition-opacity', isPlaceholderData && 'opacity-60')}
         >
-          <ScoreMixer setup={setup} onChange={handleSetup} explanation={explainChange(data, settledSetup)} />
+          <ScoreMixer
+            setup={setup}
+            settled={settledSetup}
+            onChange={handleSetup}
+            explanation={explainChange(data, settledSetup)}
+            scored={data.holdings.filter((holding) => holding.score !== null).map((holding) => holding.ticker)}
+          />
           <PortfolioFindings findings={data.findings} />
           <DiversificationView diversification={data.diversification} />
           <PortfolioSuggestionList suggestions={data.suggestions} onAdd={handleAdd} />

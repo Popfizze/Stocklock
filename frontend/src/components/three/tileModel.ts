@@ -21,6 +21,13 @@ export interface SceneTile {
   tone: TileTone
   /** Shown when the tile is pointed at: « NVDA · -2,01 % ». */
   label?: string
+  /**
+   * Short text always written on the scene, next to the tile (« NVDA », « CELI »): what makes the
+   * scene readable without pointing. A tag that would cover an earlier one is left out, in tile order.
+   */
+  tag?: string
+  /** Where the tag sits: above the tile (default) or under its front edge. */
+  tagAt?: 'top' | 'base'
   /** Opaque key handed back by `onSelect`. */
   id?: string
 }

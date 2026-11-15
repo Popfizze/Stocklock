@@ -4,6 +4,7 @@ import { useUniverseSearch } from '@/api/stocks'
 import { Input } from '@/components/ui/input'
 import { displayName } from '@/features/stocks/format'
 import { useDebouncedValue } from '@/hooks/use-debounced-value'
+import { TICKER_MIME } from './portfolioStore'
 
 const RESULT_LIMIT = 8
 
@@ -51,11 +52,23 @@ export function AddHolding({ held, onAdd, disabled }: AddHoldingProps) {
         <p className="text-xs text-muted-foreground">Le portefeuille a atteint son maximum de titres.</p>
       )}
       {typed && matches.length > 0 && (
+        <p className="text-xs text-muted-foreground">Cliquez un titre pour l'ajouter, ou glissez-le sur les blocs.</p>
+      )}
+      {typed && matches.length > 0 && (
         <ul aria-label="Titres à ajouter" className="max-w-md divide-y divide-border rounded-xl border border-border">
           {matches.slice(0, RESULT_LIMIT).map((match) => (
             <li key={match.ticker}>
               <button
                 type="button"
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.setData(TICKER_MIME, match.ticker)
+                  event.dataTransfer.effectAllowed = 'copy'
+                }}
+                onDragEnd={(event) => {
+                  // Dropped on the blocks: the title is in, the search is done.
+                  if (event.dataTransfer.dropEffect === 'copy') setQuery('')
+                }}
                 onClick={() => handleAdd(match.ticker)}
                 aria-label={`Ajouter ${match.ticker}`}
                 className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors hover:bg-muted/60 focus-visible:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"

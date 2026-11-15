@@ -9,6 +9,9 @@ import { EXAMPLE_PORTFOLIOS } from '@/lib/example-portfolios'
 
 const STORAGE_PREFIX = 'stocklock.portfolio.'
 
+/** What a search result carries when it is dragged onto the blocks. */
+export const TICKER_MIME = 'application/x-stocklock-ticker'
+
 /** Most holdings the analysis accepts. */
 export const MAX_HOLDINGS = 40
 

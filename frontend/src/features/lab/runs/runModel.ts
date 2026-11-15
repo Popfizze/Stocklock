@@ -114,7 +114,18 @@ export function formatKeyResult(result: RunSummary['key_result']): string | null
   return `${result.label} : ${value}`
 }
 
-/** The date filter is applied to the runs already loaded (the registry has no date parameter). */
+/**
+ * The start of a date range, as the registry's `since` (an ISO date-time): local midnight, today or
+ * as many days ago — stable through the day, so the list is not asked again at every render.
+ */
+export function sinceOf(range: DateRange, now: Date): string | undefined {
+  if (range === 'all') return undefined
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  if (range !== 'today') start.setDate(start.getDate() - (range === '7d' ? 7 : 30))
+  return start.toISOString()
+}
+
+/** The same range on the client, for the list built without the registry (and the last-day edge). */
 export function withinRange(run: RunSummary, range: DateRange, now: Date): boolean {
   if (range === 'all') return true
   if (range === 'today') return dayKey(run.started_at) === dayKey(now.toISOString())
@@ -210,7 +221,7 @@ export function timelineScene(runs: RunSummary[]): { tiles: SceneTile[]; flows: 
     }
     const z = Math.max(0, LANES.indexOf(run.pipeline))
     const h = run.status === 'running' ? 0.5 : 0.6 + Math.log2(runSize(run)) * 0.55
-    tiles.push({ id: run.run_id, x, z, h, tone: STATUS_TONES[run.status], label: runSummaryLine(run) })
+    tiles.push({ id: run.run_id, x, z, h, tone: STATUS_TONES[run.status], label: runSummaryLine(run), tag: formatTime(run.started_at) })
     if (run.status === 'running') flows.push({ from: [x - 0.45, z], to: [x + 0.45, z], count: 2, tone: 3 })
     x += 1
   })
