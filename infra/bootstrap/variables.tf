@@ -16,7 +16,7 @@ variable "github_owner_id" {
 
 variable "github_repo" {
   type    = string
-  default = "datathon"
+  default = "Stocklock"
 }
 
 variable "github_repo_id" {
