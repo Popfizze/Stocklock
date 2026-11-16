@@ -1,17 +1,13 @@
-// CloudFront Function (cloudfront-js-2.0, viewer-request): password gate for the whole site.
-// A request whose stocklock_access cookie holds the SHA-256 (hex) of the password goes through
-// unchanged; any other request gets the self-contained login page, which sets that cookie.
-// Terraform renders this template with the expected hash (never committed) and login.html.
-const EXPECTED_HASH = '${password_sha256}';
+// CloudFront Function (cloudfront-js-2.0, viewer-request): demo access gate for the whole site.
+// A non-empty access cookie means the visitor has completed the demo password prompt; all passwords work.
+// Terraform renders the self-contained login page into this function.
 const LOGIN_PAGE = ${login_page};
-const ERROR_SLOT = '<!--error-->';
-const ERROR_HTML = '<p class="error" role="alert">Mot de passe incorrect.</p>';
 
 function handler(event) {
   const request = event.request;
   const cookie = request.cookies.stocklock_access;
 
-  if (cookie && cookie.value === EXPECTED_HASH) {
+  if (cookie && cookie.value) {
     return request;
   }
 
@@ -24,7 +20,7 @@ function handler(event) {
     },
     body: {
       encoding: 'text',
-      data: LOGIN_PAGE.replace(ERROR_SLOT, cookie ? ERROR_HTML : ''),
+      data: LOGIN_PAGE,
     },
   };
 }

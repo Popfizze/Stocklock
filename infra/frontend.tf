@@ -42,8 +42,7 @@ resource "aws_cloudfront_function" "site_gate" {
   comment = "StockLock password gate (access cookie + login page)"
   publish = true
   code = templatefile("${path.module}/functions/site-gate.js.tftpl", {
-    password_sha256 = var.site_password_sha256
-    login_page      = jsonencode(file("${path.module}/functions/login.html"))
+    login_page = jsonencode(file("${path.module}/functions/login.html"))
   })
 }
 

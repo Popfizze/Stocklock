@@ -40,14 +40,3 @@ variable "extra_cors_origins" {
   type        = list(string)
   default     = ["http://localhost:5173"]
 }
-
-variable "site_password_sha256" {
-  description = "Lowercase hex SHA-256 of the site password, expected in the stocklock_access cookie (GitHub secret SITE_PASSWORD_SHA256)."
-  type        = string
-  sensitive   = true
-
-  validation {
-    condition     = nonsensitive(can(regex("^[0-9a-f]{64}$", var.site_password_sha256)))
-    error_message = "site_password_sha256 must be a lowercase hex SHA-256 (64 characters)."
-  }
-}

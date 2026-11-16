@@ -12,7 +12,10 @@
 body{margin:0;min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{width:100%;max-width:360px;padding:32px 24px;background:var(--card);border:1px solid var(--border);border-radius:14px}
 h1{margin:0 0 24px;font-size:1.6rem;text-align:center;letter-spacing:-.01em}
-label{display:block;margin-bottom:6px;font-size:.9rem;font-weight:600}
+label{display:flex;align-items:center;gap:6px;margin-bottom:6px;font-size:.9rem;font-weight:600}
+.hint{position:relative;display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border:1px solid var(--border);border-radius:50%;font-size:.75rem;cursor:help}
+.hint::after{position:absolute;z-index:1;bottom:calc(100% + 8px);left:50%;width:220px;padding:8px 10px;transform:translateX(-50%);border:1px solid var(--border);border-radius:8px;background:var(--card);box-shadow:0 6px 20px oklch(0 0 0 / 15%);color:var(--fg);content:attr(data-hint);font-size:.8rem;font-weight:400;line-height:1.35;opacity:0;pointer-events:none;transition:opacity .15s}
+.hint:hover::after,.hint:focus-visible::after{opacity:1}
 input{width:100%;padding:12px;font:inherit;color:inherit;background:transparent;border:1px solid var(--border);border-radius:10px}
 input:focus{outline:2px solid var(--ring);outline-offset:1px}
 button{width:100%;margin-top:16px;padding:12px;font:inherit;font-weight:600;color:var(--primary-fg);background:var(--primary);border:0;border-radius:10px;cursor:pointer}
@@ -24,19 +27,17 @@ button:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
 <main>
 <h1>StockLock</h1>
 <form id="login">
-<label for="password">Mot de passe</label>
+<label for="password">Mot de passe <span class="hint" tabindex="0" aria-label="Indice : toute saisie non vide fonctionne." data-hint="Accès démo : toute saisie non vide fonctionne.">?</span></label>
 <input id="password" type="password" autocomplete="current-password" autofocus required>
-<!--error-->
 <button type="submit">Entrer</button>
 </form>
 </main>
 <script>
-document.getElementById("login").addEventListener("submit", async function (event) {
+document.getElementById("login").addEventListener("submit", function (event) {
   event.preventDefault();
-  const bytes = new TextEncoder().encode(document.getElementById("password").value);
-  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", bytes));
-  const hash = Array.from(digest, function (b) { return b.toString(16).padStart(2, "0"); }).join("");
-  document.cookie = "stocklock_access=" + hash + "; Max-Age=2592000; Path=/; Secure; SameSite=Lax";
+  const password = document.getElementById("password");
+  if (!password.value.trim()) return;
+  document.cookie = "stocklock_access=demo; Max-Age=2592000; Path=/; Secure; SameSite=Lax";
   location.reload();
 });
 </script>
