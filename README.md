@@ -2,7 +2,11 @@
 
 **Team 17:** Bryan Sanchez, Loic Chen, Thomas Pajic, Tan Tommy Rin
 
-Assistant d'investissement agentique et auto-explicatif, développé pour le Datathon PolyFinances 2026 (défi AlphaForge AI, avec la Banque Nationale et AWS). Il éclaire une décision d'investissement selon le profil de l'investisseur, sur des données publiques, et justifie chaque résultat par ses sources, ses hypothèses et ses limites. **Simulation uniquement : aucune transaction réelle, aucun conseil financier personnalisé.**
+Assistant d'investissement agentique et auto-explicatif, développé pour le Datathon PolyFinances 2026 (projet StockLock, avec la Banque Nationale et AWS). Il éclaire une décision d'investissement selon le profil de l'investisseur, sur des données publiques, et justifie chaque résultat par ses sources, ses hypothèses et ses limites. **Simulation uniquement : aucune transaction réelle, aucun conseil financier personnalisé.**
+
+## Aperçu
+
+![Tableau de bord StockLock](docs/images/tableau-de-bord.png)
 
 Quatre étapes, chacune construite comme un pipeline de données :
 
